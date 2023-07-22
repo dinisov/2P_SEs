@@ -11,7 +11,7 @@ ImageJ;
 %%
 
 % this level is the list of dates
-for date = 4:4%setdiff(3:length(dirs),18)
+for date = [5:7 9]%setdiff(3:length(dirs),18)
    blocks = dir([mainDirectory dirs(date).name]);
    for block = 3:length(blocks)
        currentDirectory = [mainDirectory dirs(date).name '/' blocks(block).name];
@@ -32,17 +32,17 @@ for date = 4:4%setdiff(3:length(dirs),18)
 
            %green channel
            ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel.raw']);
-           ij.IJ.run("Stack to Hyperstack...",'"channels=1 slices=5 frames=11000');
-           ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
-           ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel_AVG.raw']);    
-           ij.IJ.run('Close');
+%            ij.IJ.run("Stack to Hyperstack...",'"channels=1 slices=5 frames=11000');
+%            ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
+%            ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel_AVG.raw']);    
+%            ij.IJ.run('Close');
            ij.IJ.run('Close');
 
             %red channel
     %        ij.IJ.selectWindow('Image_0001_0001.raw #2');
 
     %        %save red channel
-           ij.IJ.run('Raw Data...',['path=' currentDirectory '/red_channel.raw']);
+%            ij.IJ.run('Raw Data...',['path=' currentDirectory '/red_channel.raw']);
            ij.IJ.run('Close');
 
     %        ij.IJ.run("Stack to Hyperstack...",'"channels=1 slices=4 frames=50');

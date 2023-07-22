@@ -3,14 +3,11 @@ function plotR2(R2, outputDirectory)
     fieldNames = fieldnames(R2);
 
     for i = 1:length(fieldNames)
-
-        name = extractAfter(extractAfter(fieldNames{i},'_'),'_');
-
         figure; 
-        imagesc(R2.(fieldNames{i})); colorbar; colormap('jet'); title(upper(name));
+        imagesc(R2.(fieldNames{i})); colorbar; colormap('jet'); title(upper(fieldNames{i}));
         xlabel('X'); ylabel('Y');
-        saveas(gcf,[outputDirectory name '_r2.png']);
-
+        saveas(gcf,fullfile(outputDirectory,[fieldNames{i} '.png']));
+        close all;
     end
 
 end

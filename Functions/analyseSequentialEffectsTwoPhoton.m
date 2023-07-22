@@ -25,11 +25,8 @@ function R = analyseSequentialEffectsTwoPhoton(blocks, aux_plots)
     % these are already separated by sequence so in order to group by block
     % it is only necessary to stack along FIFTH dimension
     for b = 1:n_blocks
-
         allDataSeq(:,:,:,:,start_index + 1:start_index + size(blocks(b).rDataSeq,5)) = blocks(b).rDataSeq;
-
         start_index = start_index + size(blocks(b).rDataSeq,5);
-
     end
      
     %%

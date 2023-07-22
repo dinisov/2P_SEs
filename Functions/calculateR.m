@@ -17,17 +17,20 @@ function R = calculateR(meanVolData,ephys)
     p_lrpr = zeros(gridSize);
     p_weird = zeros(gridSize);
     p_ephys = zeros(gridSize);
+    
+    xSize = gridSize(1);
+    ySize = gridSize(2);
 
-    for xInd = 1:gridSize(1)
+    parfor xInd = 1:xSize
 
-        for yInd = 1:gridSize(2)
+        for yInd = 1:ySize
 
            seq_eff_pattern = squeeze(meanVolData(xInd,yInd,:));
 
            [r,p] = corrcoef(seq_eff_pattern,slrp);
            r_slrp(xInd,yInd) = r(2); p_slrp(xInd,yInd) = p(2);
 
-           [r,p] = corrcoef(seq_eff_pattern,lrpr);
+           [r,p] = corrcoef(seq_eff_pattern,-lrpr);
            r_lrpr(xInd,yInd) = r(2); p_lrpr(xInd,yInd) = p(2);
 
            [r,p] = corrcoef(seq_eff_pattern,weird);

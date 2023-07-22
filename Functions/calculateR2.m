@@ -16,9 +16,12 @@ r_squared_overall = zeros(gridSize);
 r_squared_weird = zeros(gridSize);
 r_squared_ephys = zeros(gridSize);
 
-for xInd = 1:gridSize(1)
+xSize = gridSize(1);
+ySize = gridSize(2);
 
-    for yInd = 1:gridSize(2)
+parfor xInd = 1:xSize
+
+    for yInd = 1:ySize
 
         seq_eff_pattern = squeeze(meanVolData(xInd,yInd,:));
 

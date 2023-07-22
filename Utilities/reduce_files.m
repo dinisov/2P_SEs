@@ -4,7 +4,10 @@ close all; clear;
 
 mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
-flies = readtable('../2P Record/2P_record');
+flies = readtable('../../2P Record/2P_record');
+
+%get rid of excluded flies
+flies = flies(~logical(flies.Exclude),:);
 
 % the numbers here should be the original size divided by some power of 2
 finalSize = [128 128];
@@ -12,29 +15,24 @@ finalSize = [128 128];
 %%
 
 % this level is the list of dates
-for fly = 31:31%height(flies)
+for fly =67:86%height(flies)
     
     currentFly = flies(fly,:);
     
-    if ~currentFly.Exclude
-    
-        currentDate = char(datetime(currentFly.Date,'Format','dMMMyy'));
+    currentDate = char(datetime(currentFly.Date,'Format','dMMMyy'));
+    currentFlyDirectory = ['fly' num2str(currentFly.FlyOnDay) '_exp' num2str(currentFly.Block) '_' currentDate];
+    currentDirectory = fullfile(mainDirectory,currentDate,currentFlyDirectory);
 
-        currentFlyDirectory = ['fly' num2str(currentFly.FlyOnDay) '_exp' num2str(currentFly.Block) '_' currentDate];
+    disp(currentFlyDirectory);
 
-        currentDirectory = fullfile(mainDirectory,currentDate,currentFlyDirectory);
-
-        disp(currentFlyDirectory);
-        
-        loadReduceSave([currentDirectory '\green_channel.raw'], currentFly, finalSize);
-
-        loadReduceSave([currentDirectory '\red_channel.raw'], currentFly, finalSize);
-        
-    end
+    loadReduceSave(currentDirectory,'green_channel.raw', currentFly, finalSize);
+%         loadReduceSave([currentDirectory '\red_channel.raw'], currentFly, finalSize);
 
 end
 
-function loadReduceSave(path, fly, finalSize)
+function loadReduceSave(currentDirectory, file, fly, finalSize)
+
+    path = fullfile(currentDirectory, file);
 
     imageSize = [fly.pixelX fly.pixelY];
 
@@ -62,7 +60,8 @@ function loadReduceSave(path, fly, finalSize)
     tic
     disp('Saving');
     % save green channel; do not compress we care about speed not size
-    save([path(1:end-4) '_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat'], 'rData','-v7.3','-nocompression');
+%     save([path(1:end-4) '_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat'], 'rData','-v7.3','-nocompression');
+    save([currentDirectory '\green_channel_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat'], 'rData','-v7.3','-nocompression');
     toc
     
 end

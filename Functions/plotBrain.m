@@ -14,8 +14,8 @@ function  plotBrain(R, I, signLevel, outputDirectory)
         c = colorbar;
         c.Label.String = '\bf{Correlation coefficient}';
         set(h,'alphadata',R.p.(['p_' name]) < signLevel);
-        saveas(gcf,[outputDirectory name '_brain_r.png']);
-    
+        saveas(gcf,fullfile(outputDirectory,[fieldNames{i} '_brain.png']));
+        close all;
     end
     
 end

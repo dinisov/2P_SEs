@@ -8,7 +8,7 @@ flyID = 'fly1_exp1_15Jun23';
 % where the 2P data is located
 twoPDirectory = ['\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\15Jun23\' flyID];
 
-%where the sequence data is located (stimulus setup files)
+%where the sequence data is located (stimulus files)
 sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\SE_2P_data';
 
 %%
@@ -78,10 +78,11 @@ wholeRed(:,1:11:end) = [];
 wholeRed = reshape(wholeRed,[1 50000]);
 
 % try just applying an sgolay filter
-% filtFB = sgolayfilt(meanFB,degrees,filt_width);
-% figure; plot(meanFB(1:440)); hold on; plot(filtFB(1:440));
-% figure; plot(meanFB-sgolayfilt(meanFB,degrees,filt_width));
-% meanFB = meanFB-sgolayfilt(meanFB,degrees,filt_width);
+filtFB = sgolayfilt(meanFB,degrees,filt_width);
+figure; plot(meanFB(1:330)); hold on; plot(filtFB(1:330));
+blah = meanFB-sgolayfilt(meanFB,degrees,filt_width);
+figure; plot(blah(1:330));
+meanFB = meanFB-sgolayfilt(meanFB,degrees,filt_width);
 
 % try subtracting the red channel then apply sgolay
 % meanFB = normalize(meanFB)-normalize(wholeRed);

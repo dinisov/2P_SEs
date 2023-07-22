@@ -1,8 +1,10 @@
-%
+% register blocks of SE trials within and across blocks
+% currently does the Z averaged stacks but can be extended to align the
+% original green/red channels (i.e. align each slice in the Z stack)
 
 close all; clear;
 
-mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
+% mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
 scratchDirectory = '../../2P Data';
 
@@ -14,26 +16,26 @@ flies = flies(~logical(flies.Exclude),:);
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-%%
-
 dates = unique(flies.Date);
 
-for d = 16:16
-   
+%%
+
+for d = 21:21
+  
     % all blocks for a particular date
     thisDateBlocks = flies(flies.Date == dates(d),:);
     
     thisDateFlies = unique(thisDateBlocks.Fly);
     
     %for each fly this date
-    for i = 2:length(thisDateFlies)
+    for i = 1:length(thisDateFlies)
         
         thisFlyBlocks = thisDateBlocks(thisDateBlocks.Fly == thisDateFlies(i),:);
         
         %align inside each block
-%         for b = 1:1%height(thisFlyBlocks)
-%             alignBlock(thisFlyBlocks(b,:), imageSize, scratchDirectory);
-%         end
+        for b = 1:height(thisFlyBlocks)
+            alignBlock(thisFlyBlocks(b,:), imageSize, scratchDirectory);
+        end
             
         %no need to align across blocks if only one block
         if height(thisFlyBlocks) > 1
@@ -63,19 +65,19 @@ function alignBlock(block, imageSize, baseDirectory)
     disp('Loading green channel');
     tic; green_channel = load(fullfile(currentDirectory,'green_channel_128x128')); toc;
 
-    disp('Loading red channel');
-    tic; red_channel = load(fullfile(currentDirectory,'red_channel_128x128')); toc;
+%     disp('Loading red channel');
+%     tic; red_channel = load(fullfile(currentDirectory,'red_channel_128x128')); toc;
 
     %hyperstack the green and red channels (pixelX,pixelY,nSlices,time)
     gc_hstack = reshape(green_channel.rData,[imageSize nSlices nVolTotal]);
-    rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
+%     rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
     
     % average over the volume
     avg_z_green = squeeze(sum(gc_hstack,3));
-    avg_z_red = squeeze(sum(rc_hstack,3));
-    
+%     avg_z_red = squeeze(sum(rc_hstack,3));
+
     avg_z_green_aligned = zeros(size(avg_z_green));
-    avg_z_red_aligned = zeros(size(avg_z_red));
+%     avg_z_red_aligned = zeros(size(avg_z_red));
     
     %make a reference image for registering (mean of first 11 time points)
     refImage = mean(avg_z_green(:,:,1:11),3);
@@ -83,7 +85,7 @@ function alignBlock(block, imageSize, baseDirectory)
     [opt,metric]=imregconfig('multimodal');
     
 %     opt.MaximumIterations = 300;
-    opt.InitialRadius = 3e-3;
+    opt.InitialRadius = 1e-3;
 
     %register both green and red channel
     disp('Aligning stacks');
@@ -92,15 +94,15 @@ function alignBlock(block, imageSize, baseDirectory)
         im_trans = imregtform(avg_z_green(:,:,i),refImage,'translation',opt,metric);
         R = imref2d(size(refImage));
         avg_z_green_aligned(:,:,i) = imwarp(avg_z_green(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true); %#ok<*PFOUS>
-        avg_z_red_aligned(:,:,i) = imwarp(avg_z_red(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
+%         avg_z_red_aligned(:,:,i) = imwarp(avg_z_red(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
     end
     toc;
     
     disp('Saving green channel');
     tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned'); toc;
     
-    disp('Saving red channel');
-    tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;
+%     disp('Saving red channel');
+%     tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;
     
 end
 
@@ -130,8 +132,8 @@ function alignAcrossBlocks(thisFlyBlocks, baseDirectory)
 
         disp(['Loading avg green channel (block ' num2str(b) ')']);
         tic; avg_z_green_aligned = load(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned'); toc;
-        disp(['Loading avg red channel (block ' num2str(b) ')']);
-        tic; load(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;
+%         disp(['Loading avg red channel (block ' num2str(b) ')']);
+%         tic; load(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;
         
         avg_z_green_aligned = avg_z_green_aligned.avg_z_green_aligned;
 
@@ -141,6 +143,8 @@ function alignAcrossBlocks(thisFlyBlocks, baseDirectory)
 %         avg_z_red_block_aligned = zeros(size(avg_z_red_aligned));
 
         [opt,metric]=imregconfig('multimodal');
+        opt.InitialRadius = 1e-3;
+%         opt.MaximumIterations = 300;
 
         disp('Aligning stacks');
         tic;
@@ -148,15 +152,15 @@ function alignAcrossBlocks(thisFlyBlocks, baseDirectory)
             im_trans = imregtform(avg_z_green_aligned(:,:,i),refImage,'translation',opt,metric);
             R = imref2d(size(refImage));
             avg_z_green_aligned(:,:,i) = imwarp(avg_z_green_aligned(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true); %#ok<*PFOUS>
-            avg_z_red_aligned(:,:,i) = imwarp(avg_z_red_aligned(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
+%             avg_z_red_aligned(:,:,i) = imwarp(avg_z_red_aligned(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
         end
         toc;
 
         disp('Saving green channel');
         tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned'); toc;
 
-        disp('Saving red channel');
-        tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_green_aligned'); toc;
+%         disp('Saving red channel');
+%         tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_green_aligned'); toc;
     
     end
     

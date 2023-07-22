@@ -6,21 +6,17 @@ mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\
 
 scratchDirectory = '../../2P Data';
 
-flies = readtable('../../2P Record/2P_record');
+blocks = readtable('../../2P Record/2P_record');
 
-flies = flies(~logical(flies.Exclude),:);
+blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
 
-% this level is the list of dates
-for block = 51:height(flies)
+for block = 82:86%height(blocks)
     
-    currentBlock = flies(block,:);
-    
+    currentBlock = blocks(block,:);
     currentDate = char(datetime(currentBlock.Date,'Format','dMMMyy'));
-
     currentFlyDirectory = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
-
     currentDirectory = fullfile(mainDirectory,currentDate,currentFlyDirectory);
 
     matFiles = dir([currentDirectory '\*.mat']);
@@ -35,5 +31,9 @@ for block = 51:height(flies)
         copyfile(fullfile(mainDirectory,currentDate,currentFlyDirectory,currentFile),fullfile(scratchDirectory,currentDate,currentFlyDirectory,currentFile));
     end
     toc;
+    
+    if exist(fullfile(mainDirectory,currentDate,currentFlyDirectory,'brain.jpg'),'file')
+        copyfile(fullfile(mainDirectory,currentDate,currentFlyDirectory,'brain.jpg'),fullfile(scratchDirectory,currentDate,currentFlyDirectory,'brain.jpg'));
+    end
     
 end
