@@ -1,6 +1,6 @@
 close all; clear;
 
-nProfiles = 1000;
+nProfiles = 100;
 
 randomProfiles = zeros(nProfiles,16);
 

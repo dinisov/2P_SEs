@@ -11,7 +11,7 @@ ImageJ;
 %%
 
 % this level is the list of dates
-for date = [5:7 9]%setdiff(3:length(dirs),18)
+for date = 21:23%setdiff(3:length(dirs),18)
    blocks = dir([mainDirectory dirs(date).name]);
    for block = 3:length(blocks)
        currentDirectory = [mainDirectory dirs(date).name '/' blocks(block).name];
@@ -25,10 +25,10 @@ for date = [5:7 9]%setdiff(3:length(dirs),18)
            ij.IJ.run('Raw...',['open=' currentDirectory '/' imageFile.name '  width=512 height=512 little-endian number=200000']);
 
            %de-interleave channels
-           ij.IJ.run("Deinterleave", "how=2");
+%            ij.IJ.run("Deinterleave", "how=2");
 
            %convert staks to hyperstacks
-           ij.IJ.selectWindow([imageFile.name ' #1']);
+%            ij.IJ.selectWindow([imageFile.name ' #1']);
 
            %green channel
            ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel.raw']);
@@ -43,7 +43,7 @@ for date = [5:7 9]%setdiff(3:length(dirs),18)
 
     %        %save red channel
 %            ij.IJ.run('Raw Data...',['path=' currentDirectory '/red_channel.raw']);
-           ij.IJ.run('Close');
+%            ij.IJ.run('Close');
 
     %        ij.IJ.run("Stack to Hyperstack...",'"channels=1 slices=4 frames=50');
     % %        ij.IJ.setTool("Rectangle");

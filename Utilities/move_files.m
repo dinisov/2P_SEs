@@ -12,7 +12,7 @@ blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
 
-for block = 82:86%height(blocks)
+for block = 1:height(blocks)
     
     currentBlock = blocks(block,:);
     currentDate = char(datetime(currentBlock.Date,'Format','dMMMyy'));
@@ -25,12 +25,12 @@ for block = 82:86%height(blocks)
         mkdir(fullfile(scratchDirectory,currentDate,currentFlyDirectory));
     end
     
-    tic;
-    for i = 1:length(matFiles) 
-        currentFile = matFiles(i).name;
-        copyfile(fullfile(mainDirectory,currentDate,currentFlyDirectory,currentFile),fullfile(scratchDirectory,currentDate,currentFlyDirectory,currentFile));
-    end
-    toc;
+%     tic;
+%     for i = 1:length(matFiles) 
+%         currentFile = matFiles(i).name;
+%         copyfile(fullfile(mainDirectory,currentDate,currentFlyDirectory,currentFile),fullfile(scratchDirectory,currentDate,currentFlyDirectory,currentFile));
+%     end
+%     toc;
     
     if exist(fullfile(mainDirectory,currentDate,currentFlyDirectory,'brain.jpg'),'file')
         copyfile(fullfile(mainDirectory,currentDate,currentFlyDirectory,'brain.jpg'),fullfile(scratchDirectory,currentDate,currentFlyDirectory,'brain.jpg'));

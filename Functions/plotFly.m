@@ -1,5 +1,5 @@
 % plot many fly things (per block, per volume, collapsed, etc)
-function plotFly(R, brainImage, outputDirectory)
+function plotFly(R, groupedBlocks, outputDirectory)
 
 %% per block
 for b = 1:length(R.BLOCK)
@@ -7,12 +7,14 @@ for b = 1:length(R.BLOCK)
     if ~exist(subDirectory,'dir')
        mkdir(subDirectory); 
     end
-    plotStuff(R.BLOCK(b), brainImage, subDirectory);
+    plotStuff(R.BLOCK(b), subDirectory);
 end
 
 %% all blocks concatenated
-subDirectory = fullfile(outputDirectory,'All');
-if ~exist(subDirectory,'dir')
-   mkdir(subDirectory); 
+if groupedBlocks
+    subDirectory = fullfile(outputDirectory,'All');
+    if ~exist(subDirectory,'dir')
+       mkdir(subDirectory); 
+    end
+    plotStuff(R.ALL, subDirectory);
 end
-plotStuff(R.ALL, brainImage, subDirectory);

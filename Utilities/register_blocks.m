@@ -4,7 +4,7 @@
 
 close all; clear;
 
-% mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
+mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
 scratchDirectory = '../../2P Data';
 
@@ -20,7 +20,7 @@ dates = unique(flies.Date);
 
 %%
 
-for d = 21:21
+for d = 22:length(dates)
   
     % all blocks for a particular date
     thisDateBlocks = flies(flies.Date == dates(d),:);
@@ -34,19 +34,19 @@ for d = 21:21
         
         %align inside each block
         for b = 1:height(thisFlyBlocks)
-            alignBlock(thisFlyBlocks(b,:), imageSize, scratchDirectory);
+            alignBlock(thisFlyBlocks(b,:), imageSize, scratchDirectory, mainDirectory);
         end
             
         %no need to align across blocks if only one block
-        if height(thisFlyBlocks) > 1
-            alignAcrossBlocks(thisFlyBlocks, scratchDirectory);
-        end
+%         if height(thisFlyBlocks) > 1
+%             alignAcrossBlocks(thisFlyBlocks, scratchDirectory);
+%         end
 
     end
     
 end
     
-function alignBlock(block, imageSize, baseDirectory)
+function alignBlock(block, imageSize, baseDirectory, mainDirectory)
 
     % slices within each volume including flyback 
     nSlices = block.Steps + block.FlybackFrames;
@@ -61,6 +61,14 @@ function alignBlock(block, imageSize, baseDirectory)
     currentBlockDirectory = ['fly' num2str(block.FlyOnDay) '_exp' num2str(block.Block) '_' currentDate];
     currentDirectory = fullfile(baseDirectory,currentDate,currentBlockDirectory);
     disp(currentDirectory);
+    
+    disp('Copying original file');
+    tic;
+    if ~exist(fullfile(currentDirectory,'green_channel_128x128'),'file')
+        copyfile(fullfile(mainDirectory,currentDate,currentBlockDirectory,'green_channel_128x128.mat'),fullfile(currentDirectory,'green_channel_128x128.mat'));
+    end
+    toc;
+    
     % load red and green channels
     disp('Loading green channel');
     tic; green_channel = load(fullfile(currentDirectory,'green_channel_128x128')); toc;
@@ -73,36 +81,51 @@ function alignBlock(block, imageSize, baseDirectory)
 %     rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
     
     % average over the volume
-    avg_z_green = squeeze(sum(gc_hstack,3));
+    avg_z_green = squeeze(mean(gc_hstack,3));
 %     avg_z_red = squeeze(sum(rc_hstack,3));
 
-    avg_z_green_aligned = zeros(size(avg_z_green));
-%     avg_z_red_aligned = zeros(size(avg_z_red));
-    
-    %make a reference image for registering (mean of first 11 time points)
-    refImage = mean(avg_z_green(:,:,1:11),3);
+    if block.Align
 
-    [opt,metric]=imregconfig('multimodal');
-    
-%     opt.MaximumIterations = 300;
-    opt.InitialRadius = 1e-3;
+        avg_z_green_aligned = zeros(size(avg_z_green));
+    %     avg_z_red_aligned = zeros(size(avg_z_red));
 
-    %register both green and red channel
-    disp('Aligning stacks');
-    tic;
-    parfor i = 1:nVolTotal
-        im_trans = imregtform(avg_z_green(:,:,i),refImage,'translation',opt,metric);
-        R = imref2d(size(refImage));
-        avg_z_green_aligned(:,:,i) = imwarp(avg_z_green(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true); %#ok<*PFOUS>
-%         avg_z_red_aligned(:,:,i) = imwarp(avg_z_red(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
+        %make a reference image for registering (mean of first 11 time points)
+        refImage = mean(avg_z_green(:,:,1:11),3);
+
+        [opt,metric]=imregconfig('multimodal');
+
+    %     opt.MaximumIterations = 300;
+        opt.InitialRadius = 1e-3;
+
+        %register both green and red channel
+        disp('Aligning stacks');
+        tic;
+        parfor i = 1:nVolTotal
+            im_trans = imregtform(avg_z_green(:,:,i),refImage,'translation',opt,metric);
+            R = imref2d(size(refImage));
+            avg_z_green_aligned(:,:,i) = imwarp(avg_z_green(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+    %         avg_z_red_aligned(:,:,i) = imwarp(avg_z_red(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
+        end
+        toc;
+
+        disp('Saving green channel aligned');
+        tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned'); toc;
+    
     end
-    toc;
     
-    disp('Saving green channel');
-    tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned'); toc;
+    disp('Saving green channel before alignment');
+    tic; save(fullfile(currentDirectory,'avg_z_green'),'avg_z_green'); toc;
     
 %     disp('Saving red channel');
 %     tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;
+
+    %delete files
+    disp('Deleting files');
+    tic;
+    if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file')
+        delete(fullfile(currentDirectory,'green_channel_128x128.mat'));
+    end
+    toc;
     
 end
 

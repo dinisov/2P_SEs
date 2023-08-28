@@ -9,8 +9,6 @@ close all; clear;
 % mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 mainDirectory = '../2P Data';
 
-outputDirectory = '../2P Results';
-
 %where the sequence data is located (stimulus files)
 % sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\SE_2P_data\Data_LEDs';
 sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\SE_2P_data';
@@ -29,8 +27,7 @@ gridSize = [32 32];
 
 flyList = unique(blocks.Fly);
 
-chosenFlies = 21:21;
-% chosenFlies = flyList;%do not choose any flies
+chosenFlies = 5:5;
 
 %whether to analyse grouped blocks
 groupedBlocks = 0;
@@ -51,9 +48,9 @@ for fly = 1:length(chosenFlies)
     
     nBlocks = height(thisFlyBlocks);
     
-    for b = 1:nBlocks
+    for b = 1:1%nBlocks
         
-        currentBlock = thisFlyBlocks(b,:);
+        currentBlock = thisFlyBlocks(1,:);
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
         currentDirectory = fullfile(mainDirectory,currentDate,flyID);
         
@@ -137,6 +134,10 @@ for fly = 1:length(chosenFlies)
     
 end
 
+%% BATCH LOOP
+
+for iter = 1:100
+
 %% analyse SEs
 % separates images according to preceding sequence of stimuli and
 % calculates mean images as a function of the sequence
@@ -150,83 +151,75 @@ for fly = 1:length(FLIES)
     disp(['Fly ' num2str(fly)]);
     thisFly = FLIES(fly);
     for b = 1:length(thisFly.BLOCKS)
+        thisRandomSequence = [ones(1,1250) zeros(1,1250)];
+        thisRandomSequence = thisRandomSequence(randperm(2500));
         disp(['Block ' num2str(b)]);
         thisBlock = thisFly.BLOCKS(b);
-        R(fly).BLOCK(b) = analyseSequentialEffectsTwoPhoton2(thisBlock.greenChannel,thisBlock.randomSequence,thisBlock.nVol);
-        
-        thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]);
-        if ~exist(thisBlockDirectory,'dir')
-            mkdir(thisBlockDirectory); 
-        end
-        meanDataSeq = R(fly).BLOCK(b).meanDataSeq;
-        save(fullfile(thisBlockDirectory,'results'),'meanDataSeq');
+        R(fly).BLOCK(b) = analyseSequentialEffectsTwoPhoton2(thisBlock.greenChannel,thisRandomSequence,thisBlock.nVol);
     end
-    
     % add brain images to structure
     for b = 1:length(thisFly.BLOCKS)
         R(fly).BLOCK(b).brainImage = FLIES(fly).BLOCKS(b).brainImage;
     end
-    
     if groupedBlocks
         disp(['Fly ' num2str(fly) ' grouped blocks']);
         R(fly).ALL = analyseSequentialEffectsTwoPhoton2(thisFly.greenChannel,thisFly.randomSequence,thisFly.nVol);
         R(fly).ALL.brainImage = FLIES(1).BLOCKS(b).brainImage;
-        save(fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],'All','results'),'results');%UNTESTED
     end
 end
 toc;
 
 %% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS per volume
-% load slrp_lrpr.mat
-
+% % load slrp_lrpr.mat
+% 
 load six_hertz.mat
-
-disp('Calculating R and R^2 per volume');
-tic;
-
-if groupedBlocks
-    % grouped blocks for each fly (separation just for organisation purposes)
-    for fly = 1:length(FLIES)
-        meanDataSeq = R(fly).ALL.meanDataSeq;
-        for vol = 1:FLIES(fly).nVol
-            thisVolData = permute(squeeze(meanDataSeq(vol,:,:,:)),[2,3,1]);
-            R(fly).ALL.r2Vol(vol) = calculateR2(thisVolData,six_hertz);
-            R(fly).ALL.rVol(vol) = calculateR(thisVolData,six_hertz);
-        end
-    end
-end
-
-% for each block of each fly
-for fly = 1:length(FLIES)
-    for b = 1:length(FLIES(fly).BLOCKS)   
-        meanDataSeq = R(fly).BLOCK(b).meanDataSeq;
-        for vol = 1:FLIES(fly).BLOCKS(b).nVol
-            thisVolData = permute(squeeze(meanDataSeq(vol,:,:,:)),[2,3,1]);
-            R(fly).BLOCK(b).r2Vol(vol) = calculateR2(thisVolData,six_hertz);
-            R(fly).BLOCK(b).rVol(vol) = calculateR(thisVolData,six_hertz);
-        end    
-    end
-end
-toc;
+% 
+% disp('Calculating R and R^2 per volume');
+% tic;
+% 
+% % if groupedBlocks
+% %     % grouped blocks for each fly (separation just for organisation purposes)
+% %     for fly = 1:length(FLIES)
+% %         meanDataSeq = R(fly).ALL.meanDataSeq;
+% %         for vol = 1:FLIES(fly).nVol
+% %             thisVolData = permute(squeeze(meanDataSeq(vol,:,:,:)),[2,3,1]);
+% %             R(fly).ALL.r2Vol(vol) = calculateR2(thisVolData,six_hertz);
+% %             R(fly).ALL.rVol(vol) = calculateR(thisVolData,six_hertz);
+% %         end
+% %     end
+% % end
+% 
+% % for each block of each fly
+% for fly = 1:length(FLIES)
+%     for b = 1:length(FLIES(fly).BLOCKS)   
+%         meanDataSeq = R(fly).BLOCK(b).meanDataSeq;
+%         for vol = 1:FLIES(fly).BLOCKS(b).nVol
+%             thisVolData = permute(squeeze(meanDataSeq(vol,:,:,:)),[2,3,1]);
+%             R(fly).BLOCK(b).r2Vol(vol) = calculateR2(thisVolData,six_hertz);
+%             R(fly).BLOCK(b).rVol(vol) = calculateR(thisVolData,six_hertz);
+%         end    
+%     end
+% end
+% toc;
 
 %% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS collapsed across volumes (time)
-disp('Calculating R and R^2 collapsed across volumes (time)');
+% disp('Calculating R and R^2 collapsed across volumes (time)');
 tic;
 
-if groupedBlocks
-    % all blocks for each fly
-    for fly = 1:length(FLIES)
-        thisFlyData = permute(squeeze(mean(R(fly).ALL.meanDataSeq,1)),[2,3,1]);
-        R(fly).ALL.r2 = calculateR2(thisFlyData,six_hertz);
-        R(fly).ALL.r = calculateR(thisFlyData,six_hertz);
-    end
-end
+% if groupedBlocks
+%     % all blocks for each fly
+%     for fly = 1:length(FLIES)
+%         thisFlyData = permute(squeeze(mean(R(fly).ALL.meanDataSeq,1)),[2,3,1]);
+%         R(fly).ALL.r2 = calculateR2(thisFlyData,six_hertz);
+%         R(fly).ALL.r = calculateR(thisFlyData,six_hertz);
+%     end
+% end
 
 % for each block
 for fly = 1:length(FLIES)
     for b = 1:length(FLIES(fly).BLOCKS)
         thisBlockData = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1)),[2,3,1]);
-        R(fly).BLOCK(b).r2 = calculateR2(thisBlockData,six_hertz);
+%         R(fly).BLOCK(b).r2 = calculateR2(thisBlockData,six_hertz);
         R(fly).BLOCK(b).r = calculateR(thisBlockData,six_hertz);
     end
 end
@@ -234,52 +227,54 @@ toc;
 
 %% calculate mass t-tests for AAAA vs AAAR and RRRR vs RRRA (per volume)
 
-disp('Calculating t-tests for AAAA vs AAAR and RRRR vs RRRA (per volume)');
-tic;
+% disp('Calculating t-tests for AAAA vs AAAR and RRRR vs RRRA (per volume)');
+% tic;
 
-if groupedBlocks
-    % all blocks for each fly (separation just for organisation purposes)
-    for fly = 1:length(FLIES)
-        for vol = 1:FLIES(fly).nVol
-            thisVolData = squeeze(R(fly).ALL.dataSeq(vol,:,:,:,:));
-            [R(fly).ALL.AAAAvsAAARVol(vol), R(fly).ALL.RRRRvsRRRAVol(vol)]  = calculateTtests(thisVolData);
-        end
-    end
-end
+% if groupedBlocks
+%     % all blocks for each fly (separation just for organisation purposes)
+%     for fly = 1:length(FLIES)
+%         for vol = 1:FLIES(fly).nVol
+%             thisVolData = squeeze(R(fly).ALL.dataSeq(vol,:,:,:,:));
+%             [R(fly).ALL.AAAAvsAAARVol(vol), R(fly).ALL.RRRRvsRRRAVol(vol)]  = calculateTtests(thisVolData);
+%         end
+%     end
+% end
 
 % for each block of each fly
-for fly = 1:length(FLIES)
-    for b = 1:length(FLIES(fly).BLOCKS)   
-        for vol = 1:FLIES(fly).BLOCKS(b).nVol
-            thisVolData = squeeze(R(fly).BLOCK(b).dataSeq(vol,:,:,:,:));
-            [R(fly).BLOCK(b).AAAAvsAAARVol(vol), R(fly).BLOCK(b).RRRRvsRRRAVol(vol)]  = calculateTtests(thisVolData);
-        end    
-    end
-end
-toc;
+% for fly = 1:length(FLIES)
+%     for b = 1:length(FLIES(fly).BLOCKS)   
+%         for vol = 1:FLIES(fly).BLOCKS(b).nVol
+%             thisVolData = squeeze(R(fly).BLOCK(b).dataSeq(vol,:,:,:,:));
+%             [R(fly).BLOCK(b).AAAAvsAAARVol(vol), R(fly).BLOCK(b).RRRRvsRRRAVol(vol)]  = calculateTtests(thisVolData);
+%         end    
+%     end
+% end
+% toc;
 
 %% calculate mass t-tests for AAAA vs AAAR and RRRR vs RRRA (collapsed across volumes/time)
-disp('Calculating t-tests for AAAA vs AAAR and RRRR vs RRRA');
-tic;
-
-if groupedBlocks
-    % all blocks for each fly
-    for fly = 1:length(FLIES)
-        thisFlyData = squeeze(mean(R(fly).ALL.dataSeq,1));
-        [R(fly).ALL.AAAAvsAAAR, R(fly).ALL.RRRRvsRRRA]  = calculateTtests(thisFlyData);
-    end
-end
-
-% for each block
-for fly = 1:length(FLIES)
-    for b = 1:length(FLIES(fly).BLOCKS)
-        thisBlockData = squeeze(mean(R(fly).BLOCK(b).dataSeq,1));
-        [R(fly).BLOCK(b).AAAAvsAAAR, R(fly).BLOCK(b).RRRRvsRRRA]  = calculateTtests(thisBlockData);
-    end
-end
-toc;
+% disp('Calculating t-tests for AAAA vs AAAR and RRRR vs RRRA');
+% tic;
+% 
+% if groupedBlocks
+%     % all blocks for each fly
+%     for fly = 1:length(FLIES)
+%         thisFlyData = squeeze(mean(R(fly).ALL.dataSeq,1));
+%         [R(fly).ALL.AAAAvsAAAR, R(fly).ALL.RRRRvsRRRA]  = calculateTtests(thisFlyData);
+%     end
+% end
+% 
+% % for each block
+% for fly = 1:length(FLIES)
+%     for b = 1:length(FLIES(fly).BLOCKS)
+%         thisBlockData = squeeze(mean(R(fly).BLOCK(b).dataSeq,1));
+%         [R(fly).BLOCK(b).AAAAvsAAAR, R(fly).BLOCK(b).RRRRvsRRRA]  = calculateTtests(thisBlockData);
+%     end
+% end
+% toc;
 
 %% plotting
+
+outputDirectory = '../2P Results/Batch_sequence/';
 
 % plot results per block
 for fly = 1:length(FLIES)
@@ -287,7 +282,10 @@ for fly = 1:length(FLIES)
     if ~exist(subDirectory,'dir')
        mkdir(subDirectory); 
     end
-    plotFly(R(fly), groupedBlocks, subDirectory);
+    plotFlyBatch(R(fly), iter, subDirectory);
+end
+
+
 end
 
 %% fit and plot some seq eff profiles of interest

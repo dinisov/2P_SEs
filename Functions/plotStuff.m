@@ -1,4 +1,6 @@
-function plotStuff(R, brainImage, outputDirectory)
+function plotStuff(R, outputDirectory)
+
+brainImage = R.brainImage;
 
 %% collapsed across volumes (time)
 

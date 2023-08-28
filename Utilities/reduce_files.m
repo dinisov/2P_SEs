@@ -2,7 +2,9 @@
 
 close all; clear;
 
-mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
+rdmDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
+
+scratchDirectory = '../../2P Data';
 
 flies = readtable('../../2P Record/2P_record');
 
@@ -14,34 +16,46 @@ finalSize = [128 128];
 
 %%
 
-% this level is the list of dates
-for fly =67:86%height(flies)
+% this level is the list of blocks
+for fly =98:98%height(flies)
     
     currentFly = flies(fly,:);
     
     currentDate = char(datetime(currentFly.Date,'Format','dMMMyy'));
     currentFlyDirectory = ['fly' num2str(currentFly.FlyOnDay) '_exp' num2str(currentFly.Block) '_' currentDate];
-    currentDirectory = fullfile(mainDirectory,currentDate,currentFlyDirectory);
+    
+    currentRDMDirectory = fullfile(rdmDirectory,currentDate,currentFlyDirectory);
+    currentScratchDirectory = fullfile(scratchDirectory,currentDate,currentFlyDirectory);
 
     disp(currentFlyDirectory);
 
-    loadReduceSave(currentDirectory,'green_channel.raw', currentFly, finalSize);
+    loadReduceSave(currentRDMDirectory,currentScratchDirectory, 'green_channel.raw', currentFly, finalSize);
 %         loadReduceSave([currentDirectory '\red_channel.raw'], currentFly, finalSize);
 
 end
 
-function loadReduceSave(currentDirectory, file, fly, finalSize)
+function loadReduceSave(RDMDirectory, scratchDirectory, file, fly, finalSize)
 
-    path = fullfile(currentDirectory, file);
-
+    fileRDM = fullfile(RDMDirectory, file);
+%     fileScratch = fullfile(scratchDirectory, file);
+    
     imageSize = [fly.pixelX fly.pixelY];
-
     nFrames = fly.realFrames;
+    
+    if ~exist(scratchDirectory,'dir')
+       mkdir(scratchDirectory); 
+    end
+    
+    % move file to scratch before loading
+%     disp('Copying file from RDM');
+%     tic
+%     copyfile(fileRDM,fileScratch);
+%     toc
     
     tic
     disp('Loading data');
     % load green channel
-    fid = fopen(path, 'r','b');
+    fid = fopen(fileRDM, 'r','b');
     data = fread(fid, 512*512*nFrames, 'uint16');
     fclose(fid);
     toc
@@ -57,11 +71,30 @@ function loadReduceSave(currentDirectory, file, fly, finalSize)
     rData = imresize3(data,size(rData),'box');
     toc
     
+%     reducedFileScratch = fullfile(scratchDirectory, ['green_channel_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat']);
+    reducedFileRDM = fullfile(RDMDirectory, ['green_channel_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat']);
+    
     tic
     disp('Saving');
     % save green channel; do not compress we care about speed not size
 %     save([path(1:end-4) '_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat'], 'rData','-v7.3','-nocompression');
-    save([currentDirectory '\green_channel_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat'], 'rData','-v7.3','-nocompression');
+    save(reducedFileRDM, 'rData','-v7.3','-nocompression');
     toc
+    
+    %move file back to RDM
+%     disp('Moving back to RDM');
+%     tic
+%     copyfile(reducedFileScratch,reducedFileRDM);
+%     toc
+    
+    %delete file in scratch
+%     disp('Deleting files in scratch');
+%     tic
+%     delete(fileScratch);
+%     delete(reducedFileScratch);
+%     toc
+    
+    % free up the memory 
+    clear('data');
     
 end

@@ -32,20 +32,5 @@ function R = analyseSequentialEffectsTwoPhoton2(imageStack,randomSequence,nVol)
     R.dataSeq = dataSeq(:,seq_eff_order(n_back),:,:,:);
     R.meanDataSeq = meanDataSeq;
     R.nData = nData;
-       
-%     %make a tick every x steps
-%     y_ticks = 1:2:length(f);
-%     y_tick_labels = f(y_ticks);
-%     
-%     % create 
-%     figure; imagesc(squeeze(magnitudeSEs(:,16,:))-squeeze(magnitudeSEs(:,8,:)),'xdata',time_bounds); colorbar;
-%     set(gca,'ytick',y_ticks,'yticklabel',floor(y_tick_labels));
-%     xlabel('time (ms)'); ylabel('Frequency (Hz)');
-%     title('AAAA_minus_AAAR');
-% 
-%     figure; imagesc(squeeze(magnitudeSEs(:,9,:))-squeeze(magnitudeSEs(:,1,:)),'xdata',time_bounds); colorbar;
-%     set(gca,'ytick',y_ticks,'yticklabel',floor(y_tick_labels));
-%     xlabel('time (ms)'); ylabel('Frequency (Hz)');
-%     title('RRRR_minus_RRRA');
     
 end

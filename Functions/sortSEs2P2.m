@@ -10,7 +10,7 @@ function dataSeq = sortSEs2P2(imageStack,randomSequence, nVol)
     dataSeq = zeros([nVol nSeq/2 size(imageStack)]);
 
     % groups (1,32),(2,31),(3,30), etc, as representing the same pattern
-    % avoids very costly flip() oprations later
+    % avoids very costly flip() operations later
     auxSeq = [1:16 16:-1:1];
     
     % vol here indexes the number of volumes (time points) collected
