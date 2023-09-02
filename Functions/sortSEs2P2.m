@@ -1,4 +1,4 @@
-function dataSeq = sortSEs2P2(imageStack,randomSequence, nVol)
+function [dataSeq, dataSeqIso] = sortSEs2P2(imageStack,randomSequence, nVol)
 %this function sorts ERPs according to the past sequence of events and 
 
     nBack = 5;
@@ -8,6 +8,7 @@ function dataSeq = sortSEs2P2(imageStack,randomSequence, nVol)
 
     % better to pre-allocate but 5th dim will be too long
     dataSeq = zeros([nVol nSeq/2 size(imageStack)]);
+    dataSeqIso = zeros([nVol nSeq size(imageStack)]);
 
     % groups (1,32),(2,31),(3,30), etc, as representing the same pattern
     % avoids very costly flip() operations later
@@ -19,10 +20,12 @@ function dataSeq = sortSEs2P2(imageStack,randomSequence, nVol)
         %sort images according to sequence
         for n = 0:(sequenceLength/nBack-1)
             % decimal value of binary sequence of length n_back
-            seq = auxSeq(bin2dec(num2str(randomSequence(n*nBack + 1:n*nBack + (nBack-1)))) + 1);
+            seq = bin2dec(num2str(randomSequence(n*nBack + 1:n*nBack + (nBack-1)))) + 1;
 
-            % stack images for each vol and seq along 5th dimension
-            dataSeq(vol, seq,:, :, n+1) = imageStack(:,:,n*nVol + vol);
+            % stack images for each vol and seq along 5th dimension (grouped by pattern)
+            dataSeq(vol, auxSeq(seq),:, :, n+1) = imageStack(:,:,n*nVol + vol);
+            
+            dataSeqIso(vol,seq,:, :, n+1) = imageStack(:,:,n*nVol + vol);
         end
     end
 

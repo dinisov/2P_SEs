@@ -5,7 +5,7 @@ function R = analyseSequentialEffectsTwoPhoton2(imageStack,randomSequence,nVol)
     n_back = 5; 
     
     % yields 5D matrix with (vol,seq,pixelX,pixelY,trial)
-    dataSeq = sortSEs2P2(imageStack,randomSequence,nVol);
+    [dataSeq, dataSeqIso] = sortSEs2P2(imageStack,randomSequence,nVol);
     
     % mean across fifth (trial) dimension (much faster than nan mean)
     meanDataSeq = sum(dataSeq,5)./sum(dataSeq~=0,5);
@@ -30,6 +30,7 @@ function R = analyseSequentialEffectsTwoPhoton2(imageStack,randomSequence,nVol)
     R = struct;
      
     R.dataSeq = dataSeq(:,seq_eff_order(n_back),:,:,:);
+    R.dataSeqIso = dataSeqIso;% this still holds the 32 sequences
     R.meanDataSeq = meanDataSeq;
     R.nData = nData;
     

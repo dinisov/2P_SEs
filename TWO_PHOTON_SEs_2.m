@@ -29,7 +29,7 @@ gridSize = [32 32];
 
 flyList = unique(blocks.Fly);
 
-chosenFlies = 21:21;
+chosenFlies = 19:24;
 % chosenFlies = flyList;%do not choose any flies
 
 %whether to analyse grouped blocks
@@ -177,7 +177,7 @@ end
 toc;
 
 %% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS per volume
-% load slrp_lrpr.mat
+load slrp_lrpr.mat
 
 load six_hertz.mat
 
@@ -209,72 +209,194 @@ for fly = 1:length(FLIES)
 end
 toc;
 
-%% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS collapsed across volumes (time)
-disp('Calculating R and R^2 collapsed across volumes (time)');
-tic;
+%% make movies of fits over time
 
-if groupedBlocks
-    % all blocks for each fly
-    for fly = 1:length(FLIES)
-        thisFlyData = permute(squeeze(mean(R(fly).ALL.meanDataSeq,1)),[2,3,1]);
-        R(fly).ALL.r2 = calculateR2(thisFlyData,six_hertz);
-        R(fly).ALL.r = calculateR(thisFlyData,six_hertz);
-    end
-end
+trim = 3;
 
-% for each block
+newGridSize = gridSize-2*trim;
+
 for fly = 1:length(FLIES)
     for b = 1:length(FLIES(fly).BLOCKS)
-        thisBlockData = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1)),[2,3,1]);
-        R(fly).BLOCK(b).r2 = calculateR2(thisBlockData,six_hertz);
-        R(fly).BLOCK(b).r = calculateR(thisBlockData,six_hertz);
+        subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Movies');
+        if ~exist(subDirectory,'dir')
+           mkdir(subDirectory); 
+        end
+        
+        %alternation component movie
+        movieMatrix = zeros([newGridSize FLIES(fly).BLOCKS(b).nVol]);
+        for vol = 1:FLIES(fly).BLOCKS(b).nVol
+            movieMatrix(:,:,vol) = R(fly).BLOCK(b).rVol(vol).r.r_slrp(trim+1:end-trim,trim+1:end-trim);
+        end
+        makeMovie(movieMatrix,fullfile(subDirectory,'ALT_fit.avi'),true);
+        
+        %repetition component movie
+        movieMatrix = zeros([newGridSize FLIES(fly).BLOCKS(b).nVol]);
+        for vol = 1:FLIES(fly).BLOCKS(b).nVol
+            movieMatrix(:,:,vol) = R(fly).BLOCK(b).rVol(vol).r.r_lrpr(trim+1:end-trim,trim+1:end-trim);
+        end
+        makeMovie(movieMatrix,fullfile(subDirectory,'REP_fit.avi'),true);
+        
+        %weird component movie
+        movieMatrix = zeros([newGridSize FLIES(fly).BLOCKS(b).nVol]);
+        for vol = 1:FLIES(fly).BLOCKS(b).nVol
+            movieMatrix(:,:,vol) = R(fly).BLOCK(b).rVol(vol).r.r_weird(trim+1:end-trim,trim+1:end-trim);
+        end
+        makeMovie(movieMatrix,fullfile(subDirectory,'WEIRD_fit.avi'),true);
     end
 end
-toc;
+
+%% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS collapsed across volumes (time)
+% disp('Calculating R and R^2 collapsed across volumes (time)');
+% tic;
+% 
+% if groupedBlocks
+%     % all blocks for each fly
+%     for fly = 1:length(FLIES)
+%         thisFlyData = permute(squeeze(mean(R(fly).ALL.meanDataSeq,1)),[2,3,1]);
+%         R(fly).ALL.r2 = calculateR2(thisFlyData,six_hertz);
+%         R(fly).ALL.r = calculateR(thisFlyData,six_hertz);
+%     end
+% end
+% 
+% % for each block
+% for fly = 1:length(FLIES)
+%     for b = 1:length(FLIES(fly).BLOCKS)
+%         thisBlockData = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1)),[2,3,1]);
+%         R(fly).BLOCK(b).r2 = calculateR2(thisBlockData,six_hertz);
+%         R(fly).BLOCK(b).r = calculateR(thisBlockData,six_hertz);
+%     end
+% end
+% toc;
 
 %% calculate mass t-tests for AAAA vs AAAR and RRRR vs RRRA (per volume)
 
-disp('Calculating t-tests for AAAA vs AAAR and RRRR vs RRRA (per volume)');
-tic;
-
-if groupedBlocks
-    % all blocks for each fly (separation just for organisation purposes)
-    for fly = 1:length(FLIES)
-        for vol = 1:FLIES(fly).nVol
-            thisVolData = squeeze(R(fly).ALL.dataSeq(vol,:,:,:,:));
-            [R(fly).ALL.AAAAvsAAARVol(vol), R(fly).ALL.RRRRvsRRRAVol(vol)]  = calculateTtests(thisVolData);
-        end
-    end
-end
-
-% for each block of each fly
-for fly = 1:length(FLIES)
-    for b = 1:length(FLIES(fly).BLOCKS)   
-        for vol = 1:FLIES(fly).BLOCKS(b).nVol
-            thisVolData = squeeze(R(fly).BLOCK(b).dataSeq(vol,:,:,:,:));
-            [R(fly).BLOCK(b).AAAAvsAAARVol(vol), R(fly).BLOCK(b).RRRRvsRRRAVol(vol)]  = calculateTtests(thisVolData);
-        end    
-    end
-end
-toc;
+% disp('Calculating t-tests for AAAA vs AAAR and RRRR vs RRRA (per volume)');
+% tic;
+% 
+% if groupedBlocks
+%     % all blocks for each fly (separation just for organisation purposes)
+%     for fly = 1:length(FLIES)
+%         for vol = 1:FLIES(fly).nVol
+%             thisVolData = squeeze(R(fly).ALL.dataSeq(vol,:,:,:,:));
+%             [R(fly).ALL.AAAAvsAAARVol(vol), R(fly).ALL.RRRRvsRRRAVol(vol)]  = calculateTtests(thisVolData);
+%         end
+%     end
+% end
+% 
+% % for each block of each fly
+% for fly = 1:length(FLIES)
+%     for b = 1:length(FLIES(fly).BLOCKS)   
+%         for vol = 1:FLIES(fly).BLOCKS(b).nVol
+%             thisVolData = squeeze(R(fly).BLOCK(b).dataSeq(vol,:,:,:,:));
+%             [R(fly).BLOCK(b).AAAAvsAAARVol(vol), R(fly).BLOCK(b).RRRRvsRRRAVol(vol)]  = calculateTtests(thisVolData);
+%         end    
+%     end
+% end
+% toc;
 
 %% calculate mass t-tests for AAAA vs AAAR and RRRR vs RRRA (collapsed across volumes/time)
-disp('Calculating t-tests for AAAA vs AAAR and RRRR vs RRRA');
-tic;
+% disp('Calculating t-tests for AAAA vs AAAR and RRRR vs RRRA');
+% tic;
+% 
+% if groupedBlocks
+%     % all blocks for each fly
+%     for fly = 1:length(FLIES)
+%         thisFlyData = squeeze(mean(R(fly).ALL.dataSeq,1));
+%         [R(fly).ALL.AAAAvsAAAR, R(fly).ALL.RRRRvsRRRA]  = calculateTtests(thisFlyData);
+%     end
+% end
+% 
+% % for each block
+% for fly = 1:length(FLIES)
+%     for b = 1:length(FLIES(fly).BLOCKS)
+%         thisBlockData = squeeze(mean(R(fly).BLOCK(b).dataSeq,1));
+%         [R(fly).BLOCK(b).AAAAvsAAAR, R(fly).BLOCK(b).RRRRvsRRRA]  = calculateTtests(thisBlockData);
+%     end
+% end
+% toc;
 
-if groupedBlocks
-    % all blocks for each fly
-    for fly = 1:length(FLIES)
-        thisFlyData = squeeze(mean(R(fly).ALL.dataSeq,1));
-        [R(fly).ALL.AAAAvsAAAR, R(fly).ALL.RRRRvsRRRA]  = calculateTtests(thisFlyData);
+%% RRRR-RRRA and AAAA-AAAR (collapsed and over time videos)
+
+trim = 3;
+
+% newGridSize = gridSize-2*trim;
+
+for fly = 1:length(FLIES)
+    for b = 1:length(FLIES(fly).BLOCKS)
+        subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Oddballs');
+        if ~exist(subDirectory,'dir')
+           mkdir(subDirectory); 
+        end
+       thisBlockData = squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1));
+       AAAA = squeeze(thisBlockData(16,trim+1:end-trim,trim+1:end-trim)); AAAR = squeeze(thisBlockData(8,trim+1:end-trim,trim+1:end-trim)); 
+       RRRR = squeeze(thisBlockData(1,trim+1:end-trim,trim+1:end-trim)); RRRA = squeeze(thisBlockData(9,trim+1:end-trim,trim+1:end-trim));
+       
+       figure; imagesc(AAAA); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAA.png')); 
+       figure; imagesc(RRRR); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRR.png'));
+       figure; imagesc(RRRA); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRA.png'));
+       figure; imagesc(AAAR); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAR.png'));
+       figure; imagesc((AAAA-AAAR)); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAAminusAAAR.png'));
+       figure; imagesc((RRRR-RRRA)); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRRminusRRRA.png'));
+       close all;
+       
+       %videos of differences over time
+       
+       %AAAA-AAAR
+       AAAAminusAAAR_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,16,trim+1:end-trim,trim+1:end-trim)),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,8,trim+1:end-trim,trim+1:end-trim)),[2 3 1]);
+       RRRRminusRRRA_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,1,trim+1:end-trim,trim+1:end-trim)),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,9,trim+1:end-trim,trim+1:end-trim)),[2 3 1]);
+       
+       AAAAminusAAAR_t = normalize(AAAAminusAAAR_t,'range',[0 1]);
+       makeMovie(AAAAminusAAAR_t,fullfile(subDirectory,'AAAAminusAAAR_transient.avi'),false);
+       
+       RRRRminusRRRA_t = normalize(RRRRminusRRRA_t,'range',[0 1]);
+       makeMovie(RRRRminusRRRA_t,fullfile(subDirectory,'RRRRminusRRRA_transient.avi'),false);
+       
     end
 end
 
+%% L vs R analysis (t-tests, L-R, L and R, L and R movies)
+
+trim = 3;
+
+newGridSize = gridSize-2*trim;
+
+disp('Calculating L vs R');
+tic;
 % for each block
 for fly = 1:length(FLIES)
     for b = 1:length(FLIES(fly).BLOCKS)
-        thisBlockData = squeeze(mean(R(fly).BLOCK(b).dataSeq,1));
-        [R(fly).BLOCK(b).AAAAvsAAAR, R(fly).BLOCK(b).RRRRvsRRRA]  = calculateTtests(thisBlockData);
+        subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'LvsR');
+        if ~exist(subDirectory,'dir')
+           mkdir(subDirectory); 
+        end
+        thisBlockData = squeeze(mean(R(fly).BLOCK(b).dataSeqIso,1));
+        R(fly).BLOCK(b).LvsR  = calculateTtestsLR(thisBlockData);
+        figure; imagesc(R(fly).BLOCK(b).LvsR.h); saveas(gcf,fullfile(subDirectory,'h.png'));
+        figure; imagesc(R(fly).BLOCK(b).LvsR.p); colormap(hot(256));saveas(gcf,fullfile(subDirectory,'p.png'));
+        
+        LRDiff = R(fly).BLOCK(b).LvsR.LRDiff(trim+1:end-trim,trim+1:end-trim); %LRDiff = normalize(LRDiff,'range',[0 1]);
+        figure; imagesc(LRDiff); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'LminusR.png'));
+        
+        meanL = R(fly).BLOCK(b).LvsR.meanL(trim+1:end-trim,trim+1:end-trim);% meanL = normalize(meanL,'range',[0 1]);
+        figure; imagesc(meanL); colormap(jet(256));colorbar; saveas(gcf,fullfile(subDirectory,'meanL.png'));
+        
+        meanR = R(fly).BLOCK(b).LvsR.meanR(trim+1:end-trim,trim+1:end-trim);% meanR = normalize(meanR,'range',[0 1]);
+        figure; imagesc(meanR); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'meanR.png'));
+        close all;
+        
+        %make movies for L and R transients and difference
+        left = permute(squeeze(mean(mean(R(fly).BLOCK(b).dataSeqIso(:,1:2:31,trim+1:end-trim,trim+1:end-trim,:),5),2)),[2 3 1]);
+        left = normalize(left,'range',[0 1]);
+        makeMovie(left,fullfile(subDirectory,'left_transient.avi'),false);
+        
+        right = permute(squeeze(mean(mean(R(fly).BLOCK(b).dataSeqIso(:,2:2:32,trim+1:end-trim,trim+1:end-trim,:),5),2)),[2 3 1]);
+        right = normalize(right,'range',[0 1]);
+        makeMovie(right,fullfile(subDirectory,'right_transient.avi'),false);
+        
+        diffLR = left-right;
+        diffLR = normalize(diffLR,'range',[0 1]);
+        makeMovie(right,fullfile(subDirectory,'difference_transient.avi'),false);
+         
     end
 end
 toc;
@@ -282,13 +404,13 @@ toc;
 %% plotting
 
 % plot results per block
-for fly = 1:length(FLIES)
-    subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))]);
-    if ~exist(subDirectory,'dir')
-       mkdir(subDirectory); 
-    end
-    plotFly(R(fly), groupedBlocks, subDirectory);
-end
+% for fly = 1:length(FLIES)
+%     subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))]);
+%     if ~exist(subDirectory,'dir')
+%        mkdir(subDirectory); 
+%     end
+%     plotFly(R(fly), groupedBlocks, subDirectory);
+% end
 
 %% fit and plot some seq eff profiles of interest
 
@@ -346,3 +468,23 @@ end
 %     saveas(gcf,[ names{type(i)} '_best.png'])
 %     
 % end
+
+function makeMovie(data, filename, isCorr)
+
+    VidObj = VideoWriter(filename, 'Uncompressed AVI');
+%     VidObj = VideoWriter(filename, 'MPEG-4');
+
+%     VidObj.Colormap = parula(256);
+%     VidObj.Quality = 100;
+    VidObj.FrameRate = 2; %set your frame rate
+    open(VidObj);
+    for f = 1:size(data, 3)
+        if isCorr
+            writeVideo(VidObj, ind2rgb(uint8(255 * (1+data(:,:,f))/2), jet(256)) );
+        else
+            writeVideo(VidObj, ind2rgb(uint8(255 * data(:,:,f)), jet(256)));
+        end
+    end
+    close(VidObj);
+       
+end

@@ -19,13 +19,14 @@ blocks = blocks(~logical(blocks.Exclude),:);
 flyList = unique(blocks.Fly);
 
 % chosenFlies = 6:24;%57C10 x GCamp7s
-% chosenFlies = 25:35;
+% chosenFlies = 25:35; %cholinergic CC LED
 % chosenFlies = [2:5 25:35];
 % chosenFlies = 19:24;%57C10 x GCamp7s LED
 % chosenFlies = [19:21 23];
 % chosenFlies = [19 21 23]; %three best flies
-chosenFlies = 19:23; % usable 57C10 flies 
-% chosenFlies = 24;
+% chosenFlies = 19:23; % usable 57C10 flies 
+% chosenFlies = 6:18; %57C10x GCamp7s Projector
+chosenFlies = 7;
 
 imageSize = [32 32];
 
@@ -118,8 +119,8 @@ end
 
 n_clusters = 2;
 
-idx = kmeans(X_All,n_clusters,'Distance','correlation');
-% idx = kmedoids(X_All,n_clusters,'Distance','correlation');
+% idx = kmeans(X_All,n_clusters,'Distance','correlation');
+idx = kmedoids(X_All,n_clusters,'Distance','correlation');
 % [idx,V,D] = spectralcluster(X_All,n_clusters,'Distance','correlation','ClusterMethod','kmedoids');
 
 % clusterMasks = cell(1,n_clusters*n_flies);
@@ -167,24 +168,24 @@ end
 %    X_All(i,:) = normalize(X_All(i,:));  %#ok<SAGROW>
 % end
 
-load jentzsch_data.mat
-
-options = statset('MaxIter',10000,'TolFun',1e-8);
-
-[coeff,score,latent,tsquared,explained,mu] = pca(X_All);
-
-for i = 1:16
-   figure; create_seq_eff_plot(coeff(:,i),[]); 
-end
-
-figure; plot(explained);
-
-% [L1,T] = rotatefactors(coeff(:,1:2),'Method','procrustes','Target',[SLRP -LRPR],'Maxit',15000,'type','orthogonal');
-[L1,T] = rotatefactors(coeff(:,1:2),'Method','equamax');
-
-for i = 1:2
-   figure; create_seq_eff_plot(L1(:,i),[]); 
-end
+% load jentzsch_data.mat
+% 
+% options = statset('MaxIter',10000,'TolFun',1e-8);
+% 
+% [coeff,score,latent,tsquared,explained,mu] = pca(X_All);
+% 
+% for i = 1:16
+%    figure; create_seq_eff_plot(coeff(:,i),[]); 
+% end
+% 
+% figure; plot(explained);
+% 
+% % [L1,T] = rotatefactors(coeff(:,1:2),'Method','procrustes','Target',[SLRP -LRPR],'Maxit',15000,'type','orthogonal');
+% [L1,T] = rotatefactors(coeff(:,1:2),'Method','equamax');
+% 
+% for i = 1:2
+%    figure; create_seq_eff_plot(L1(:,i),[]); 
+% end
 
 %% factor analysis
 
