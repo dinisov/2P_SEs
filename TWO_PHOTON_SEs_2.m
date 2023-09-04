@@ -29,7 +29,7 @@ gridSize = [32 32];
 
 flyList = unique(blocks.Fly);
 
-chosenFlies = 19:24;
+chosenFlies = 21:21;
 % chosenFlies = flyList;%do not choose any flies
 
 %whether to analyse grouped blocks
@@ -345,10 +345,10 @@ for fly = 1:length(FLIES)
        AAAAminusAAAR_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,16,trim+1:end-trim,trim+1:end-trim)),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,8,trim+1:end-trim,trim+1:end-trim)),[2 3 1]);
        RRRRminusRRRA_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,1,trim+1:end-trim,trim+1:end-trim)),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,9,trim+1:end-trim,trim+1:end-trim)),[2 3 1]);
        
-       AAAAminusAAAR_t = normalize(AAAAminusAAAR_t,'range',[0 1]);
+       AAAAminusAAAR_t = normalize(AAAAminusAAAR_t,3,'range',[0 1]);
        makeMovie(AAAAminusAAAR_t,fullfile(subDirectory,'AAAAminusAAAR_transient.avi'),false);
        
-       RRRRminusRRRA_t = normalize(RRRRminusRRRA_t,'range',[0 1]);
+       RRRRminusRRRA_t = normalize(RRRRminusRRRA_t,3,'range',[0 1]);
        makeMovie(RRRRminusRRRA_t,fullfile(subDirectory,'RRRRminusRRRA_transient.avi'),false);
        
     end
@@ -386,15 +386,15 @@ for fly = 1:length(FLIES)
         
         %make movies for L and R transients and difference
         left = permute(squeeze(mean(mean(R(fly).BLOCK(b).dataSeqIso(:,1:2:31,trim+1:end-trim,trim+1:end-trim,:),5),2)),[2 3 1]);
-        left = normalize(left,'range',[0 1]);
+        left = normalize(left,3,'range',[0 1]);
         makeMovie(left,fullfile(subDirectory,'left_transient.avi'),false);
         
         right = permute(squeeze(mean(mean(R(fly).BLOCK(b).dataSeqIso(:,2:2:32,trim+1:end-trim,trim+1:end-trim,:),5),2)),[2 3 1]);
-        right = normalize(right,'range',[0 1]);
+        right = normalize(right,3,'range',[0 1]);
         makeMovie(right,fullfile(subDirectory,'right_transient.avi'),false);
         
         diffLR = left-right;
-        diffLR = normalize(diffLR,'range',[0 1]);
+        diffLR = normalize(diffLR,3,'range',[0 1]);
         makeMovie(right,fullfile(subDirectory,'difference_transient.avi'),false);
          
     end
@@ -472,10 +472,7 @@ toc;
 function makeMovie(data, filename, isCorr)
 
     VidObj = VideoWriter(filename, 'Uncompressed AVI');
-%     VidObj = VideoWriter(filename, 'MPEG-4');
 
-%     VidObj.Colormap = parula(256);
-%     VidObj.Quality = 100;
     VidObj.FrameRate = 2; %set your frame rate
     open(VidObj);
     for f = 1:size(data, 3)

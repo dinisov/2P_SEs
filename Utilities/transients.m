@@ -24,7 +24,10 @@ flyList = unique(blocks.Fly);
 
 chosenFlies = 1:41;
 
+trim = 3;
+
 %%
+
 for fly = chosenFlies
    
     % the blocks corresponding to this fly
@@ -45,13 +48,15 @@ for fly = chosenFlies
         
         % global response transient
         allSeq = permute(squeeze(sum(results.meanDataSeq,2)),[2 3 1]);
-        allSeq = allSeq/max(allSeq,[],'all');
+        allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:);
+%         allSeq = allSeq/max(allSeq,[],'all');
         makeMovie(allSeq,fullfile(subDirectory,'global.avi'));
         
         % response transient per sequence
         for s = 1:16     
             seq = permute(squeeze(results.meanDataSeq(:,s,:,:)),[2 3 1]);
-            seq = seq/max(seq,[],'all');
+            seq = seq(trim+1:end-trim,trim+1:end-trim,:);
+%             seq = seq/max(seq,[],'all');
             makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']));
         end
         
@@ -62,11 +67,19 @@ end
 function makeMovie(data, filename)
 
     VidObj = VideoWriter(filename, 'Uncompressed AVI');
+    
+    data = data(:,:,2:end); %get rid of first time point
+    data = data-mean(data,3); % normalise by mean along time
+%     data = data-data(:,:,end); % normalise by time point
+
+    %map to interval [0,1]
+    data = data+abs(min(data,[],'all')); % make minimum 0
+    data = data/max(data,[],'all'); %make maximum 1
 
     VidObj.FrameRate = 2.5; %set your frame rate
     open(VidObj);
     for f = 1:size(data, 3)
-        writeVideo(VidObj, ind2rgb(uint8(255 * data(:,:,f)), parula(256)));
+        writeVideo(VidObj, ind2rgb(uint8(255 * data(:,:,f)), jet(256)));
     end
     close(VidObj);
         
