@@ -49,14 +49,14 @@ for fly = chosenFlies
         % global response transient
         allSeq = permute(squeeze(sum(results.meanDataSeq,2)),[2 3 1]);
         allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:);
-%         allSeq = allSeq/max(allSeq,[],'all');
+
         makeMovie(allSeq,fullfile(subDirectory,'global.avi'));
         
         % response transient per sequence
         for s = 1:16     
             seq = permute(squeeze(results.meanDataSeq(:,s,:,:)),[2 3 1]);
             seq = seq(trim+1:end-trim,trim+1:end-trim,:);
-%             seq = seq/max(seq,[],'all');
+            
             makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']));
         end
         

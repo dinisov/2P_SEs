@@ -11,9 +11,11 @@ mainDirectory = '../2P Data';
 
 outputDirectory = '../2P Results';
 
+RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
+
 %where the sequence data is located (stimulus files)
 % sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\SE_2P_data\Data_LEDs';
-sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\SE_2P_data';
+sequenceDirectory = fullfile(RDMDirectory,'RPiData/');
 
 % scratchDirectory = '../../2P Data';
 
@@ -29,7 +31,7 @@ gridSize = [32 32];
 
 flyList = unique(blocks.Fly);
 
-chosenFlies = 21:21;
+chosenFlies = 43:43;
 % chosenFlies = flyList;%do not choose any flies
 
 %whether to analyse grouped blocks
@@ -95,6 +97,11 @@ for fly = 1:length(chosenFlies)
         nSlices = currentBlock.Steps + currentBlock.FlybackFrames;
         nVolTotal = currentBlock.realFrames/nSlices;
         BLOCKS(b).nVol = nVolTotal/currentBlock.BlockLength;
+
+        if ~exist(fullfile(currentDirectory,'brain.jpg'),'file')
+            copyfile(fullfile(RDMDirectory,'Gcamp7s_CC',currentDate,flyID,'brain.jpg'),fullfile(currentDirectory,'brain.jpg'));
+        end
+
         BLOCKS(b).brainImage = imread(fullfile(currentDirectory,'brain.jpg'));
         
     end
@@ -477,8 +484,10 @@ function makeMovie(data, filename, isCorr)
     open(VidObj);
     for f = 1:size(data, 3)
         if isCorr
+            %if we're dealing with corr coeffs then map [-1 1] to [0 1]
             writeVideo(VidObj, ind2rgb(uint8(255 * (1+data(:,:,f))/2), jet(256)) );
         else
+            %otherwise make video of data pre-mapped to [0 1]
             writeVideo(VidObj, ind2rgb(uint8(255 * data(:,:,f)), jet(256)));
         end
     end

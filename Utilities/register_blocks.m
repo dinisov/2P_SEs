@@ -20,7 +20,7 @@ dates = unique(flies.Date);
 
 %%
 
-for d = 22:length(dates)
+for d = 26:28%length(dates)
   
     % all blocks for a particular date
     thisDateBlocks = flies(flies.Date == dates(d),:);
@@ -109,12 +109,12 @@ function alignBlock(block, imageSize, baseDirectory, mainDirectory)
         toc;
 
         disp('Saving green channel aligned');
-        tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned'); toc;
+        tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned','-v7.3','-nocompression'); toc;
     
     end
     
     disp('Saving green channel before alignment');
-    tic; save(fullfile(currentDirectory,'avg_z_green'),'avg_z_green'); toc;
+    tic; save(fullfile(currentDirectory,'avg_z_green'),'avg_z_green','-v7.3','-nocompression'); toc;
     
 %     disp('Saving red channel');
 %     tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;

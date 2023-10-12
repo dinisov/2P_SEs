@@ -15,7 +15,7 @@ blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
 
-chosenFlies = 20:41;
+chosenFlies = 48:58;
 
 for fly = 1:length(chosenFlies)
     
@@ -24,66 +24,53 @@ for fly = 1:length(chosenFlies)
     % the blocks corresponding to this fly
     thisFlyBlocks = blocks(blocks.Fly == chosenFlies(fly),:);
     
-    currentDate = char(datetime(thisFlyBlocks.Date(1),'Format','dMMMyy'));
+    if ~isempty(thisFlyBlocks)
     
-    nBlocks = height(thisFlyBlocks);
+        currentDate = char(datetime(thisFlyBlocks.Date(1),'Format','dMMMyy'));
+
+        nBlocks = height(thisFlyBlocks);
+
+        for b = 1:nBlocks
+
+            currentBlock = thisFlyBlocks(b,:);
+            flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
+            currentDirectory = fullfile(mainDirectory,currentDate,flyID);
+
+            nSlices = currentBlock.Steps + currentBlock.FlybackFrames;
+            totalFrames = currentBlock.realFrames;
+            trials = totalFrames/nSlices;
+
+    %         disp(currentDirectory);
     
-    for b = 1:nBlocks
-        
-        currentBlock = thisFlyBlocks(b,:);
-        flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
-        currentDirectory = fullfile(mainDirectory,currentDate,flyID);
-        
-        nSlices = currentBlock.Steps + currentBlock.FlybackFrames;
-        totalFrames = currentBlock.realFrames;
-        trials = totalFrames/nSlices;
-        
-%         disp(currentDirectory);
-       
-       if exist([currentDirectory '/green_channel.raw'],'file') && ~exist([currentDirectory '/brain.jpg'],'file')
-           
-           disp(currentDirectory);
-       
-%            imageFile = dir([currentDirectory '/Image*']);
+           if ~exist([currentDirectory '/green_channel.raw'],'file')
 
-           ij.IJ.run('Raw...',['open=' currentDirectory '/green_channel.raw  width=512 height=512 big-endian number=' num2str(totalFrames)]);
+               disp(currentDirectory);
 
-           %de-interleave channels
-%            ij.IJ.run("Deinterleave", "how=2");
+               imageFile = dir([currentDirectory '/Image*']);
 
-           %convert staks to hyperstacks
-%            ij.IJ.selectWindow([imageFile.name ' #1']);
+               ij.IJ.run('Raw...',['open=' currentDirectory '/' imageFile.name '  width=512 height=512 little-endian number=200000']);
 
-           %green channel
-%            ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel.raw']);
-           ij.IJ.run("Stack to Hyperstack...",['"channels=1 slices=' num2str(nSlices) ' frames=' num2str(trials)]);
-           ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
-%            ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel_AVG.raw']);
-           ij.IJ.selectWindow('green_channel.raw');
-           ij.IJ.run('Close');
-           ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
-           ij.IJ.run('Jpeg...',['path=' currentDirectory '/brain.jpg']);  
-           
-           ij.IJ.run('Close');
-           ij.IJ.run('Close');
+               %green channel
+               ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel.raw']);
+               
+%                ij.IJ.run('Close');
 
-            %red channel
-    %        ij.IJ.selectWindow('Image_0001_0001.raw #2');
+%                ij.IJ.run("Stack to Hyperstack...",['"channels=1 slices=' num2str(nSlices) ' frames=' num2str(trials)]);
+%                ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
+%                ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel_AVG.raw']);
+               
+%                ij.IJ.selectWindow('green_channel.raw');
+%                ij.IJ.run('Close');
 
-    %        %save red channel
-%            ij.IJ.run('Raw Data...',['path=' currentDirectory '/red_channel.raw']);
-%            ij.IJ.run('Close');
+                if ~exist([currentDirectory '/brain.jpg'],'file')             
+                   ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
+                   ij.IJ.run('Jpeg...',['path=' currentDirectory '/brain.jpg']);  
+                   ij.IJ.run('Close');
+                end
+                   
+               ij.IJ.run('Close');
 
-    %        ij.IJ.run("Stack to Hyperstack...",'"channels=1 slices=4 frames=50');
-    % %        ij.IJ.setTool("Rectangle");
-    %        img = ij.IJ.getImage();
-    %        img.setRoi(0,0,512,512);
-    %        ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all')
-    %        ij.IJ.run("Align slices in stack...",'"Matching method"="Normalized correlation coefficient"');
-
-    %        ij.IJ.selectWindow('Image_0001_0001.raw #2');
-    %        ij.IJ.run("Stack to Hyperstack...",'channels=1 slices=4 frames=50');
-       
-       end   
-   end 
+           end
+        end
+    end
 end

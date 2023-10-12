@@ -11,7 +11,7 @@ ImageJ;
 %%
 
 % this level is the list of dates
-for date = 21:23%setdiff(3:length(dirs),18)
+for date = 29:36%setdiff(3:length(dirs),18)
    blocks = dir([mainDirectory dirs(date).name]);
    for block = 3:length(blocks)
        currentDirectory = [mainDirectory dirs(date).name '/' blocks(block).name];
