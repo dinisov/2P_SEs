@@ -4,160 +4,79 @@ addpath('D:\group_swinderen\Dinis\Scripts\Global functions\');
 addpath('D:\group_swinderen\Dinis\Scripts\Indexes and legends\');
 addpath('D:\group_swinderen\Dinis\2P SEs\Functions\');
 
-flyID = 'fly1_exp1_15Jun23';
+close all; clear;
 
-% where the 2P data is located
-twoPDirectory = ['\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\15Jun23\' flyID];
+% mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
+mainDirectory = '../2P Data';
 
-%where the sequence data is located (stimulus setup files)
-sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\SE_2P_data';
+outputDirectory = '../2P Results';
 
-imageSize = [512 512];
+RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
 
-squareSize = 4;
+%where the sequence data is located (stimulus files)
+% sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\SE_2P_data\Data_LEDs';
+sequenceDirectory = fullfile(RDMDirectory,'RPiData/');
 
-gridSize = imageSize/squareSize;
+% scratchDirectory = '../../2P Data';
 
-I = imread('cc_2.jpg');
+flyRecord = readtable('../2P Record/2P_record');
 
-%% load 2P data
+%get rid of excluded flies
+flyRecord = flyRecord(~logical(flyRecord.Exclude),:);
 
-n_blocks = 1;
+imageSize = [128 128];
 
-% structure with necessary info
-D = struct;
+% final grid size
+gridSize = [32 32];
 
-% two_p_filenames = {'AVG_aligned_exp3_24Mar23.raw','AVG_aligned_exp4_24Mar23.raw'};
-% 
-% stimuli_filenames = {'SE_fly1_exp3_24Mar2023_1000_trials.mat','SE_fly1_exp4_24Mar2023_1000_trials.mat'};
+flyList = unique(flyRecord.Fly);
 
-% two_p_filenames = {'AVG_Z_aligned_fly2_exp2_23Feb'};
+chosenFlies = 43:43;
+% chosenFlies = flyList;%do not choose any flies
 
-% green channel file
+%whether to analyse grouped blocks
+groupedBlocks = 0;
 
-% red channel (if it exists)
+%% collate, reduce, filter and concatenate pre-aligned data
 
-% either (1) the full length of recording (number of slices irrespective of volume or trial) 
-% or (2) a desired number of slices to load (hopefully a multiple of nVol)
-two_p_length = [55000];
-
-nVol = [11];% number of volumes in each recording epoch
-
-%% load and reduce data
-tic
-for b = 1:1%n_blocks
-
-    % load 2P data
-    fid = fopen([twoPDirectory '\green_channel.raw'], 'r','b');
-
-    data = fread(fid, 512*512*two_p_length(b), 'uint16');
-
-    fclose(fid);
-
-    data = permute(reshape(data, [imageSize two_p_length(b)]),[2 1 3]);
-
-    % load sequence data
-%     randomSequence = load(stimuli_filenames{b},'randomSequence');
-    randomSequence = csvread(fullfile(sequenceDirectory,'Data_LEDs',[flyID '.csv'])).';
-
-    %% average images in a grid pattern
-
-    rData = zeros(size(data,1)/squareSize,size(data,2)/squareSize,size(data,3));
-
-%     avgFun = @(x) mean(x.data(:));
-% 
-%     for i = 1:size(data,3)
-%         rData(:,:,i) = blockproc(data(:,:,i),[squareSize, squareSize],avgFun);
-% %         rData(:,:,i) = imresize(data(:,:,i),[size(data,1)/squareSize, size(data,2)/squareSize],'box');
-%     end
-
-    % man oh man this is faster
-    rData = imresize3(data,size(rData),'box');
-    
-    %rData = normalize(rData,3);
-%     rData = rData(:,:,randperm(3060));
-    
-    D(b).randomSequence = randomSequence;
-    D(b).rData = rData;
-    D(b).nVol = nVol(b);
-
-end
-toc
-%% restrict to some blocks
-
-% D = D(2);
+FLIES = collate2PData(flyRecord, chosenFlies, gridSize, mainDirectory, RDMDirectory, sequenceDirectory, groupedBlocks);
 
 %% analyse SEs
+% separates images according to preceding sequence of stimuli and
+% calculates mean images as a function of the sequence
 
-R = analyseSequentialEffectsTwoPhoton(D,false);
+R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks);
 
-%% save results
+%% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS (per volume/time and collapsed across time)
 
-% save('data_two_photon_24Mar23_exp4','R');
+R = componentFits2P(R, FLIES, groupedBlocks);
 
-%% load results as a shortcut
+%% make movies of fits over time
 
-% load('data_two_photon_24Mar23_exp4','R');
+fitMovies(R, FLIES, outputDirectory, gridSize, chosenFlies, 3);
 
-%% calculate fit to SLRP and LRPR for nVol time steps
+%% calculate mass t-tests
 
-load slrp_lrpr.mat
+R = ttests2P(R, FLIES, groupedBlocks);
 
-load six_hertz.mat
+%% RRRR-RRRA and AAAA-AAAR (collapsed and over time videos)
 
-% slrp = rand(16,1);
-% lrpr = rand(16,1);
-% weird = rand(16,1);
-% six_hertz = rand(16,1);
+patternPlots(R, FLIES, chosenFlies, outputDirectory);
 
-meanDataSeq = R.meanDataSeq;
+%% L vs R analysis (t-tests, L-R, L and R, L and R movies)
 
-%%  r and r^2 for each volume in time series
+analyseLvsR(R, FLIES, chosenFlies, outputDirectory, 3);
 
-for vol = 1:nVol(1)
-    
-    thisVolData = permute(squeeze(meanDataSeq(vol,:,:,:)),[2,3,1]);
-    
-    R2Vol(vol) = calculateR2(thisVolData,six_hertz); %#ok<SAGROW>
-    
-    RVol(vol) = calculateR(thisVolData,six_hertz); %#ok<SAGROW>
-    
+%% plotting
+
+% plot results per block
+for fly = 1:length(FLIES)
+    subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))]);
+    if ~exist(subDirectory,'dir')
+       mkdir(subDirectory); 
+    end
+    plotFly(R(fly), groupedBlocks, subDirectory);
 end
-
-%% r and r^2 average across all volumes (time steps)
-
-meanVolData = permute(squeeze(sum(meanDataSeq,1)),[2,3,1]);
-
-R2All = calculateR2(meanVolData,six_hertz);
-
-RAll = calculateR(meanVolData,six_hertz);
-
-%% plot AAAA-AAAR and RRRR-RRRA
-
-outputDirectory = 'Results/';
-
-plotAR(meanDataSeq,10,I,outputDirectory);
-
-%% plot r_squared for the average of all volumes
-
-plotR2(R2All, outputDirectory);
-
-%% plot r for the average across all volumes
-
-plotR(RAll, outputDirectory);
-
-%% r plots thresholded by significance level (not overlayed on fly's brain)
-
-% figure; h = imagesc(r_slrp); colorbar; set(h,'alphadata',p_slrp); set(gca,'color','k'); caxis([-1 1]);
-% figure; h = imagesc(r_lrpr); colorbar; set(h,'alphadata',p_lrpr); set(gca,'color','k'); caxis([-1 1]);
-% figure; h = imagesc(r_weird); colorbar; set(h,'alphadata',p_weird); set(gca,'color','k'); caxis([-1 1]);
-% figure; h = imagesc(r_ephys); colorbar; set(h,'alphadata',p_ephys); set(gca,'color','k'); caxis([-1 1]);
-
-%% plot r overlayed in fly's brain (thresholded by significance)
-
-signLevel = 0.05;
-
-plotBrain(RAll, I, signLevel, outputDirectory);
 
 %% fit and plot some seq eff profiles of interest
 
