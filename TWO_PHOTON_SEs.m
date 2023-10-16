@@ -31,7 +31,8 @@ gridSize = [32 32];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = 43:43;
+chosenFlies = [55:56];
+
 % chosenFlies = flyList;%do not choose any flies
 
 %whether to analyse grouped blocks
@@ -46,6 +47,10 @@ FLIES = collate2PData(flyRecord, chosenFlies, gridSize, mainDirectory, RDMDirect
 % calculates mean images as a function of the sequence
 
 R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks);
+
+%% make movies of transients as differences to mean
+
+% transientMovies(R, chosenFlies, outputDirectory, 3);
 
 %% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS (per volume/time and collapsed across time)
 
@@ -69,7 +74,7 @@ analyseLvsR(R, FLIES, chosenFlies, outputDirectory, 3);
 
 %% plotting
 
-% plot results per block
+plot results per block
 for fly = 1:length(FLIES)
     subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))]);
     if ~exist(subDirectory,'dir')

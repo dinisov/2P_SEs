@@ -13,13 +13,13 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
         for b = 1:length(thisFly.BLOCKS)
             disp(['Block ' num2str(b)]);
             thisBlock = thisFly.BLOCKS(b);
-            R(fly).BLOCK(b) = analyseSequentialEffectsTwoPhoton(thisBlock.greenChannel,thisBlock.randomSequence,thisBlock.nVol);
+            R(fly).BLOCK(b) = analyse2PBlock(thisBlock);
             
             thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]);
             if ~exist(thisBlockDirectory,'dir')
                 mkdir(thisBlockDirectory); 
             end
-            meanDataSeq = R(fly).BLOCK(b).meanDataSeq;
+            meanDataSeq = R(fly).BLOCK(b).meanDataSeq; 
             save(fullfile(thisBlockDirectory,'results'),'meanDataSeq');
         end
         
@@ -28,6 +28,7 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
             R(fly).BLOCK(b).brainImage = FLIES(fly).BLOCKS(b).brainImage;
         end
         
+        %THIS NEEDS WORK
         if groupedBlocks
             disp(['Fly ' num2str(fly) ' grouped blocks']);
             R(fly).ALL = analyseSequentialEffectsTwoPhoton(thisFly.greenChannel,thisFly.randomSequence,thisFly.nVol);

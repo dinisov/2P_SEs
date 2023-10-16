@@ -1,4 +1,4 @@
-function [dataSeq, dataSeqIso] = sortSEs2P(imageStack,randomSequence, nVol)
+function [dataSeq, dataSeqIso] = sortSEs2P(imageStack, randomSequence, nVol, nStimuli)
 %this function sorts ERPs according to the past sequence of events and 
 
     nBack = 5;
@@ -12,19 +12,22 @@ function [dataSeq, dataSeqIso] = sortSEs2P(imageStack,randomSequence, nVol)
 
     % groups (1,32),(2,31),(3,30), etc, as representing the same pattern
     % avoids very costly flip() operations later
-    auxSeq = [1:16 16:-1:1];
+%     auxSeq = [1:16 16:-1:1];
+    order = seq_eff_order(5);
+    auxSeq = [order fliplr(order)];
     
     % vol here indexes the number of volumes (time points) collected
     % per trial
     for vol = 1:nVol
         %sort images according to sequence
-        for n = 0:(sequenceLength/nBack-1)
+        for n = 0:(sequenceLength/nStimuli-mod((nStimuli+3),7))% using mod is a hack; check later for vaues different from 1 or 5 (unlikely to be used)
             % decimal value of binary sequence of length n_back
-            seq = bin2dec(num2str(randomSequence(n*nBack + 1:n*nBack + (nBack-1)))) + 1;
+            seq = bin2dec(num2str(randomSequence((n*nStimuli + 1):(n*nStimuli + (nBack-1))))) + 1;
 
-            % stack images for each vol and seq along 5th dimension (grouped by pattern)
+            % stack images for each vol and seq along 5th dimension (separated by pattern)
             dataSeq(vol, auxSeq(seq),:, :, n+1) = imageStack(:,:,n*nVol + vol);
             
+            % for the isomers (consumes a lot of memory)
             dataSeqIso(vol,seq,:, :, n+1) = imageStack(:,:,n*nVol + vol);
         end
     end

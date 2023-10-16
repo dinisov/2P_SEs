@@ -1,11 +1,11 @@
-function R = analyseSequentialEffectsTwoPhoton(imageStack,randomSequence,nVol)
+function R = analyse2PBlock(block)
 
     %% sort data according to previous sequence
 
     n_back = 5; 
     
     % yields 5D matrix with (vol,seq,pixelX,pixelY,trial)
-    [dataSeq, dataSeqIso] = sortSEs2P(imageStack,randomSequence,nVol);
+    [dataSeq, dataSeqIso] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
     
     % mean across fifth (trial) dimension (much faster than nan mean)
     meanDataSeq = sum(dataSeq,5)./sum(dataSeq~=0,5);
@@ -24,12 +24,12 @@ function R = analyseSequentialEffectsTwoPhoton(imageStack,randomSequence,nVol)
     % we can make a figure showing the average image as a function of the
     % sequence, for each time point
 %     figure;
-%     plot(meanERPs);       
+%     plot(meanERPs);
 
     % put all results into a neat structure
     R = struct;
      
-    R.dataSeq = dataSeq(:,seq_eff_order(n_back),:,:,:);
+    R.dataSeq = dataSeq;
     R.dataSeqIso = dataSeqIso;% this still holds the 32 sequences
     R.meanDataSeq = meanDataSeq;
     R.nData = nData;

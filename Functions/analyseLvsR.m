@@ -30,19 +30,30 @@ for fly = 1:length(FLIES)
         
         %make movies for L and R transients and difference
         left = permute(squeeze(mean(mean(R(fly).BLOCK(b).dataSeqIso(:,1:2:31,trim+1:end-trim,trim+1:end-trim,:),5),2)),[2 3 1]);
-        left = normalize(left,3,'range',[0 1]);
-        makeMovie(left,fullfile(subDirectory,'left_transient.avi'),false);
+        makeMovie(prepareMovieData(left),fullfile(subDirectory,'left_transient.avi'),false);
         
         right = permute(squeeze(mean(mean(R(fly).BLOCK(b).dataSeqIso(:,2:2:32,trim+1:end-trim,trim+1:end-trim,:),5),2)),[2 3 1]);
-        right = normalize(right,3,'range',[0 1]);
-        makeMovie(right,fullfile(subDirectory,'right_transient.avi'),false);
+        makeMovie(prepareMovieData(right),fullfile(subDirectory,'right_transient.avi'),false);
         
         diffLR = left-right;
-        diffLR = normalize(diffLR,3,'range',[0 1]);
-        makeMovie(diffLR,fullfile(subDirectory,'difference_transient.avi'),false);
+%         diffLR = normalize(diffLR,3,'range',[0 1]);
+        makeMovie(prepareMovieData(diffLR),fullfile(subDirectory,'difference_transient.avi'),false);
          
     end
 end
 toc;
+
+function data = prepareMovieData(data)
+
+    data = data(:,:,2:end); %get rid of first time point
+    data = data-mean(data,3); % normalise by mean along time
+%     data = data-data(:,:,end); % normalise by time point
+
+    %map to interval [0,1]
+    data = data+abs(min(data,[],'all')); % make minimum 0
+    data = data/max(data,[],'all'); %make maximum 1
+    
+end
+
 end
 

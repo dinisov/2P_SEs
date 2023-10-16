@@ -66,6 +66,7 @@ for fly = 1:length(chosenFlies)
         end
 
         BLOCKS(b).brainImage = imread(fullfile(currentDirectory,'brain.jpg'));
+        BLOCKS(b).nStimuli = currentBlock.nStimuli;
         
     end
         

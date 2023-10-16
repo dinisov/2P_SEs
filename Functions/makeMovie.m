@@ -14,6 +14,5 @@ function makeMovie(data, filename, isCorr)
             writeVideo(VidObj, ind2rgb(uint8(255 * data(:,:,f)), jet(256)));
         end
     end
-    close(VidObj);
-       
+    close(VidObj);    
 end

@@ -1,5 +1,5 @@
 function fitMovies(R, FLIES, outputDirectory, gridSize, chosenFlies, trimSize)
-% fitMovies Summary of this function goes here
+% fitMovies Makes movies of component fits over time
 %   Detailed explanation goes here
 
     disp('Making fit movies...');

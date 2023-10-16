@@ -26,7 +26,7 @@ flyList = unique(blocks.Fly);
 % chosenFlies = [19 21 23]; %three best flies
 % chosenFlies = 19:23; % usable 57C10 flies 
 % chosenFlies = 6:18; %57C10x GCamp7s Projector
-chosenFlies = 7;
+chosenFlies = [25:35];
 
 imageSize = [32 32];
 
@@ -47,7 +47,7 @@ for fly = chosenFlies
     
     nBlocks = height(thisFlyBlocks);
     
-    for b = 1:1%nBlocks
+    for b = 1:nBlocks
     
         results = load(fullfile(resultsDirectory,['Fly' num2str(thisFlyBlocks(1,:).Fly)],['Block' num2str(b)],'results.mat'));
         
@@ -117,7 +117,7 @@ for fly = 1:length(chosenFlies)
 
 end
 
-n_clusters = 2;
+n_clusters = 3;
 
 % idx = kmeans(X_All,n_clusters,'Distance','correlation');
 idx = kmedoids(X_All,n_clusters,'Distance','correlation');

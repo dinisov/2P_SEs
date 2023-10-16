@@ -29,13 +29,24 @@ function patternPlots(R, FLIES, chosenFlies, outputDirectory)
            AAAAminusAAAR_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,16,trim+1:end-trim,trim+1:end-trim)),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,8,trim+1:end-trim,trim+1:end-trim)),[2 3 1]);
            RRRRminusRRRA_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,1,trim+1:end-trim,trim+1:end-trim)),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,9,trim+1:end-trim,trim+1:end-trim)),[2 3 1]);
 
-           AAAAminusAAAR_t = normalize(AAAAminusAAAR_t,3,'range',[0 1]);
-           makeMovie(AAAAminusAAAR_t,fullfile(subDirectory,'AAAAminusAAAR_transient.avi'),false);
+%            AAAAminusAAAR_t = normalize(AAAAminusAAAR_t,3,'range',[0 1]);
+           makeMovie(prepareMovieData(AAAAminusAAAR_t),fullfile(subDirectory,'AAAAminusAAAR_transient.avi'),false);
 
-           RRRRminusRRRA_t = normalize(RRRRminusRRRA_t,3,'range',[0 1]);
-           makeMovie(RRRRminusRRRA_t,fullfile(subDirectory,'RRRRminusRRRA_transient.avi'),false);
+%            RRRRminusRRRA_t = normalize(RRRRminusRRRA_t,3,'range',[0 1]);
+           makeMovie(prepareMovieData(RRRRminusRRRA_t),fullfile(subDirectory,'RRRRminusRRRA_transient.avi'),false);
 
         end
     end
 end
 
+function data = prepareMovieData(data)
+
+%     data = data(:,:,2:end); %get rid of first time point
+%     data = data-mean(data,3); % normalise by mean along time
+%     data = data-data(:,:,end); % normalise by time point
+
+    %map to interval [0,1]
+    data = data+abs(min(data,[],'all')); % make minimum 0
+    data = data/max(data,[],'all'); %make maximum 1
+    
+end

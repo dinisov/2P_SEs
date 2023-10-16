@@ -22,7 +22,7 @@ gridSize = [32 32];
 
 flyList = unique(blocks.Fly);
 
-chosenFlies = 1:41;
+chosenFlies = 43:43;
 
 trim = 3;
 
