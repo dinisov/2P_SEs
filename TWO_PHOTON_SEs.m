@@ -74,7 +74,7 @@ analyseLvsR(R, FLIES, chosenFlies, outputDirectory, 3);
 
 %% plotting
 
-plot results per block
+% plot results per block
 for fly = 1:length(FLIES)
     subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))]);
     if ~exist(subDirectory,'dir')

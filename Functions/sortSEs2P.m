@@ -13,7 +13,7 @@ function [dataSeq, dataSeqIso] = sortSEs2P(imageStack, randomSequence, nVol, nSt
     % groups (1,32),(2,31),(3,30), etc, as representing the same pattern
     % avoids very costly flip() operations later
 %     auxSeq = [1:16 16:-1:1];
-    order = seq_eff_order(5);
+    [~,order] = sort(seq_eff_order(5));
     auxSeq = [order fliplr(order)];
     
     % vol here indexes the number of volumes (time points) collected
