@@ -5,7 +5,7 @@ function R = analyse2PBlock(block)
     n_back = 5; 
     
     % yields 5D matrix with (vol,seq,pixelX,pixelY,trial)
-    [dataSeq, dataSeqIso] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
+    [dataSeq, dataSeqIso, blankStack] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
     
     % mean across fifth (trial) dimension (much faster than nan mean)
     meanDataSeq = sum(dataSeq,5)./sum(dataSeq~=0,5);
@@ -28,7 +28,8 @@ function R = analyse2PBlock(block)
 
     % put all results into a neat structure
     R = struct;
-     
+    
+    R.blankStack = blankStack;
     R.dataSeq = dataSeq;
     R.dataSeqIso = dataSeqIso;% this still holds the 32 sequences
     R.meanDataSeq = meanDataSeq;

@@ -31,7 +31,7 @@ gridSize = [32 32];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [55:56];
+chosenFlies = [62:62];
 
 % chosenFlies = flyList;%do not choose any flies
 
@@ -50,7 +50,7 @@ R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks);
 
 %% make movies of transients as differences to mean
 
-% transientMovies(R, chosenFlies, outputDirectory, 3);
+transientMovies(R, chosenFlies, outputDirectory, 3);
 
 %% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS (per volume/time and collapsed across time)
 

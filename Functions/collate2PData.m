@@ -59,7 +59,7 @@ for fly = 1:length(chosenFlies)
         % calculate number of volumes per stimulus train
         nSlices = currentBlock.Steps + currentBlock.FlybackFrames;
         nVolTotal = currentBlock.realFrames/nSlices;
-        BLOCKS(b).nVol = nVolTotal/currentBlock.BlockLength;
+        BLOCKS(b).nVol = nVolTotal/(currentBlock.BlockLength+currentBlock.BlankBlocks);
 
         if ~exist(fullfile(currentDirectory,'brain.jpg'),'file')
             copyfile(fullfile(RDMDirectory,'Gcamp7s_CC',currentDate,flyID,'brain.jpg'),fullfile(currentDirectory,'brain.jpg'));

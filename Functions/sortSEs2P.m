@@ -1,11 +1,9 @@
-function [dataSeq, dataSeqIso] = sortSEs2P(imageStack, randomSequence, nVol, nStimuli)
+function [dataSeq, dataSeqIso, blankStack] = sortSEs2P(imageStack, randomSequence, nVol, nStimuli)
 %this function sorts ERPs according to the past sequence of events and 
 
     nBack = 5;
     nSeq = 2^nBack;
-
-    sequenceLength = length(randomSequence);
-
+    
     % better to pre-allocate but 5th dim will be too long
     dataSeq = zeros([nVol nSeq/2 size(imageStack)]);
     dataSeqIso = zeros([nVol nSeq size(imageStack)]);
@@ -15,6 +13,21 @@ function [dataSeq, dataSeqIso] = sortSEs2P(imageStack, randomSequence, nVol, nSt
 %     auxSeq = [1:16 16:-1:1];
     [~,order] = sort(seq_eff_order(5));
     auxSeq = [order fliplr(order)];
+    
+    % index of blank stimuli/blocks
+    indBlank = randomSequence == 5;
+    
+    % remove blank stimuli from random sequence
+    randomSequence = randomSequence(~indBlank);
+    sequenceLength = length(randomSequence);
+    
+    % construct index of frames after blank blocks
+    indBlankStack = reshape(indBlank,[5 length(indBlank)/5]).';
+    indBlankStack = repmat(indBlankStack(:,1),[1 nVol]).';
+    
+    % split between stimuli image and blank image stacks
+    blankStack = imageStack(:,:,indBlankStack(:));
+    imageStack = imageStack(:,:,~indBlankStack(:));
     
     % vol here indexes the number of volumes (time points) collected
     % per trial

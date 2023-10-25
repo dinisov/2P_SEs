@@ -20,7 +20,7 @@ dates = unique(flies.Date);
 
 %%
 
-for d = 34:34%length(dates)
+for d = 35:36%length(dates)
   
     % all blocks for a particular date
     thisDateBlocks = flies(flies.Date == dates(d),:);

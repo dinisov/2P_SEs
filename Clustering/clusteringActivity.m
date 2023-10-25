@@ -26,7 +26,7 @@ flyList = unique(blocks.Fly);
 % chosenFlies = [19 21 23]; %three best flies
 % chosenFlies = 19:23; % usable 57C10 flies 
 % chosenFlies = 6:18; %57C10x GCamp7s Projector
-chosenFlies = [21:21];
+chosenFlies = [27:27];
 
 imageSize = [32 32];
 
@@ -41,7 +41,7 @@ n_pixels = prod(imageSize);
 FLIES = struct;
 
 for fly = chosenFlies
-   
+    
     % the blocks corresponding to this fly
     thisFlyBlocks = blocks(blocks.Fly == fly,:);
     
@@ -50,18 +50,32 @@ for fly = chosenFlies
     for b = 1:1%nBlocks
     
         results = load(fullfile(resultsDirectory,['Fly' num2str(thisFlyBlocks(1,:).Fly)],['Block' num2str(b)],'results.mat'));
+
+        results.meanDataSeq = results.meanDataSeq(2:end,:,:,:); %first time point is usually anomalous
         
         % construct a matrix of SE profiles averaged across time
         SEProfiles = permute(squeeze(sum(results.meanDataSeq,1)),[2 3 1]);
+
+        % construct a matrix of activity 
+        activities = permute(squeeze(mean(results.meanDataSeq,2)),[2 3 1]);
         
-%         remove sides from images for clustering
+        % remove sides from images for clustering
+        activities([1:trim end-(trim-1):end],:,:) = [];
+        activities(:, [1:trim end-(trim-1):end],:) = [];
+
+        activities = makeTransient(activities);
+
         SEProfiles([1:trim end-(trim-1):end],:,:) = [];
-        SEProfiles(:, [1:trim end-(trim-1):end],:) = [];
+        SEProfiles(:, [1:trim end-(trim-1):end],:) = []; 
        
-        %data matrix
-        X = reshape(SEProfiles,[imageSize(1)*imageSize(2) 16]);
+        %data matrix for activities
+        XAct = reshape(activities,[imageSize(1)*imageSize(2) size(activities,3)]);
+
+        %data matrix for SEs
+        XSeq = reshape(SEProfiles,[imageSize(1)*imageSize(2) 16]);
         
-        FLIES(fly).BLOCK(b).X = X;
+        FLIES(fly).BLOCK(b).XAct = XAct;
+        FLIES(fly).BLOCK(b).XSeq = XSeq;
         
         % make pairwise distance matrix
 %         distMat = squareform(pdist(X,'correlation'));
@@ -70,26 +84,42 @@ for fly = chosenFlies
 
         %% k means or k meoids
 
-        n_clusters = 2;
+        n_clusters = 3;
 
-        idx = kmeans(X,n_clusters,'Distance','correlation');
-%         idx = kmedoids(X,n_clusters,'Distance','correlation');
+%         idx = spectralcluster(XSeq,n_clusters);
+        idx = kmeans(XSeq,n_clusters,'Distance','correlation');
+%         idx = kmedoids(XSeq,n_clusters,'Distance','correlation');
         
-        for i = 1:n_clusters
+        for cl = 1:n_clusters
             
-           cluster_mask = reshape(idx == i,imageSize);
-           
-%            cluster_mask([1:3 end-3:end],:) = 0;
-%            cluster_mask(:, [1:3 end-3:end]) = 0;
-           
-           figure; imagesc(cluster_mask); saveas(gcf,['cluster_mask' num2str(i) '.png']);
-           
-           se_profile = zeros(16,1);
-           %SE profile for cluster
-           for s = 1:16
-               se_profile(s) = mean(X(cluster_mask(:),s));
-           end
-           figure; create_seq_eff_plot(se_profile,[]); saveas(gcf,['SE_profile_cluster' num2str(i) '.png']);
+            cluster_mask = reshape(idx == cl,imageSize);
+            
+%             figure; imagesc(cluster_mask); saveas(gcf,['cluster_mask' num2str(cl) '.png']);
+            
+%             figure; plot(mean(XAct(cluster_mask(:),:))); saveas(gcf,['cluster_activity' num2str(cl) '.png']);
+            
+            se_profile = zeros(16,1);
+            %SE profile for cluster
+            for s = 1:16
+               se_profile(s) = mean(XSeq(cluster_mask(:),s));
+            end
+            
+%             figure; create_seq_eff_plot(se_profile,[]); saveas(gcf,['SE_profile_cluster' num2str(cl) '.png']);
+
+            % plot profiles over time
+%             for t = 1:size(activities,3)
+%     
+%                se_profile = zeros(16,1);
+%                %SE profile for cluster
+%                for s = 1:16
+%                    thisSeq = squeeze(results.meanDataSeq(t,s,:,:));
+%                    thisSeq = thisSeq(:);
+%                    se_profile(s) = mean(thisSeq(cluster_mask(:)));
+%                end
+%                figure; create_seq_eff_plot(se_profile,[]); %saveas(gcf,['SE_profile_cluster' num2str(i) '.png']);
+%     
+%             end
+
         end
         
         % hierarchical clustering (probably not relevant)
@@ -162,6 +192,8 @@ end
 
 %% PCA
 
+% close all
+
 % normalise data
 
 % for i = 1:size(X_All,1)
@@ -169,18 +201,59 @@ end
 % end
 
 % load jentzsch_data.mat
-% 
+
 % options = statset('MaxIter',10000,'TolFun',1e-8);
+
+for fly = 1:length(FLIES)
+
+    for b = 1:length(FLIES(fly).BLOCK)
+
+        thisFlyDirectory = fullfile(resultsDirectory,['Fly' num2str(fly)],['Block' num2str(b)],'PCA');
+        if ~exist(thisFlyDirectory,'dir')
+           mkdir(thisFlyDirectory); 
+        end
+
+        [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XAct.');
+        
+        for i = 1:4
+           figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
+           saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '.png']));
+%            close all;     
+        end
+        
+        figure; plot(explained);
+        saveas(gcf,fullfile(thisFlyDirectory,'explained.png')); close all;
+
+        [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XSeq);
+
+        for i = 1:4
+           figure; create_seq_eff_plot(coeff(:,i),[]);
+           saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '.png']));
+%            close all;     
+        end
+
+        figure; plot(explained);
+        saveas(gcf,fullfile(thisFlyDirectory,'explained_seq.png')); %close all;
+
+    end
+
+end
+
+% for cp = 1:3
+%     se_profile = zeros(16,1);
+%     end
+%     figure; create_seq_eff_plot(se_profile,[]);
+% end
+
+% [coeff,score,latent,tsquared,explained,mu] = pca(XSeq);
 % 
-% [coeff,score,latent,tsquared,explained,mu] = pca(X_All);
-% 
-% for i = 1:16
+% for i = 1:4
 %    figure; create_seq_eff_plot(coeff(:,i),[]); 
 % end
 % 
 % figure; plot(explained);
-% 
-% % [L1,T] = rotatefactors(coeff(:,1:2),'Method','procrustes','Target',[SLRP -LRPR],'Maxit',15000,'type','orthogonal');
+
+% [L1,T] = rotatefactors(coeff(:,1:2),'Method','procrustes','Target',[SLRP -LRPR],'Maxit',15000,'type','orthogonal');
 % [L1,T] = rotatefactors(coeff(:,1:2),'Method','equamax');
 % 
 % for i = 1:2
@@ -246,3 +319,15 @@ end
 %    close all;
 % 
 % end
+
+function data = makeTransient(data)
+
+%     data = data(:,:,2:end); %get rid of first time point
+    data = data-mean(data,3); % normalise by mean along time
+%     data = data-data(:,:,end); % normalise by time point
+
+    %map to interval [0,1]
+    data = data+abs(min(data,[],'all')); % make minimum 0
+    data = data/max(data,[],'all'); %make maximum 1
+    
+end
