@@ -31,7 +31,7 @@ gridSize = [32 32];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [64:65];
+chosenFlies = [59:61];
 
 % chosenFlies = flyList;%do not choose any flies
 
@@ -62,7 +62,7 @@ fitMovies(R, FLIES, outputDirectory, gridSize, chosenFlies, 3);
 
 %% calculate mass t-tests
 
-% R = ttests2P(R, FLIES, groupedBlocks);
+R = ttests2P(R, FLIES, groupedBlocks);
 
 %% RRRR-RRRA and AAAA-AAAR (collapsed and over time videos)
 
