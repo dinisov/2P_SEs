@@ -29,8 +29,11 @@ function LvsR = calculateTtestsLR(dataSeqIso)
         end
     end
     
-    meanR = mean(R,3);
-    meanL = mean(L,3);
+    meanR = sum(R,3)./sum(R~=0,3);
+    meanL = sum(L,3)./sum(L~=0,3);
+    
+    meanR(isnan(meanR)) = 0;
+    meanL(isnan(meanL)) = 0;
     
     LvsR.h = h_LvsR;
     LvsR.p = p_LvsR;

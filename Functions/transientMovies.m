@@ -13,21 +13,33 @@ for fly = 1:length(R)
            mkdir(subDirectory); 
         end
         
+        % blank trial transient movie
+        if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
+            blankTrials = R(fly).BLOCK(b).meanBlankTransient;
+            blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+            makeMovie(prepareMovieData(blankTrials),fullfile(subDirectory,'blankTrials.avi'),false);
+        else
+            blankTrials = 0;
+        end
+        
         % global response transient
         allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 1]);
         allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:);
-        allSeq = prepareMovieData(allSeq);
         
-        makeMovie(allSeq,fullfile(subDirectory,'global.avi'), false);
+        makeMovie(prepareMovieData(allSeq-blankTrials),fullfile(subDirectory,'global.avi'), false);
         
         % response transient per sequence
         for s = 1:16     
             seq = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,s,:,:)),[2 3 1]);
             seq = seq(trim+1:end-trim,trim+1:end-trim,:);
-            seq = prepareMovieData(seq);
+            seq = prepareMovieData(seq-blankTrials);
             
             makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']),false);
         end
+        
+        % make movie of difference between global transient and no stimulus
+        % transient
+%         makeMovie(prepareMovieData(allSeq-blankTrials),fullfile(subDirectory,'difference.avi'),false);
         
     end
         
@@ -37,8 +49,8 @@ end
 
 function data = prepareMovieData(data)
 
-    data = data(:,:,2:end); %get rid of first time point
-    data = data-mean(data,3); % normalise by mean along time
+%     data = data(:,:,2:end); %get rid of first time point
+%     data = data-mean(data,3); % normalise by mean along time
 %     data = data-data(:,:,end); % normalise by time point
 
     %map to interval [0,1]

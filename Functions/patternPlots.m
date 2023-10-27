@@ -11,14 +11,25 @@ function patternPlots(R, FLIES, chosenFlies, outputDirectory)
             if ~exist(subDirectory,'dir')
                mkdir(subDirectory); 
             end
+            
+            if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
+                blankTrials = R(fly).BLOCK(b).meanBlankTransient;
+                blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+                meanBlankTrials = mean(blankTrials,3);
+            else
+                blankTrials = 0;
+                meanBlankTrials = 0;
+            end
+            
            thisBlockData = squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1));
+           
            AAAA = squeeze(thisBlockData(16,trim+1:end-trim,trim+1:end-trim)); AAAR = squeeze(thisBlockData(8,trim+1:end-trim,trim+1:end-trim)); 
            RRRR = squeeze(thisBlockData(1,trim+1:end-trim,trim+1:end-trim)); RRRA = squeeze(thisBlockData(9,trim+1:end-trim,trim+1:end-trim));
 
-           figure; imagesc(AAAA); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAA.png')); 
-           figure; imagesc(RRRR); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRR.png'));
-           figure; imagesc(RRRA); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRA.png'));
-           figure; imagesc(AAAR); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAR.png'));
+           figure; imagesc(AAAA-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAA.png')); 
+           figure; imagesc(RRRR-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRR.png'));
+           figure; imagesc(RRRA-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRA.png'));
+           figure; imagesc(AAAR-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAR.png'));
            figure; imagesc((AAAA-AAAR)); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAAminusAAAR.png'));
            figure; imagesc((RRRR-RRRA)); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRRminusRRRA.png'));
            close all;

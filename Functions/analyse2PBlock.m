@@ -2,10 +2,10 @@ function R = analyse2PBlock(block)
 
     %% sort data according to previous sequence
 
-    n_back = 5; 
+%     n_back = 5; 
     
     % yields 5D matrix with (vol,seq,pixelX,pixelY,trial)
-    [dataSeq, dataSeqIso, blankStack] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
+    [dataSeq, dataSeqIso] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
     
     % mean across fifth (trial) dimension (much faster than nan mean)
     meanDataSeq = sum(dataSeq,5)./sum(dataSeq~=0,5);
@@ -18,7 +18,7 @@ function R = analyse2PBlock(block)
     nData = sum(dataSeq(1,:,16,16,:)~=0, 5);
     
     % reorder according to the literature
-    meanDataSeq = meanDataSeq(:,seq_eff_order(n_back),:,:);
+%     meanDataSeq = meanDataSeq(:,seq_eff_order(n_back),:,:);
 %     semERPs = semERPs(:,seq_eff_order(n_back));
     
     % we can make a figure showing the average image as a function of the
@@ -28,8 +28,16 @@ function R = analyse2PBlock(block)
 
     % put all results into a neat structure
     R = struct;
-    
-    R.blankStack = blankStack;
+
+    % calculate mean of blank stack
+    if ~isempty(block.blankImageStack)
+        meanBlankTransient = mean(reshape(block.blankImageStack,[size(block.blankImageStack,1)...
+            size(block.blankImageStack,2) block.nVol size(block.blankImageStack,3)/block.nVol]),4);
+        R.meanBlankTransient = meanBlankTransient;
+    else
+        R.meanBlankTransient = [];
+    end
+  
     R.dataSeq = dataSeq;
     R.dataSeqIso = dataSeqIso;% this still holds the 32 sequences
     R.meanDataSeq = meanDataSeq;
