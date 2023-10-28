@@ -26,13 +26,13 @@ for fly = 1:length(R)
         allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 1]);
         allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:);
         
-        makeMovie(prepareMovieData(allSeq-blankTrials),fullfile(subDirectory,'global.avi'), false);
+        makeMovie(prepareMovieData((allSeq-blankTrials)./blankTrials),fullfile(subDirectory,'global.avi'), false);
         
         % response transient per sequence
         for s = 1:16     
             seq = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,s,:,:)),[2 3 1]);
             seq = seq(trim+1:end-trim,trim+1:end-trim,:);
-            seq = prepareMovieData(seq-blankTrials);
+            seq = prepareMovieData((seq-blankTrials)./blankTrials);
             
             makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']),false);
         end

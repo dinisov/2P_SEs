@@ -30,13 +30,13 @@ for fly = 1:length(FLIES)
         figure; imagesc(R(fly).BLOCK(b).LvsR.h); saveas(gcf,fullfile(subDirectory,'h.png'));
         figure; imagesc(R(fly).BLOCK(b).LvsR.p); colormap(hot(256));saveas(gcf,fullfile(subDirectory,'p.png'));
         
-        LRDiff = R(fly).BLOCK(b).LvsR.LRDiff(trim+1:end-trim,trim+1:end-trim); %LRDiff = normalize(LRDiff,'range',[0 1]);
+        LRDiff = R(fly).BLOCK(b).LvsR.LRDiff(trim+1:end-trim,trim+1:end-trim)./meanBlankTrials; %LRDiff = normalize(LRDiff,'range',[0 1]);
         figure; imagesc(LRDiff); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'LminusR.png'));
         
-        meanL = R(fly).BLOCK(b).LvsR.meanL(trim+1:end-trim,trim+1:end-trim)-meanBlankTrials;% meanL = normalize(meanL,'range',[0 1]);
+        meanL = (R(fly).BLOCK(b).LvsR.meanL(trim+1:end-trim,trim+1:end-trim)-meanBlankTrials)./meanBlankTrials;% meanL = normalize(meanL,'range',[0 1]);
         figure; imagesc(meanL); colormap(jet(256));colorbar; saveas(gcf,fullfile(subDirectory,'meanL.png'));
         
-        meanR = R(fly).BLOCK(b).LvsR.meanR(trim+1:end-trim,trim+1:end-trim)-meanBlankTrials;% meanR = normalize(meanR,'range',[0 1]);
+        meanR = (R(fly).BLOCK(b).LvsR.meanR(trim+1:end-trim,trim+1:end-trim)-meanBlankTrials)./meanBlankTrials;% meanR = normalize(meanR,'range',[0 1]);
         figure; imagesc(meanR); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'meanR.png'));
         close all;
         
@@ -52,10 +52,10 @@ for fly = 1:length(FLIES)
         meanLeft = permute(squeeze(mean(meanLeft,2)),[2 3 1]);
         meanRight = permute(squeeze(mean(meanRight,2)),[2 3 1]);
         
-        makeMovie(prepareMovieData(meanLeft-blankTrials),fullfile(subDirectory,'left_transient.avi'),false);
-        makeMovie(prepareMovieData(meanRight-blankTrials),fullfile(subDirectory,'right_transient.avi'),false);
+        makeMovie(prepareMovieData((meanLeft-blankTrials)./blankTrials),fullfile(subDirectory,'left_transient.avi'),false);
+        makeMovie(prepareMovieData((meanRight-blankTrials)./blankTrials),fullfile(subDirectory,'right_transient.avi'),false);
 
-        makeMovie(prepareMovieData(meanRight-meanLeft),fullfile(subDirectory,'difference_transient.avi'),false);
+        makeMovie(prepareMovieData((meanRight-meanLeft)./blankTrials),fullfile(subDirectory,'difference_transient.avi'),false);
          
     end
 end

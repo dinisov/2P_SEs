@@ -21,15 +21,36 @@ function patternPlots(R, FLIES, chosenFlies, outputDirectory)
                 meanBlankTrials = 0;
             end
             
+           %data averaged over time
            thisBlockData = squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1));
            
-           AAAA = squeeze(thisBlockData(16,trim+1:end-trim,trim+1:end-trim)); AAAR = squeeze(thisBlockData(8,trim+1:end-trim,trim+1:end-trim)); 
-           RRRR = squeeze(thisBlockData(1,trim+1:end-trim,trim+1:end-trim)); RRRA = squeeze(thisBlockData(9,trim+1:end-trim,trim+1:end-trim));
+           % trim data
+           thisBlockData = thisBlockData(:,trim+1:end-trim,trim+1:end-trim);
+           
+           % subtract and divide by blank trial average (dF/F)
+           aux = permute(repmat(meanBlankTrials,[1 1 16]),[3 1 2]);
+           thisBlockData = (thisBlockData-aux)./aux;
+           
+           AAAA = squeeze(thisBlockData(16,:,:)); AAAR = squeeze(thisBlockData(8,:,:)); 
+           RRRR = squeeze(thisBlockData(1,:,:)); RRRA = squeeze(thisBlockData(9,:,:));
 
-           figure; imagesc(AAAA-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAA.png')); 
-           figure; imagesc(RRRR-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRR.png'));
-           figure; imagesc(RRRA-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRA.png'));
-           figure; imagesc(AAAR-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAR.png'));
+           % normalise for colormap purposes
+           thisBlockData = prepareMovieData(thisBlockData);
+           
+           load binomial_x_labels_latex_alt_rep.mat
+           
+           %this is just to help turn horizontal sequences into vertical ones
+           ind_horiz = sub2ind(size(binomial_x_labels_latex{1}),1:4,[1 1 1 5]);
+           
+           for i = 1:16
+                figure; imagesc((squeeze(thisBlockData(i,:,:)))); colormap(jet(256)); colorbar; 
+                saveas(gcf,fullfile(subDirectory,[binomial_x_labels_latex{i}(ind_horiz) '.png'])); 
+           end
+
+%            figure; imagesc(AAAA-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAA.png')); 
+%            figure; imagesc(RRRR-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRR.png'));
+%            figure; imagesc(RRRA-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRA.png'));
+%            figure; imagesc(AAAR-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAR.png'));
            figure; imagesc((AAAA-AAAR)); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAAminusAAAR.png'));
            figure; imagesc((RRRR-RRRA)); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRRminusRRRA.png'));
            close all;

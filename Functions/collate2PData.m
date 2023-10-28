@@ -69,29 +69,21 @@ for fly = 1:length(chosenFlies)
         BLOCKS(b).nStimuli = currentBlock.nStimuli;
         BLOCKS(b).blankBlocks = currentBlock.BlankBlocks;
         
+        % apply a savitsky-golay filter to remove larger trends in data
+        BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,55);
+
+        figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+    
         BLOCKS(b).blankImageStack = [];
         
-        % if there are blank blocks, split image stack
+        % if there are blank blocks, split image stack (after filtering)
         if currentBlock.BlankBlocks
             BLOCKS(b) = splitStack(BLOCKS(b));
         end
-        
-    end
-        
-    FLIES(fly).BLOCKS = BLOCKS;
     
-%     %filter parameters
-%     degrees = 3;
-%     filt_width = 55;
-%     
-%     % filter data (remove larger trends in time series)
-%     for b = 1:length(BLOCKS)
-%         traceGreen = squeeze(mean(mean(FLIES(fly).BLOCKS(b).greenChannel,1),2));
-% %         traceRed = squeeze(mean(mean(FLIES(fly).BLOCKS(b).redChannel,1),2));
-%         
-%         BLOCKS(b).greenChannel = BLOCKS(b).greenChannel - reshape(sgolayfilt(traceGreen,degrees,filt_width), [1 1 length(traceGreen)]);
-% %         BLOCKS(b).redChannel = BLOCKS(b).redChannel - reshape(sgolayfilt(traceRed,degrees,filt_width), [1 1 length(traceRed)]);
-%     end
+    end
+    
+    FLIES(fly).BLOCKS = BLOCKS;
     
     % concatenate data from different blocks
     if groupedBlocks   
