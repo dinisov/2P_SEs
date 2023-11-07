@@ -12,30 +12,28 @@ function patternPlots(R, FLIES, chosenFlies, outputDirectory)
                mkdir(subDirectory); 
             end
             
-            if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
-                blankTrials = R(fly).BLOCK(b).meanBlankTransient;
-                blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
-                meanBlankTrials = mean(blankTrials,3);
-            else
-                blankTrials = 0;
-                meanBlankTrials = 0;
-            end
-            
            %data averaged over time
            thisBlockData = squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1));
            
            % trim data
            thisBlockData = thisBlockData(:,trim+1:end-trim,trim+1:end-trim);
-           
-           % subtract and divide by blank trial average (dF/F)
-           aux = permute(repmat(meanBlankTrials,[1 1 16]),[3 1 2]);
-           thisBlockData = (thisBlockData-aux)./aux;
+            
+            if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
+              
+                blankTrials = R(fly).BLOCK(b).meanBlankTransient;
+                blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+                meanBlankTrials = mean(blankTrials,3);
+                figure; imagesc(meanBlankTrials); colormap(jet(256));
+                saveas(gcf,fullfile(subDirectory,'average_blanks.png')); 
+                
+                % subtract and divide by blank trial average (dF/F)
+                aux = permute(repmat(meanBlankTrials,[1 1 16]),[3 1 2]);
+                thisBlockData = (thisBlockData-aux)./aux;
+                
+            end
            
            AAAA = squeeze(thisBlockData(16,:,:)); AAAR = squeeze(thisBlockData(8,:,:)); 
            RRRR = squeeze(thisBlockData(1,:,:)); RRRA = squeeze(thisBlockData(9,:,:));
-
-           % normalise for colormap purposes
-           thisBlockData = prepareMovieData(thisBlockData);
            
            load binomial_x_labels_latex_alt_rep.mat
            
@@ -43,7 +41,7 @@ function patternPlots(R, FLIES, chosenFlies, outputDirectory)
            ind_horiz = sub2ind(size(binomial_x_labels_latex{1}),1:4,[1 1 1 5]);
            
            for i = 1:16
-                figure; imagesc((squeeze(thisBlockData(i,:,:)))); colormap(jet(256)); colorbar; 
+                figure; imagesc(squeeze(thisBlockData(i,:,:))); colormap(jet(256)); colorbar; 
                 saveas(gcf,fullfile(subDirectory,[binomial_x_labels_latex{i}(ind_horiz) '.png'])); 
            end
 

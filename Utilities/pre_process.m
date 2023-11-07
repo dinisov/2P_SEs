@@ -15,7 +15,7 @@ blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
 
-chosenFlies = 65:65;
+chosenFlies = 64:72;
 
 for fly = 1:length(chosenFlies)
     

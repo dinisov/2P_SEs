@@ -15,24 +15,34 @@ for fly = 1:length(R)
         
         % blank trial transient movie
         if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
+            
             blankTrials = R(fly).BLOCK(b).meanBlankTransient;
             blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+            
             makeMovie(prepareMovieData(blankTrials),fullfile(subDirectory,'blankTrials.avi'),false);
+            
+            % global response transient
+            allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 1]);
+            allSeq = (allSeq(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
         else
-            blankTrials = 0;
+            % global response transient
+            allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 1]);
+            allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:);
         end
         
-        % global response transient
-        allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 1]);
-        allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:);
-        
-        makeMovie(prepareMovieData((allSeq-blankTrials)./blankTrials),fullfile(subDirectory,'global.avi'), false);
+        makeMovie(prepareMovieData(allSeq),fullfile(subDirectory,'global.avi'), false);
         
         % response transient per sequence
         for s = 1:16     
             seq = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,s,:,:)),[2 3 1]);
-            seq = seq(trim+1:end-trim,trim+1:end-trim,:);
-            seq = prepareMovieData((seq-blankTrials)./blankTrials);
+            
+            if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
+                seq = (seq(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+            else
+                seq = seq(trim+1:end-trim,trim+1:end-trim,:);
+            end
+            
+            seq = prepareMovieData(seq);
             
             makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']),false);
         end

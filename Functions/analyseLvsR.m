@@ -2,18 +2,23 @@ function R = analyseLvsR(R, FLIES, chosenFlies, outputDirectory, trim)
 %analyseLvsR Summary of this function goes here
 %   Detailed explanation goes here
 
-% newGridSize = gridSize-2*trim;
-
 disp('Calculating L vs R');
 tic;
 % for each block
 for fly = 1:length(FLIES)
     for b = 1:length(FLIES(fly).BLOCKS)
+
         subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'LvsR');
+
         if ~exist(subDirectory,'dir')
            mkdir(subDirectory); 
         end
         
+        thisBlockData = squeeze(sum(R(fly).BLOCK(b).dataSeqIso,1)./size(R(fly).BLOCK(b).dataSeqIso,1));
+
+        % trim data
+        thisBlockData = thisBlockData(:,trim+1:end-trim,trim+1:end-trim,:);
+
         if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
             blankTrials = R(fly).BLOCK(b).meanBlankTransient;
             blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
@@ -22,24 +27,26 @@ for fly = 1:length(FLIES)
             blankTrials = 0;
             meanBlankTrials = 0;
         end
-        
-        thisBlockData = squeeze(sum(R(fly).BLOCK(b).dataSeqIso,1)./size(R(fly).BLOCK(b).dataSeqIso,1));
+
+        %% plot means over time
         
         R(fly).BLOCK(b).LvsR  = calculateTtestsLR(thisBlockData);
         
         figure; imagesc(R(fly).BLOCK(b).LvsR.h); saveas(gcf,fullfile(subDirectory,'h.png'));
         figure; imagesc(R(fly).BLOCK(b).LvsR.p); colormap(hot(256));saveas(gcf,fullfile(subDirectory,'p.png'));
         
-        LRDiff = R(fly).BLOCK(b).LvsR.LRDiff(trim+1:end-trim,trim+1:end-trim)./meanBlankTrials; %LRDiff = normalize(LRDiff,'range',[0 1]);
+        LRDiff = R(fly).BLOCK(b).LvsR.LRDiff-meanBlankTrials./(meanBlankTrials+~any(meanBlankTrials(:)));
         figure; imagesc(LRDiff); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'LminusR.png'));
         
-        meanL = (R(fly).BLOCK(b).LvsR.meanL(trim+1:end-trim,trim+1:end-trim)-meanBlankTrials)./meanBlankTrials;% meanL = normalize(meanL,'range',[0 1]);
+        meanL = (R(fly).BLOCK(b).LvsR.meanL-meanBlankTrials)./(meanBlankTrials+~any(meanBlankTrials(:)));
         figure; imagesc(meanL); colormap(jet(256));colorbar; saveas(gcf,fullfile(subDirectory,'meanL.png'));
         
-        meanR = (R(fly).BLOCK(b).LvsR.meanR(trim+1:end-trim,trim+1:end-trim)-meanBlankTrials)./meanBlankTrials;% meanR = normalize(meanR,'range',[0 1]);
+        meanR = (R(fly).BLOCK(b).LvsR.meanR-meanBlankTrials)./(meanBlankTrials+~any(meanBlankTrials(:)));
         figure; imagesc(meanR); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'meanR.png'));
         close all;
         
+        %% make movies over time
+
         left = R(fly).BLOCK(b).dataSeqIso(:,1:16,trim+1:end-trim,trim+1:end-trim,:);
         right = R(fly).BLOCK(b).dataSeqIso(:,17:32,trim+1:end-trim,trim+1:end-trim,:);
         
@@ -52,10 +59,10 @@ for fly = 1:length(FLIES)
         meanLeft = permute(squeeze(mean(meanLeft,2)),[2 3 1]);
         meanRight = permute(squeeze(mean(meanRight,2)),[2 3 1]);
         
-        makeMovie(prepareMovieData((meanLeft-blankTrials)./blankTrials),fullfile(subDirectory,'left_transient.avi'),false);
-        makeMovie(prepareMovieData((meanRight-blankTrials)./blankTrials),fullfile(subDirectory,'right_transient.avi'),false);
+        makeMovie(prepareMovieData((meanLeft-blankTrials)./(blankTrials+~any(blankTrials(:)))),fullfile(subDirectory,'left_transient.avi'),false);
+        makeMovie(prepareMovieData((meanRight-blankTrials)./(blankTrials+~any(blankTrials(:)))),fullfile(subDirectory,'right_transient.avi'),false);
 
-        makeMovie(prepareMovieData((meanRight-meanLeft)./blankTrials),fullfile(subDirectory,'difference_transient.avi'),false);
+        makeMovie(prepareMovieData((meanRight-meanLeft)./(blankTrials+~any(blankTrials(:)))),fullfile(subDirectory,'difference_transient.avi'),false);
          
     end
 end

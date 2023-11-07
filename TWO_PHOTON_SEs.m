@@ -31,7 +31,7 @@ gridSize = [32 32];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [64:65];
+chosenFlies = [34:35];
 
 % chosenFlies = flyList;%do not choose any flies
 
@@ -73,15 +73,17 @@ patternPlots(R, FLIES, chosenFlies, outputDirectory);
 analyseLvsR(R, FLIES, chosenFlies, outputDirectory, 3);
 
 %% plotting
-
+disp('Plotting stuff');
+tic;
 % plot results per block
 for fly = 1:length(FLIES)
     subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))]);
     if ~exist(subDirectory,'dir')
        mkdir(subDirectory); 
     end
-    plotFly(R(fly), groupedBlocks, subDirectory);
+    plotFly(R(fly), groupedBlocks, subDirectory,'off');
 end
+toc;
 
 %% fit and plot some seq eff profiles of interest
 

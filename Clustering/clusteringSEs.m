@@ -26,7 +26,7 @@ flyList = unique(blocks.Fly);
 % chosenFlies = [19 21 23]; %three best flies
 % chosenFlies = 19:23; % usable 57C10 flies 
 % chosenFlies = 6:18; %57C10x GCamp7s Projector
-chosenFlies = [21:21];
+chosenFlies = [19:24];
 
 imageSize = [32 32];
 
@@ -70,7 +70,7 @@ for fly = chosenFlies
 
         %% k means or k meoids
 
-        n_clusters = 2;
+        n_clusters = 4;
 
         idx = kmeans(X,n_clusters,'Distance','correlation');
 %         idx = kmedoids(X,n_clusters,'Distance','correlation');

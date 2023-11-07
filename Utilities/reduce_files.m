@@ -17,7 +17,7 @@ finalSize = [128 128];
 %%
 
 % this level is the list of blocks
-for fly =127:129%height(flies)
+for fly =133:135%height(flies)
     
     currentFly = flies(fly,:);
     
