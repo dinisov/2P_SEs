@@ -36,6 +36,7 @@ function R = analyse2PBlock(block)
         R.meanBlankTransient = meanBlankTransient;
     else
         R.meanBlankTransient = [];
+        
     end
   
     R.dataSeq = dataSeq;
