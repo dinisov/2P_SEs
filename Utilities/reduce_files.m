@@ -9,7 +9,7 @@ scratchDirectory = '../../2P Data';
 flies = readtable('../../2P Record/2P_record');
 
 %get rid of excluded flies
-flies = flies(~logical(flies.Exclude),:);
+% flies = flies(~logical(flies.Exclude),:);
 
 % the numbers here should be the original size divided by some power of 2
 finalSize = [128 128];
@@ -17,7 +17,7 @@ finalSize = [128 128];
 %%
 
 % this level is the list of blocks
-for fly =133:135%height(flies)
+for fly =[101:106]%height(flies)
     
     currentFly = flies(fly,:);
     

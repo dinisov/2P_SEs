@@ -4,14 +4,14 @@ mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\
 
 dirs = dir(mainDirectory);
 
-addpath('D:\group_swinderen\Dinis\Fiji.app\scripts');
+addpath('D:\group_vanswinderen\Dinis\Fiji.app\scripts');
 
 ImageJ;
 
 %%
 
 % this level is the list of dates
-for date = 29:36%setdiff(3:length(dirs),18)
+for date = 10:12%setdiff(3:length(dirs),18)
    blocks = dir([mainDirectory dirs(date).name]);
    for block = 3:length(blocks)
        currentDirectory = [mainDirectory dirs(date).name '/' blocks(block).name];

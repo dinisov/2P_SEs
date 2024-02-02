@@ -21,8 +21,9 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
             end
             meanDataSeq = R(fly).BLOCK(b).meanDataSeq;
             meanBlankTransient = R(fly).BLOCK(b).meanBlankTransient;
+            meanTransient = R(fly).BLOCK(b).meanTransient;
 
-            save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient');
+            save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient');
         end
         
         % add brain images to results structure
