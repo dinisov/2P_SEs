@@ -26,7 +26,7 @@ flyList = unique(blocks.Fly);
 % chosenFlies = [19 21 23]; %three best flies
 % chosenFlies = 19:23; % usable 57C10 flies 
 % chosenFlies = 6:18; %57C10x GCamp7s Projector
-chosenFlies = [21:21];
+chosenFlies = [21 23];
 
 imageSize = [32 32];
 
@@ -61,7 +61,7 @@ for fly = chosenFlies
         %data matrix
         X = reshape(SEProfiles,[imageSize(1)*imageSize(2) 16]);
         
-        FLIES(fly).BLOCK(b).X = X;
+        FLIES(fly).BLOCK(b).X = normalize(X,2);
         
         % make pairwise distance matrix
 %         distMat = squareform(pdist(X,'correlation'));
@@ -75,22 +75,22 @@ for fly = chosenFlies
         idx = kmeans(X,n_clusters,'Distance','correlation');
 %         idx = kmedoids(X,n_clusters,'Distance','correlation');
         
-        for i = 1:n_clusters
-            
-           cluster_mask = reshape(idx == i,imageSize);
-           
-%            cluster_mask([1:3 end-3:end],:) = 0;
-%            cluster_mask(:, [1:3 end-3:end]) = 0;
-           
-           figure; imagesc(cluster_mask); saveas(gcf,['cluster_mask' num2str(i) '.png']);
-           
-           se_profile = zeros(16,1);
-           %SE profile for cluster
-           for s = 1:16
-               se_profile(s) = mean(X(cluster_mask(:),s));
-           end
-           figure; create_seq_eff_plot(se_profile,[]); saveas(gcf,['SE_profile_cluster' num2str(i) '.png']);
-        end
+%         for i = 1:n_clusters
+%             
+%            cluster_mask = reshape(idx == i,imageSize);
+%            
+% %            cluster_mask([1:3 end-3:end],:) = 0;
+% %            cluster_mask(:, [1:3 end-3:end]) = 0;
+%            
+% %            figure; imagesc(cluster_mask); saveas(gcf,['cluster_mask' num2str(i) '.png']);
+%            
+%            se_profile = zeros(16,1);
+%            %SE profile for cluster
+%            for s = 1:16
+%                se_profile(s) = mean(X(cluster_mask(:),s));
+%            end
+%            figure; create_seq_eff_plot(se_profile,[]); saveas(gcf,['SE_profile_cluster' num2str(i) '.png']);
+%         end
         
         % hierarchical clustering (probably not relevant)
 %         T = clusterdata(X,5);
@@ -101,103 +101,64 @@ end
 
 %% grouped clustering analysis
 
-% % n_flies = 18;
-% 
-% X_All = [];
-% 
-% %which blocks to use for each fly
-% % blocksFlies = {[1],[1]}; %#ok<NBRAK>
-% 
-% % grouped cluster analysis
-% for fly = 1:length(chosenFlies)
-% 
-%     for b = 1:length(FLIES(chosenFlies(fly)).BLOCK)
-%         X_All = [X_All; FLIES(chosenFlies(fly)).BLOCK(b).X]; %#ok<AGROW>
-%     end
-% 
-% end
-% 
-% n_clusters = 3;
-% 
-% % idx = kmeans(X_All,n_clusters,'Distance','correlation');
-% idx = kmedoids(X_All,n_clusters,'Distance','correlation');
-% % [idx,V,D] = spectralcluster(X_All,n_clusters,'Distance','correlation','ClusterMethod','kmedoids');
-% 
-% % clusterMasks = cell(1,n_clusters*n_flies);
-% 
-% se_profiles = zeros(16,n_clusters);
+% n_flies = 18;
+
+X_All = [];
+
+%which blocks to use for each fly
+% blocksFlies = {[1],[1]}; %#ok<NBRAK>
+
+% grouped cluster analysis
+for fly = 1:length(chosenFlies)
+
+    for b = 1:length(FLIES(chosenFlies(fly)).BLOCK)
+        X_All = [X_All; FLIES(chosenFlies(fly)).BLOCK(b).X]; %#ok<AGROW>
+    end
+
+end
+
+n_clusters = 2;
+
+% idx = kmeans(X_All,n_clusters,'Distance','correlation');
+idx = kmeans(X_All,n_clusters,'Distance','correlation');
+% [idx,V,D] = spectralcluster(X_All,n_clusters,'Distance','correlation','ClusterMethod','kmedoids');
+
+% clusterMasks = cell(1,n_clusters*n_flies);
+
+se_profiles = zeros(16,n_clusters);
 
 %% plot stuff
 
-% for cl = 1:n_clusters
-%     
-%    subDirectory = fullfile(outputDirectory,['Cluster' num2str(cl)]);
-%    if ~exist(subDirectory,'dir')
-%       mkdir(subDirectory); 
-%    end
-%    
-%    block_count = 0;
-%    
-%     for fly = 1:length(chosenFlies)
-%         for b = 1:length(FLIES(chosenFlies(fly)).BLOCK)
-%             cluster_mask = reshape(idx((block_count*n_pixels + 1):n_pixels*(block_count+1)) == cl,imageSize);
-%             figure('Visible','off'); 
-% %                 figure; 
-%             imagesc(cluster_mask); saveas(gcf,fullfile(subDirectory,['fly' num2str(chosenFlies(fly)) '_block' num2str(b) '_cluster' num2str(cl) '.png']));
-%             close all;
-%             block_count = block_count+1;
-%         end
-%     end
-% 
-%    %SE profile for cluster
-%    for s = 1:16
-%        se_profiles(s,cl) = mean(X_All(idx == cl,s));
-%    end
-% 
-% %    figure;
-%    figure('Visible','off'); 
-%    create_seq_eff_plot(se_profiles(:,cl),[]); saveas(gcf,fullfile(subDirectory,['SE_profile_cluster' num2str(cl) '.png']));
-%    close all;
-% end
+for cl = 1:n_clusters
+    
+   subDirectory = fullfile(outputDirectory,['Cluster' num2str(cl)]);
+   if ~exist(subDirectory,'dir')
+      mkdir(subDirectory); 
+   end
+   
+   block_count = 0;
+   
+    for fly = 1:length(chosenFlies)
+        for b = 1:length(FLIES(chosenFlies(fly)).BLOCK)
+            cluster_mask = reshape(idx((block_count*n_pixels + 1):n_pixels*(block_count+1)) == cl,imageSize);
+            figure('Visible','off'); 
+%                 figure; 
+            imagesc(cluster_mask); saveas(gcf,fullfile(subDirectory,['fly' num2str(chosenFlies(fly)) '_block' num2str(b) '_cluster' num2str(cl) '.png']));
+            close all;
+            block_count = block_count+1;
+        end
+    end
 
-%% PCA
+   %SE profile for cluster
+   for s = 1:16
+       se_profiles(s,cl) = mean(X_All(idx == cl,s));
+   end
 
-% normalise data
-
-% for i = 1:size(X_All,1)
-%    X_All(i,:) = normalize(X_All(i,:));  %#ok<SAGROW>
-% end
-
-% load jentzsch_data.mat
-% 
-% options = statset('MaxIter',10000,'TolFun',1e-8);
-% 
-% [coeff,score,latent,tsquared,explained,mu] = pca(X_All);
-% 
-% for i = 1:16
-%    figure; create_seq_eff_plot(coeff(:,i),[]); 
-% end
-% 
-% figure; plot(explained);
-% 
-% % [L1,T] = rotatefactors(coeff(:,1:2),'Method','procrustes','Target',[SLRP -LRPR],'Maxit',15000,'type','orthogonal');
-% [L1,T] = rotatefactors(coeff(:,1:2),'Method','equamax');
-% 
-% for i = 1:2
-%    figure; create_seq_eff_plot(L1(:,i),[]); 
-% end
-
-%% factor analysis
-
-% n_fac = 2;
-% 
-% % options = statset('MaxIter',15000);
-% 
-% [lambda,psi] = factoran(X_All,n_fac,'maxit',1500000);
-% 
-% for i = 1:n_fac
-%    figure; create_seq_eff_plot(lambda(:,i),[]); 
-% end
+%    figure;
+   figure('Visible','off'); 
+   create_seq_eff_plot(se_profiles(:,cl),[]); saveas(gcf,fullfile(subDirectory,['SE_profile_cluster' num2str(cl) '.png']));
+   close all;
+end
 
         %% DBSCAN
 

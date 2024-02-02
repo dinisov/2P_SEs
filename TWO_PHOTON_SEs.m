@@ -1,8 +1,8 @@
 close all; clear;
 
-addpath('D:\group_swinderen\Dinis\Scripts\Global functions\');
-addpath('D:\group_swinderen\Dinis\Scripts\Indexes and legends\');
-addpath('D:\group_swinderen\Dinis\2P SEs\Functions\');
+addpath('D:\group_vanswinderen\Dinis\Scripts\Global functions\');
+addpath('D:\group_vanswinderen\Dinis\Scripts\Indexes and legends\');
+addpath('D:\group_vanswinderen\Dinis\2P SEs\Functions\');
 
 close all; clear;
 
@@ -31,7 +31,7 @@ gridSize = [32 32];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [64:65];
+chosenFlies = 36:41;
 
 % chosenFlies = flyList;%do not choose any flies
 
@@ -50,7 +50,7 @@ R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks);
 
 %% make movies of transients as differences to mean
 
-transientMovies(R, chosenFlies, outputDirectory, 3);
+transientMovies(R, chosenFlies, outputDirectory, 4);
 
 %% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS (per volume/time and collapsed across time)
 
@@ -62,7 +62,7 @@ fitMovies(R, FLIES, outputDirectory, gridSize, chosenFlies, 3);
 
 %% calculate mass t-tests
 
-% R = ttests2P(R, FLIES, groupedBlocks);
+R = ttests2P(R, FLIES, groupedBlocks);
 
 %% RRRR-RRRA and AAAA-AAAR (collapsed and over time videos)
 
@@ -73,15 +73,17 @@ patternPlots(R, FLIES, chosenFlies, outputDirectory);
 analyseLvsR(R, FLIES, chosenFlies, outputDirectory, 3);
 
 %% plotting
-
+disp('Plotting stuff');
+tic;
 % plot results per block
 for fly = 1:length(FLIES)
     subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))]);
     if ~exist(subDirectory,'dir')
        mkdir(subDirectory); 
     end
-    plotFly(R(fly), groupedBlocks, subDirectory);
+    plotFly(R(fly), groupedBlocks, subDirectory,'off');
 end
+toc;
 
 %% fit and plot some seq eff profiles of interest
 

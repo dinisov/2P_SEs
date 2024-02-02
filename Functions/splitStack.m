@@ -8,7 +8,7 @@ function BLOCK = splitStack(BLOCK)
     % remove blank stimuli from random sequence
     BLOCK.randomSequence = BLOCK.randomSequence(~indBlank);
     
-    % construct index of frames after blank blocks
+    % construct index of frames corresponding to blank blocks of stimuli
     indBlankStack = reshape(indBlank,[BLOCK.nStimuli length(indBlank)/BLOCK.nStimuli]).';
     indBlankStack = repmat(indBlankStack(:,1),[1 BLOCK.nVol]).';
     

@@ -21,7 +21,6 @@ function [dataSeq, dataSeqIso] = sortSEs2P(imageStack, randomSequence, nVol, nSt
     for vol = 1:nVol
         %sort images according to sequence
         for n = 0:(sequenceLength/nStimuli-mod((nStimuli+4),8))% using mod is a hack; check later for vaues different from 1 or 5 (unlikely to be used)
-            
             % decimal value of binary sequence of length n_back
             seq = bin2dec(num2str(randomSequence((n*nStimuli + 1):(n*nStimuli + nBack)))) + 1;
 

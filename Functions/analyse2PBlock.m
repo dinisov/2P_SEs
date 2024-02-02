@@ -16,18 +16,13 @@ function R = analyse2PBlock(block)
     
     %number of images for each type of sequence
     nData = sum(dataSeq(1,:,16,16,:)~=0, 5);
-    
-    % reorder according to the literature
-%     meanDataSeq = meanDataSeq(:,seq_eff_order(n_back),:,:);
-%     semERPs = semERPs(:,seq_eff_order(n_back));
-    
-    % we can make a figure showing the average image as a function of the
-    % sequence, for each time point
-%     figure;
-%     plot(meanERPs);
 
     % put all results into a neat structure
     R = struct;
+
+    % calculate mean overall transient
+    R.meanTransient = mean(reshape(block.greenChannel,[size(block.greenChannel,1)...
+    size(block.greenChannel,2) block.nVol size(block.greenChannel,3)/block.nVol]),4);
 
     % calculate mean of blank stack
     if ~isempty(block.blankImageStack)

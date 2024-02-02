@@ -2,7 +2,7 @@ close all;
 
 if ~exist('IJM','var')
     clear;
-    addpath('D:\group_swinderen\Dinis\Fiji.app\scripts');
+    addpath('D:\group_vanswinderen\Dinis\Fiji.app\scripts');
     ImageJ;
 end
 
@@ -11,11 +11,11 @@ mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\
 blocks = readtable('../../2P Record/2P_record');
 
 %get rid of excluded flies
-blocks = blocks(~logical(blocks.Exclude),:);
+% blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
 
-chosenFlies = 65:65;
+chosenFlies = 101:102;
 
 for fly = 1:length(chosenFlies)
     

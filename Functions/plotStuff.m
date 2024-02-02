@@ -1,4 +1,4 @@
-function plotStuff(R, outputDirectory)
+function plotStuff(R, outputDirectory, visibility)
 
 brainImage = R.brainImage;
 
@@ -11,21 +11,21 @@ end
 
 % plot t-test results for AAAA vs AAAR and RRRR vs RRRA
 if isfield(R,'AAAAvsAAAR')
-    plotSignificance(R.AAAAvsAAAR,R.RRRRvsRRRA,brainImage,subDirectory);
+    plotSignificance(R.AAAAvsAAAR,R.RRRRvsRRRA,brainImage,subDirectory,visibility);
 end
     
 % plot r_squared
 if isfield(R,'r2')
-    plotR2(R.r2, subDirectory);
+    plotR2(R.r2, subDirectory, visibility);
 end
 
 if isfield(R,'r')
     % plot r
-    plotR(R.r, subDirectory);
+    plotR(R.r, subDirectory, visibility);
     
     % plot r overlayed in fly's brain (thresholded by significance)
     signLevel = 0.05;
-    plotBrain(R.r, brainImage, signLevel, subDirectory);
+    plotBrain(R.r, brainImage, signLevel, subDirectory, visibility);
 end
 
 %% per volume
@@ -46,21 +46,21 @@ for vol = 1:nVol
 
     % plot t-test results for AAAA vs AAAR and RRRR vs RRRA
     if isfield(R,'AAAAvsAAARVol')
-        plotSignificance(R.AAAAvsAAARVol(vol),R.RRRRvsRRRAVol(vol),brainImage,thisVolDirectory);
+        plotSignificance(R.AAAAvsAAARVol(vol),R.RRRRvsRRRAVol(vol),brainImage,thisVolDirectory, visibility);
     end
 
     % plot r_squared
     if isfield(R,'r2Vol')
-        plotR2(R.r2Vol(vol), thisVolDirectory);
+        plotR2(R.r2Vol(vol), thisVolDirectory, visibility);
     end
 
     if isfield(R,'rVol')
         % plot r
-        plotR(R.rVol(vol), thisVolDirectory);
+        plotR(R.rVol(vol), thisVolDirectory, visibility);
 
         % plot r overlayed in fly's brain (thresholded by significance)
         signLevel = 0.05;
-        plotBrain(R.rVol(vol), brainImage, signLevel, thisVolDirectory);
+        plotBrain(R.rVol(vol), brainImage, signLevel, thisVolDirectory, visibility);
     end
     
 end

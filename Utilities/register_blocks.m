@@ -8,42 +8,40 @@ mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\
 
 scratchDirectory = '../../2P Data';
 
-flies = readtable('../../2P Record/2P_record');
+blocks = readtable('../../2P Record/2P_record');
 
 %get rid of excluded flies
-flies = flies(~logical(flies.Exclude),:);
+blocks = blocks(~logical(blocks.Exclude),:);
 
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-dates = unique(flies.Date);
+chosenFlies = 80;
+
+% leave empty if aligning all blocks for one fly
+chosenBlocks = 1;
 
 %%
 
-for d = 37:37%length(dates)
-  
-    % all blocks for a particular date
-    thisDateBlocks = flies(flies.Date == dates(d),:);
+% this level is flies just in case we 
+for fly = chosenFlies
+
+    thisFlyBlocks = blocks(blocks.Fly == fly,:);
+
+    if ~isempty(chosenBlocks)
+        thisFlyBlocks = thisFlyBlocks(ismember(thisFlyBlocks.Block,chosenBlocks),:);
+    end
     
-    thisDateFlies = unique(thisDateBlocks.Fly);
-    
-    %for each fly this date
-    for i = 1:length(thisDateFlies)
-        
-        thisFlyBlocks = thisDateBlocks(thisDateBlocks.Fly == thisDateFlies(i),:);
-        
-        %align inside each block
-        for b = 1:height(thisFlyBlocks)
-            alignBlock(thisFlyBlocks(b,:), imageSize, scratchDirectory, mainDirectory);
-        end
-            
-        %no need to align across blocks if only one block
+    %align inside each block
+    for b = 1:height(thisFlyBlocks)
+        alignBlock(thisFlyBlocks(b,:), imageSize, scratchDirectory, mainDirectory);
+    end
+
+    %no need to align across blocks if only one block
 %         if height(thisFlyBlocks) > 1
 %             alignAcrossBlocks(thisFlyBlocks, scratchDirectory);
 %         end
 
-    end
-    
 end
     
 function alignBlock(block, imageSize, baseDirectory, mainDirectory)
@@ -55,7 +53,7 @@ function alignBlock(block, imageSize, baseDirectory, mainDirectory)
     nVolTotal = block.realFrames/nSlices;
     
     % number of volumes recorded after each train of stimuli
-%     nVol = nVolTotal/block.BlockLength;
+    nVol = nVolTotal/block.BlockLength;
 
     currentDate = char(datetime(block.Date,'Format','dMMMyy'));
     currentBlockDirectory = ['fly' num2str(block.FlyOnDay) '_exp' num2str(block.Block) '_' currentDate];
@@ -77,44 +75,59 @@ function alignBlock(block, imageSize, baseDirectory, mainDirectory)
 %     tic; red_channel = load(fullfile(currentDirectory,'red_channel_128x128')); toc;
 
     %hyperstack the green and red channels (pixelX,pixelY,nSlices,time)
-    gc_hstack = reshape(green_channel.rData,[imageSize nSlices nVolTotal]);
+    green_channel = reshape(green_channel.rData,[imageSize nSlices nVolTotal]);
 %     rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
     
     % average over the volume
-    avg_z_green = squeeze(mean(gc_hstack,3));
+    avg_z_green = squeeze(mean(green_channel,3));
 %     avg_z_red = squeeze(sum(rc_hstack,3));
 
     if block.Align
 
+        % z-average aligned
         avg_z_green_aligned = zeros(size(avg_z_green));
     %     avg_z_red_aligned = zeros(size(avg_z_red));
 
-        %make a reference image for registering (mean of first 11 time points)
-        refImage = mean(avg_z_green(:,:,1:11),3);
+        % full stack aligned
+        green_channel_aligned = zeros(size(green_channel));
+    
+        %make a reference image for registering (mean of first recording of nVol)
+        refImage = mean(avg_z_green(:,:,1:nVol),3);
 
         [opt,metric]=imregconfig('multimodal');
 
     %     opt.MaximumIterations = 300;
         opt.InitialRadius = 1e-3;
 
-        %register both green and red channel
+        %register green channel
         disp('Aligning stacks');
         tic;
-        parfor i = 1:nVolTotal
-            im_trans = imregtform(avg_z_green(:,:,i),refImage,'translation',opt,metric);
+        parfor vol = 1:nVolTotal
+            
+            im_trans = imregtform(avg_z_green(:,:,vol),refImage,'translation',opt,metric);
             R = imref2d(size(refImage));
-            avg_z_green_aligned(:,:,i) = imwarp(avg_z_green(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+            
+            % apply transformation to avg image
+            avg_z_green_aligned(:,:,vol) = imwarp(avg_z_green(:,:,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
     %         avg_z_red_aligned(:,:,i) = imwarp(avg_z_red(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
+    
+            % apply transformation to each slice in z direction (can this be done all at once for a volume?)
+            for z = 1:nSlices
+                green_channel_aligned(:,:,z,vol) = imwarp(green_channel(:,:,z,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+            end
+    
         end
         toc;
-
-        disp('Saving green channel aligned');
+        
+        disp('Saving AVG green channel aligned');
         tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned','-v7.3','-nocompression'); toc;
+        disp('Saving full green channel aligned');
+        tic; save(fullfile(currentDirectory,'green_channel_aligned'),'green_channel_aligned','-v7.3','-nocompression'); toc;
     
     end
     
-    disp('Saving green channel before alignment');
-    tic; save(fullfile(currentDirectory,'avg_z_green'),'avg_z_green','-v7.3','-nocompression'); toc;
+%     disp('Saving green channel before alignment');
+%     tic; save(fullfile(currentDirectory,'avg_z_green'),'avg_z_green','-v7.3','-nocompression'); toc;
     
 %     disp('Saving red channel');
 %     tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;

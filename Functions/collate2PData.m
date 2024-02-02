@@ -69,14 +69,17 @@ for fly = 1:length(chosenFlies)
         BLOCKS(b).nStimuli = currentBlock.nStimuli;
         BLOCKS(b).blankBlocks = currentBlock.BlankBlocks;
         
+        figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        
         % apply a savitsky-golay filter to remove larger trends in data
         BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,55);
-
+        
         figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
     
         BLOCKS(b).blankImageStack = [];
         
         % if there are blank blocks, split image stack (after filtering)
+        % this creates a baseline based on blank blocks (an F for dF/F)
         if currentBlock.BlankBlocks
             BLOCKS(b) = splitStack(BLOCKS(b));
         end

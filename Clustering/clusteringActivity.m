@@ -8,6 +8,7 @@ addpath('D:\group_swinderen\Dinis\Extracted datasets\');
 resultsDirectory = '../../2P Results';
 
 outputDirectory = '../../2P Clusters';
+% outputDirectory = '../../PCA Results';
 
 blocks = readtable('../../2P Record/2P_record');
 
@@ -18,15 +19,9 @@ blocks = blocks(~logical(blocks.Exclude),:);
 
 flyList = unique(blocks.Fly);
 
-% chosenFlies = 6:24;%57C10 x GCamp7s
 % chosenFlies = 25:35; %cholinergic CC LED
-% chosenFlies = [2:5 25:35];
-% chosenFlies = 19:24;%57C10 x GCamp7s LED
-% chosenFlies = [19:21 23];
-% chosenFlies = [19 21 23]; %three best flies
-% chosenFlies = 19:23; % usable 57C10 flies 
-% chosenFlies = 6:18; %57C10x GCamp7s Projector
-chosenFlies = [27:27];
+chosenFlies = [19:24 57:63];% pan-neuronal LED
+% chosenFlies = [19:24];
 
 imageSize = [32 32];
 
@@ -47,7 +42,7 @@ for fly = chosenFlies
     
     nBlocks = height(thisFlyBlocks);
     
-    for b = 1:1%nBlocks
+    for b = 1:nBlocks
     
         results = load(fullfile(resultsDirectory,['Fly' num2str(thisFlyBlocks(1,:).Fly)],['Block' num2str(b)],'results.mat'));
 
@@ -56,17 +51,16 @@ for fly = chosenFlies
         % construct a matrix of SE profiles averaged across time
         SEProfiles = permute(squeeze(sum(results.meanDataSeq,1)),[2 3 1]);
 
-        % construct a matrix of activity 
+        % construct a matrix of activity iver time
         activities = permute(squeeze(mean(results.meanDataSeq,2)),[2 3 1]);
         
         % remove sides from images for clustering
         activities([1:trim end-(trim-1):end],:,:) = [];
         activities(:, [1:trim end-(trim-1):end],:) = [];
 
-        activities = makeTransient(activities);
+%         activities = makeTransient(activities);
 
-        SEProfiles([1:trim end-(trim-1):end],:,:) = [];
-        SEProfiles(:, [1:trim end-(trim-1):end],:) = []; 
+        SEProfiles = SEProfiles(trim+1:end-trim,trim+1:end-trim,:);
        
         %data matrix for activities
         XAct = reshape(activities,[imageSize(1)*imageSize(2) size(activities,3)]);
@@ -84,25 +78,25 @@ for fly = chosenFlies
 
         %% k means or k meoids
 
-        n_clusters = 3;
+%         n_clusters = 3;
 
 %         idx = spectralcluster(XSeq,n_clusters);
-        idx = kmeans(XSeq,n_clusters,'Distance','correlation');
+%         idx = kmeans(XSeq,n_clusters,'Distance','correlation');
 %         idx = kmedoids(XSeq,n_clusters,'Distance','correlation');
         
-        for cl = 1:n_clusters
+%         for cl = 1:n_clusters
             
-            cluster_mask = reshape(idx == cl,imageSize);
+%             cluster_mask = reshape(idx == cl,imageSize);
             
 %             figure; imagesc(cluster_mask); saveas(gcf,['cluster_mask' num2str(cl) '.png']);
             
 %             figure; plot(mean(XAct(cluster_mask(:),:))); saveas(gcf,['cluster_activity' num2str(cl) '.png']);
             
-            se_profile = zeros(16,1);
-            %SE profile for cluster
-            for s = 1:16
-               se_profile(s) = mean(XSeq(cluster_mask(:),s));
-            end
+%             se_profile = zeros(16,1);
+%             %SE profile for cluster
+%             for s = 1:16
+%                se_profile(s) = mean(XSeq(cluster_mask(:),s));
+%             end
             
 %             figure; create_seq_eff_plot(se_profile,[]); saveas(gcf,['SE_profile_cluster' num2str(cl) '.png']);
 
@@ -120,7 +114,7 @@ for fly = chosenFlies
 %     
 %             end
 
-        end
+%         end
         
         % hierarchical clustering (probably not relevant)
 %         T = clusterdata(X,5);
@@ -131,30 +125,28 @@ end
 
 %% grouped clustering analysis
 
-% % n_flies = 18;
-% 
-% X_All = [];
-% 
-% %which blocks to use for each fly
-% % blocksFlies = {[1],[1]}; %#ok<NBRAK>
-% 
-% % grouped cluster analysis
-% for fly = 1:length(chosenFlies)
-% 
-%     for b = 1:length(FLIES(chosenFlies(fly)).BLOCK)
-%         X_All = [X_All; FLIES(chosenFlies(fly)).BLOCK(b).X]; %#ok<AGROW>
-%     end
-% 
-% end
-% 
+X_All = [];
+
+%which blocks to use for each fly
+% blocksFlies = {[1],[1]}; %#ok<NBRAK>
+
+% grouped cluster analysis
+for fly = 1:length(chosenFlies)
+
+    for b = 1:length(FLIES(chosenFlies(fly)).BLOCK)
+        X_All = [X_All; (FLIES(chosenFlies(fly)).BLOCK(b).XSeq)]; %#ok<AGROW>
+    end
+
+end
+
 % n_clusters = 3;
-% 
-% % idx = kmeans(X_All,n_clusters,'Distance','correlation');
+
+% idx = kmeans(X_All,n_clusters,'Distance','correlation');
 % idx = kmedoids(X_All,n_clusters,'Distance','correlation');
-% % [idx,V,D] = spectralcluster(X_All,n_clusters,'Distance','correlation','ClusterMethod','kmedoids');
-% 
-% % clusterMasks = cell(1,n_clusters*n_flies);
-% 
+% [idx,V,D] = spectralcluster(X_All,n_clusters,'Distance','correlation','ClusterMethod','kmedoids');
+
+% clusterMasks = cell(1,n_clusters*n_flies);
+
 % se_profiles = zeros(16,n_clusters);
 
 %% plot stuff
@@ -204,40 +196,42 @@ end
 
 % options = statset('MaxIter',10000,'TolFun',1e-8);
 
-for fly = 1:length(FLIES)
-
-    for b = 1:length(FLIES(fly).BLOCK)
-
-        thisFlyDirectory = fullfile(resultsDirectory,['Fly' num2str(fly)],['Block' num2str(b)],'PCA');
-        if ~exist(thisFlyDirectory,'dir')
-           mkdir(thisFlyDirectory); 
-        end
-
-        [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XAct.');
-        
-        for i = 1:4
-           figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
-           saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '.png']));
-%            close all;     
-        end
-        
-        figure; plot(explained);
-        saveas(gcf,fullfile(thisFlyDirectory,'explained.png')); close all;
-
-        [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XSeq);
-
-        for i = 1:4
-           figure; create_seq_eff_plot(coeff(:,i),[]);
-           saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '.png']));
-%            close all;     
-        end
-
-        figure; plot(explained);
-        saveas(gcf,fullfile(thisFlyDirectory,'explained_seq.png')); %close all;
-
-    end
-
-end
+% for fly = 1:length(FLIES)
+% 
+%     for b = 1:length(FLIES(fly).BLOCK)
+% 
+%         thisFlyDirectory = fullfile(resultsDirectory,['Fly' num2str(fly)],['Block' num2str(b)],'PCA');
+% %         thisFlyDirectory = outputDirectory;
+%         if ~exist(thisFlyDirectory,'dir')
+%            mkdir(thisFlyDirectory); 
+%         end
+% 
+%         [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XSeq.');
+%         
+%         for i = 1:10
+%            figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
+%            figure; create_seq_eff_plot(-score(:,i),[]);
+% %            saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
+% %            close all;     
+%         end
+%         
+%         figure; plot(explained);
+% %         saveas(gcf,fullfile(thisFlyDirectory,'explained.png')); close all;
+% 
+% %         [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XSeq);
+% 
+% %         for i = 1:5
+% %            figure; create_seq_eff_plot(coeff(:,i),[]);
+% % %            saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
+% % %            close all;     
+% %         end
+% 
+% %         figure; plot(explained);
+% %         saveas(gcf,fullfile(thisFlyDirectory,'explained_seq.png')); %close all;
+% 
+%     end
+% 
+% end
 
 % for cp = 1:3
 %     se_profile = zeros(16,1);
@@ -259,6 +253,18 @@ end
 % for i = 1:2
 %    figure; create_seq_eff_plot(L1(:,i),[]); 
 % end
+
+%% PCA for all flies
+
+[coeff,score,latent,tsquared,explained,mu] = pca((X_All));
+
+for i = 1:10
+   figure; create_seq_eff_plot(coeff(:,i),[]);
+%    saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '.png']));
+%            close all;     
+end
+
+figure; plot(explained);
 
 %% factor analysis
 
