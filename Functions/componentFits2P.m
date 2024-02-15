@@ -1,4 +1,4 @@
-function R = componentFits2P(R, FLIES, groupedBlocks)
+function R = componentFits2P3D(R, FLIES, groupedBlocks)
 %componentFits2P Summary of this function goes here
 %   Detailed explanation goes here
 load slrp_lrpr.mat

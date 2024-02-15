@@ -1,148 +1,144 @@
 close all; clear;
 
-addpath('D:\group_swinderen\Dinis\Scripts\Global functions\');
-addpath('D:\group_swinderen\Dinis\Scripts\Indexes and legends\');
+addpath('D:\group_vanswinderen\Dinis\Scripts\Global functions\');
+addpath('D:\group_vanswinderen\Dinis\Scripts\Indexes and legends\');
+addpath('D:\group_vanswinderen\Dinis\2P SEs\Functions\');
+addpath('D:\group_vanswinderen\Dinis\2P SEs\Functions\3D');
 
-nSlices = 2;
+close all; clear;
 
-imageSize = [512 512];
+% mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
+mainDirectory = '../2P Data';
 
-%% load data
+outputDirectory = '../2P Results 3D';
 
-n_blocks = 1;
+RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
 
-% structure with necessary info
-D = struct; 
+%where the sequence data is located (stimulus files)
+% sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\SE_2P_data\Data_LEDs';
+sequenceDirectory = fullfile(RDMDirectory,'RPiData/');
 
-two_p_filenames = {'two_slice_stack_not_aligned.raw'};
+% scratchDirectory = '../../2P Data';
 
-stimuli_filenames = {'SE_fly1_exp3_10feb2023_1000_trials.mat'};
+flyRecord = readtable('../2P Record/2P_record');
 
-two_p_length = [3073];
+%get rid of excluded flies
+flyRecord = flyRecord(~logical(flyRecord.Exclude),:);
 
-for b = 1:1%n_blocks
+imageSize = [128 128];
 
-    % load 2P data
-    fid = fopen(two_p_filenames{b}, 'r','b');
+% final grid size
+gridSize = [32 32];
 
-    data = fread(fid, 512*512*nSlices*two_p_length(b), 'uint16');
+flyList = unique(flyRecord.Fly);
 
-    fclose(fid);
+chosenFlies = 115:120;
 
-    data = permute(reshape(data, [imageSize nSlices two_p_length(b)]),[2 1 3 4]);
+% chosenFlies = flyList;%do not choose any flies
 
-    % get rid of the first 6 volumes (there are two triggers before stimuli start)
-%     data = data(:,:,14:end);
+%whether to analyse grouped blocks
+groupedBlocks = 0;
 
-    % load sequence data
-    randomSequence = load(stimuli_filenames{b},'randomSequence');
+%% collate, reduce, filter and concatenate pre-aligned data
 
-    % average images in a grid pattern
-
-%     squareSize = 16;
-% 
-%     gridSize = imageSize/squareSize;
-% 
-%     rData = zeros(size(data,1)/squareSize,size(data,2)/squareSize,size(data,3));
-% 
-%     avgFun = @(x) mean(x.data(:));
-% 
-%     for i = 1:size(data,3)
-%         rData(:,:,i) = blockproc(data(:,:,i),[squareSize, squareSize],avgFun);
-%     end
-%     
-%     rData = normalize(rData,3);
-%     
-%     D(b).randomSequence = randomSequence.randomSequence-1;
-%     D(b).rData = rData;
-%     D(b).nVol = 3;
-
-end
-
-%% restrict to some blocks
-
-% D = D(2);
+FLIES = collate2PData3D(flyRecord, chosenFlies, gridSize, mainDirectory, RDMDirectory, sequenceDirectory, groupedBlocks);
 
 %% analyse SEs
+% separates images according to preceding sequence of stimuli and
+% calculates mean images as a function of the sequence
 
-R = analyseSequentialEffectsTwoPhoton(D,false);
+R = analyse2P3D(FLIES, chosenFlies, outputDirectory, groupedBlocks);
 
-%% save results
+%% make movies of transients as differences to mean
 
-% save('data_two_photon','R');
+transientMovies3D(R, chosenFlies, outputDirectory, 4);
 
-%% calculate fit to SLRP and LRPR for nVol time steps
+%% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS (per volume/time and collapsed across time)
 
-load slrp_lrpr.mat
+R = componentFits2P3D(R, FLIES, groupedBlocks);
 
-% slrp = rand(16,1);
-% lrpr = rand(16,1);
+%% make movies of fits over time
 
-options = optimset('Algorithm','interior-point','FinDiffType','central');
+fitMovies3D(R, FLIES, outputDirectory, gridSize, chosenFlies, 3);
 
-nVol = D.nVol;
+%% calculate mass t-tests
 
-meanDataSeq = R.meanDataSeq;
+% R = ttests2P(R, FLIES, groupedBlocks);
 
-r_squared_slrp = zeros(gridSize);
-r_squared_lrpr = zeros(gridSize);
-r_squared_overall = zeros(gridSize);
-r_squared_weird = zeros(gridSize);
+%% RRRR-RRRA and AAAA-AAAR (collapsed and over time videos)
 
-test = zeros(16,16);
+patternPlots3D(R, FLIES, chosenFlies, outputDirectory);
 
-% for each volume in time series
-for vol = 3:3%nVol
-    
-    thisVolData = permute(squeeze(meanDataSeq(vol,:,:,:)),[2,3,1]);
-    
-    for xInd = 1:gridSize
+%% L vs R analysis (t-tests, L-R, L and R, L and R movies)
 
-        for yInd = 1:gridSize
-            
-            test(xInd,yInd) = thisVolData(xInd,yInd,1);
+% analyseLvsR(R, FLIES, chosenFlies, outputDirectory, 3);
 
-            seq_eff_pattern = squeeze(thisVolData(xInd,yInd,:));
-
-            %fit only to slrp or lrpr
-           [x_slrp,sse_slrp] = fmincon(@(x) least_squares_slrp_lrpr_weird(x(1),x(2),x(3),x(4),slrp,lrpr,weird,seq_eff_pattern),[1 0 1 0],[],[],[],[],[-inf  0 0 -inf],[inf 0 0 inf],[],options);
-           [x_lrpr,sse_lrpr] = fmincon(@(x) least_squares_slrp_lrpr_weird(x(1),x(2),x(3),x(4),slrp,lrpr,weird,seq_eff_pattern),[0 1 1 0],[],[],[],[],[0  -inf 0 -inf],[0 inf 0 inf],[],options);
-           [x_weird,sse_weird] = fmincon(@(x) least_squares_slrp_lrpr_weird(x(1),x(2),x(3),x(4),slrp,lrpr,weird,seq_eff_pattern),[1 0 1 0],[],[],[],[],[0  0 -inf -inf],[0 0 inf inf],[],options);
-
-           %fit overall
-           [x_overall,sse_overall] = fmincon(@(x) least_squares_slrp_lrpr_weird(x(1),x(2),x(3),x(4),slrp,lrpr,weird,seq_eff_pattern),[1 1 0 0],[],[],[],[],[-inf  -inf 0 -inf],[inf inf 0 inf],[],options);
-
-           sse_total = sum((seq_eff_pattern-mean(seq_eff_pattern)).^2);
-
-           r_squared_slrp(xInd,yInd) = 1-(sse_slrp/sse_total);
-           r_squared_lrpr(xInd,yInd) = 1-(sse_lrpr/sse_total);
-           r_squared_weird(xInd,yInd) = 1-(sse_weird/sse_total);
-           r_squared_overall(xInd,yInd) = 1-(sse_overall/sse_total);
-
-        end
-
+%% plotting
+disp('Plotting stuff');
+tic;
+% plot results per block
+for fly = 1:length(FLIES)
+    subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))]);
+    if ~exist(subDirectory,'dir')
+       mkdir(subDirectory); 
     end
-    
+    plotFly3D(R(fly), groupedBlocks, subDirectory,'off');
 end
+toc;
 
-%% plot r_squared
+%% fit and plot some seq eff profiles of interest
 
-figure; title('SLRP');
-imagesc(r_squared_slrp); colorbar; colormap('hot');
-xlabel('X'); ylabel('Y');
-saveas(gcf,'slrp.png');
-
-figure; title('LRPR');
-imagesc(r_squared_lrpr); colorbar; colormap('hot');
-xlabel('X'); ylabel('Y');
-saveas(gcf,'lrpr.png');
-
-figure; title('WEIRD');
-imagesc(r_squared_weird); colorbar; colormap('hot');
-xlabel('X'); ylabel('Y');
-saveas(gcf,'weird.png');
-
-figure; title('COMBINED ');
-imagesc(r_squared_overall); colorbar; colormap('hot');
-xlabel('X'); ylabel('Y');
-saveas(gcf,'combined.png');
+% options = optimset('Algorithm','interior-point','FinDiffType','central');
+%
+% %10 Feb both
+% % profiles = [23 19;28 14;23 5;23 19;26 4];
+% 
+% %10 Feb exp3
+% % profiles = [13 18;23 28;21 12; 24 31; 26 3];
+% 
+% %10 Feb exp4
+% profiles = [23 18; 28 17; 23 6; 28 14; 10 14];
+% 
+% type = [1 2 3 4 4 5];
+% 
+% names = {'slrp','lrpr','weird','combined','ephys'};
+% 
+% for i = 1:size(profiles,1)
+%     
+%     seq_eff_pattern = squeeze(meanVolData(profiles(i,1),profiles(i,2),:));
+%    
+%     switch type(i)
+%         
+%         case 1
+%   
+%            %fit only to slrp or lrpr
+%            [x,sse_slrp] = fmincon(@(x) least_squares_slrp_lrpr_weird(x(1),x(2),x(3),x(4),slrp,lrpr,weird,seq_eff_pattern),[1 0 0 0],[],[],[],[],[-inf  0 0 -inf],[inf 0 0 inf],[],options);
+%            seq_eff_fit = x(1)*slrp + x(2)*lrpr + x(3)*weird + x(4);
+%          
+%         case 2
+%             
+%            [x,sse_lrpr] = fmincon(@(x) least_squares_slrp_lrpr_weird(x(1),x(2),x(3),x(4),slrp,lrpr,weird,seq_eff_pattern),[0 1 0 0],[],[],[],[],[0  -inf 0 -inf],[0 inf 0 inf],[],options);
+%            seq_eff_fit = x(1)*slrp + x(2)*lrpr + x(3)*weird + x(4);
+%             
+%         case 3
+%             
+%            [x,sse_weird] = fmincon(@(x) least_squares_slrp_lrpr_weird(x(1),x(2),x(3),x(4),slrp,lrpr,weird,seq_eff_pattern),[0 0 1 0],[],[],[],[],[0  0 -inf -inf],[0 0 inf inf],[],options);
+%            seq_eff_fit = x(1)*slrp + x(2)*lrpr + x(3)*weird + x(4);
+%             
+%         case 4
+%             
+%            %fit overall
+%             [x,sse_overall] = fmincon(@(x) least_squares_slrp_lrpr_weird(x(1),x(2),x(3),x(4),slrp,lrpr,weird,seq_eff_pattern),[1 1 0 0],[],[],[],[],[-inf -inf 0 -inf],[inf inf 0 inf],[],options);
+%             seq_eff_fit = x(1)*slrp + x(2)*lrpr + x(3)*weird + x(4);
+%             
+%         case 5
+%             
+%             [x,sse_overall] = fmincon(@(x) least_squares_slrp_lrpr_weird(x(1),x(2),x(3),x(4),slrp,lrpr,six_hertz,seq_eff_pattern),[0 0 1 0],[],[],[],[],[0  0 -inf -inf],[0 0 inf inf],[],options);
+%             seq_eff_fit =  x(3)*six_hertz + x(4);
+% 
+%     end
+%     
+%     figure; create_seq_eff_plot(seq_eff_pattern,seq_eff_fit);
+%     saveas(gcf,[ names{type(i)} '_best.png'])
+%     
+% end
