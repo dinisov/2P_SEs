@@ -3,10 +3,11 @@ close all; clear;
 addpath('..\..\Scripts\Global functions\');
 addpath('..\..\Scripts\Indexes and legends\');
 addpath('..\..\2P SEs\Functions\');
+addpath('..\..\2P SEs\Functions\3D');
 addpath('../../Extracted datasets/');
 
-resultsDirectory = '../../2P Results';
-dataDirectory = '../../2P Data';
+resultsDirectory = '../../2P Results 3D';
+dataDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
 blocks = readtable('../../2P Record/2P_record');
 
@@ -15,7 +16,7 @@ blocks = blocks(~logical(blocks.Exclude),:);
 
 % chosenFlies = 25:35; %cholinergic CC LED
 % chosenFlies = [19:24 57:63];% pan-neuronal LED
-chosenFlies = [106];
+chosenFlies = [107:120];
 
 imageSize = [32 32];
 
@@ -49,6 +50,8 @@ for fly = chosenFlies
     
         results = load(fullfile(resultsDirectory,['Fly' num2str(thisFlyBlocks(1,:).Fly)],['Block' num2str(b)],'results.mat'));
 
+        n_z = thisFlyBlocks(b,:).Steps;
+
         %remove first time point (often it is anomalous)
 %         results.meanDataSeq = results.meanDataSeq(1:end,:,:,:);
 
@@ -56,41 +59,42 @@ for fly = chosenFlies
         % transient
         if thisFlyBlocks(b,:).BlankBlocks
 %             results.meanBlankTransient = results.meanBlankTransient(:,:,:);
-            sizeAux = size(results.meanBlankTransient); sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];
+            sizeAux = size(results.meanBlankTransient); sizeAux = sizeAux([4 1 2 3]); sizeAux = [sizeAux(1) 1 sizeAux(2:4)];
     
             % normalise each sequence transient by the mean blank transient (i.e. make dF/F)
-            results.meanDataSeq = results.meanDataSeq./repmat(reshape(permute(results.meanBlankTransient,[3 1 2]),sizeAux),[1 16 1 1]);
+            results.meanDataSeq = results.meanDataSeq./repmat(reshape(permute(results.meanBlankTransient,[4 1 2 3]),sizeAux),[1 16 1 1 1]);
         else
-            sizeAux = size(results.meanTransient); sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];
-            results.meanTransient = results.meanTransient(:,:,1:end);
-            results.meanDataSeq = results.meanDataSeq./repmat(reshape(permute(results.meanTransient,[3 1 2]),sizeAux),[1 16 1 1]);
+            sizeAux = size(results.meanTransient); sizeAux = sizeAux([4 1 2 3]); sizeAux = [sizeAux(1) 1 sizeAux(2:4)];
+%             results.meanTransient = results.meanTransient(:,:,1:end);
+            results.meanDataSeq = results.meanDataSeq./repmat(reshape(permute(results.meanTransient,[4 1 2 3]),sizeAux),[1 16 1 1 1]);
         end
 
         if any(strcmp(pcaType,'sequence'))
             % construct a matrix of SE profiles averaged across time
-            SEProfiles = permute(squeeze(sum(results.meanDataSeq,1)),[2 3 1]);
+            SEProfiles = permute(squeeze(sum(results.meanDataSeq,1)),[2 3 4 1]);
     
-            SEProfiles = SEProfiles(trim+1:end-trim,trim+1:end-trim,:);
+            SEProfiles = SEProfiles(trim+1:end-trim,trim+1:end-trim,:,:);
     
             %data matrix for SEs
-            XSeq = reshape(SEProfiles,[imageSize(1)*imageSize(2) 16]);
+            XSeq = reshape(SEProfiles,[imageSize(1)*imageSize(2)*n_z 16]);
             
     %         FLIES(fly).BLOCK(b).XSeq = XSeq - repmat(mean(XSeq,2),[1 16]);
             FLIES(fly).BLOCK(b).XSeq = XSeq;
+
         end
         
         if any(strcmp(pcaType,'time'))
             % construct a matrix of activity over time
-            activities = permute(squeeze(mean(results.meanDataSeq,2)),[2 3 1]);
+            activities = permute(squeeze(mean(results.meanDataSeq,2)),[2 3 4 1]);
             
             % remove sides from images for clustering
-            activities([1:trim end-(trim-1):end],:,:) = [];
-            activities(:, [1:trim end-(trim-1):end],:) = [];
+            activities([1:trim end-(trim-1):end],:,:,:) = [];
+            activities(:, [1:trim end-(trim-1):end],:,:) = [];
 
 %         activities = makeTransient(activities);
 
             %data matrix for activities
-            XAct = reshape(activities,[imageSize(1)*imageSize(2) size(activities,3)]);
+            XAct = reshape(activities,[imageSize(1)*imageSize(2)*n_z size(activities,4)]);
 
             FLIES(fly).BLOCK(b).XAct = XAct;
         end
@@ -130,17 +134,13 @@ for fly = 1:length(FLIES)
         
         thisBlock = thisFlyBlocks(b,:);
 
+        n_z = thisBlock.Steps;
+
         currentDate = char(datetime(thisBlock.Date,'Format','dMMMyy'));
         currentFlyDirectory = ['fly' num2str(thisBlock.FlyOnDay) '_exp' num2str(thisBlock.Block) '_' currentDate];
         brainImage = imread(fullfile(dataDirectory,currentDate,currentFlyDirectory,'brain.jpg'));
         
         trimmedBrainImg = brainImage(2*trim*16+1:end-(2*trim*16),2*trim*16+1:end-(2*trim*16));
-        
-        thisFlyDirectory = fullfile(resultsDirectory,['Fly' num2str(fly)],['Block' num2str(b)],'PCA');
-%         thisFlyDirectory = outputDirectory;
-        if ~exist(thisFlyDirectory,'dir')
-           mkdir(thisFlyDirectory); 
-        end
 
         if any(strcmp(pcaType,'sequence'))
 
@@ -153,7 +153,7 @@ for fly = 1:length(FLIES)
             [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XSeq);
             
             for i = 1:n_comp_seq
-               figure; imagesc(reshape(score(:,i),imageSize)); colorbar; colormap(jet(256));
+               plot3D(reshape(score(:,i),[imageSize n_z]),'off'); colorbar; colormap(jet(256));
                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
 
@@ -163,9 +163,9 @@ for fly = 1:length(FLIES)
                close;
                
                % overlay plot on brain
-               plotBrainPCA(reshape(score(:,i),imageSize),trimmedBrainImg,'on');
-               saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
-               close;
+%                plotBrainPCA(reshape(score(:,i),imageSize),trimmedBrainImg,'on');
+%                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
+%                close;
             end
             
             figure; plot(explained);
@@ -186,17 +186,18 @@ for fly = 1:length(FLIES)
             [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XAct);
 
             for i = 1:n_comp_t
-               figure; imagesc(reshape(score(:,i),imageSize)); colorbar; colormap(jet(256));
+               plot3D(reshape(score(:,i),[imageSize n_z]),'off'); colorbar; colormap(jet(256));
                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
-               figure; plot(normalize(coeff(:,i)));
+
+               plot(normalize(coeff(:,i)));
                saveas(gcf,fullfile(thisFlyDirectory,['c_act' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
                
                % overlay plot on brain
-               plotBrainPCA(reshape(score(:,i),imageSize),trimmedBrainImg,'on');
-               saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
-               close;
+%                plotBrainPCA(reshape(score(:,i),imageSize),trimmedBrainImg,'on');
+%                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
+%                close;
             end
             
             figure; plot(explained);

@@ -9,7 +9,7 @@ scratchDirectory = '../../2P Data';
 flies = readtable('../../2P Record/2P_record');
 
 %get rid of excluded flies
-% flies = flies(~logical(flies.Exclude),:);
+flies = flies(~logical(flies.Exclude),:);
 
 % the numbers here should be the original size divided by some power of 2
 finalSize = [128 128];
@@ -17,7 +17,7 @@ finalSize = [128 128];
 %%
 
 % this level is the list of blocks
-for fly =[101:106]%height(flies)
+for fly =[136]%height(flies)
     
     currentFly = flies(fly,:);
     
@@ -60,9 +60,12 @@ function loadReduceSave(RDMDirectory, scratchDirectory, file, fly, finalSize)
     fclose(fid);
     toc
     
+    disp('Rearranging');
+    tic
     %rearrange
     data = permute(reshape(data, [imageSize nFrames]),[2 1 3]);
-
+    toc
+    
     rData = zeros([finalSize nFrames]);
     
     tic
@@ -94,7 +97,7 @@ function loadReduceSave(RDMDirectory, scratchDirectory, file, fly, finalSize)
 %     delete(reducedFileScratch);
 %     toc
     
-    % free up the memory 
-    clear('data');
+    % free up the memory ?
+    clear;
     
 end

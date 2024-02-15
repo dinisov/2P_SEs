@@ -1,4 +1,4 @@
-function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, mainDirectory, RDMDirectory, sequenceDirectory, groupedBlocks)
+function FLIES = collate2PData3D(flyRecord, chosenFlies, gridSize, mainDirectory, RDMDirectory, sequenceDirectory, groupedBlocks)
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -26,12 +26,12 @@ for fly = 1:length(chosenFlies)
         
         % load 128x128 data
         disp('Loading green channel');
-        tic; load(fullfile(currentDirectory,'avg_z_green_aligned')); toc;
+        tic; load(fullfile(currentDirectory,'green_channel_aligned'),'green_channel_aligned'); toc;
 
 %         disp('Loading red channel');
 %         tic; load(fullfile(currentDirectory,'avg_z_red_aligned')); toc;
         
-        % reduce data to desired size
+        % reduce data to desired size (usually from 128x128 to 32x32)
         disp('Reducing data');
         tic;
         % some blocks were not aligned so rData was not renamed
@@ -40,12 +40,23 @@ for fly = 1:length(chosenFlies)
             BLOCKS(b).greenChannel = imresize3(rData,[gridSize size(rData,3)],'box');
             clear('rData');
         else
-            BLOCKS(b).greenChannel = imresize3(avg_z_green_aligned,[gridSize size(avg_z_green_aligned,3)],'box');
+            % I am guessing I checked no interpolation is going on in z
+            % direction?
+            BLOCKS(b).greenChannel = imresize3(reshape(green_channel_aligned,[128 128 size(green_channel_aligned,3)*size(green_channel_aligned,4)]),[gridSize size(green_channel_aligned,3)*size(green_channel_aligned,4)],'box');
 %         BLOCKS(b).redChannel = imresize3(avg_z_red_aligned,[gridSize size(avg_z_red_aligned,3)],'box');
         end
         toc;
         
-        % get sequences
+        % reshape back into 4D array (X,Y,Z,t)
+        BLOCKS(b).greenChannel = reshape(BLOCKS(b).greenChannel,[gridSize size(green_channel_aligned,3) size(green_channel_aligned,4)]);
+        
+        % get rid of the flyback frames
+        BLOCKS(b).greenChannel = BLOCKS(b).greenChannel(:,:,1:currentBlock.Steps,:);
+        
+        % this is just for testing
+%         BLOCKS(b).greenChannel = squeeze(mean(BLOCKS(b).greenChannel,3));
+        
+        % get sequences (first os for projector second for LEDs)
         if exist(fullfile(sequenceDirectory,[flyID '.mat']),'file')
             randomSequence = load(fullfile(sequenceDirectory,[flyID '.mat']),'randomSequence').';
             BLOCKS(b).randomSequence = randomSequence.randomSequence-1;
@@ -66,19 +77,21 @@ for fly = 1:length(chosenFlies)
         BLOCKS(b).nStimuli = currentBlock.nStimuli;
         BLOCKS(b).blankBlocks = currentBlock.BlankBlocks;
         
-        figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        % plot before fitlering
+        figure; plot(squeeze(mean(mean(mean(BLOCKS(b).greenChannel,3),1),2)));
         
         % apply a savitsky-golay filter to remove larger trends in data
-        BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,55);
+        BLOCKS(b).greenChannel = filterChannel3D(BLOCKS(b).greenChannel,3,55);
         
-        figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        % plot after filtering
+        figure; plot(squeeze(mean(mean(mean(BLOCKS(b).greenChannel,3),1),2)));
     
         BLOCKS(b).blankImageStack = [];
         
         % if there are blank blocks, split image stack (after filtering)
         % this creates a baseline based on blank blocks (an F for dF/F)
         if currentBlock.BlankBlocks
-            BLOCKS(b) = splitStack(BLOCKS(b));
+            BLOCKS(b) = splitStack3D(BLOCKS(b));
         end
     
     end

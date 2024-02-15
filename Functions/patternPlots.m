@@ -35,7 +35,7 @@ function patternPlots(R, FLIES, chosenFlies, outputDirectory)
            AAAA = squeeze(thisBlockData(16,:,:)); AAAR = squeeze(thisBlockData(8,:,:)); 
            RRRR = squeeze(thisBlockData(1,:,:)); RRRA = squeeze(thisBlockData(9,:,:));
            
-           load binomial_x_labels_latex_alt_rep.mat
+           load('binomial_x_labels_latex_alt_rep.mat','binomial_x_labels_latex');
            
            %this is just to help turn horizontal sequences into vertical ones
            ind_horiz = sub2ind(size(binomial_x_labels_latex{1}),1:4,[1 1 1 5]);
@@ -45,10 +45,6 @@ function patternPlots(R, FLIES, chosenFlies, outputDirectory)
                 saveas(gcf,fullfile(subDirectory,[binomial_x_labels_latex{i}(ind_horiz) '.png'])); 
            end
 
-%            figure; imagesc(AAAA-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAA.png')); 
-%            figure; imagesc(RRRR-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRR.png'));
-%            figure; imagesc(RRRA-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRA.png'));
-%            figure; imagesc(AAAR-meanBlankTrials); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAR.png'));
            figure; imagesc((AAAA-AAAR)); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'AAAAminusAAAR.png'));
            figure; imagesc((RRRR-RRRA)); colormap(jet(256)); colorbar; saveas(gcf,fullfile(subDirectory,'RRRRminusRRRA.png'));
            close all;
@@ -76,7 +72,7 @@ function data = prepareMovieData(data)
 %     data = data-data(:,:,end); % normalise by time point
 
     %map to interval [0,1]
-    data = data+abs(min(data,[],'all')); % make minimum 0
+    data = data - min(data,[],'all'); % make minimum 0
     data = data/max(data,[],'all'); %make maximum 1
     
 end

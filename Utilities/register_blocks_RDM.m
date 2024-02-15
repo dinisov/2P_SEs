@@ -6,7 +6,7 @@ close all; clear;
 
 mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
-scratchDirectory = '../../2P Data';
+% scratchDirectory = '../../2P Data';
 
 blocks = readtable('../../2P Record/2P_record');
 
@@ -16,7 +16,7 @@ blocks = blocks(~logical(blocks.Exclude),:);
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-chosenFlies = 74;
+chosenFlies = 85:120;
 
 % leave empty if aligning all blocks for one fly
 chosenBlocks = [];
@@ -34,7 +34,7 @@ for fly = chosenFlies
     
     %align inside each block
     for b = 1:height(thisFlyBlocks)
-        alignBlock(thisFlyBlocks(b,:), imageSize, scratchDirectory, mainDirectory);
+        alignBlock(thisFlyBlocks(b,:), imageSize, mainDirectory);
     end
 
     %no need to align across blocks if only one block
@@ -44,7 +44,7 @@ for fly = chosenFlies
 
 end
     
-function alignBlock(block, imageSize, baseDirectory, mainDirectory)
+function alignBlock(block, imageSize, mainDirectory)
 
     % slices within each volume including flyback 
     nSlices = block.Steps + block.FlybackFrames;
@@ -57,15 +57,15 @@ function alignBlock(block, imageSize, baseDirectory, mainDirectory)
 
     currentDate = char(datetime(block.Date,'Format','dMMMyy'));
     currentBlockDirectory = ['fly' num2str(block.FlyOnDay) '_exp' num2str(block.Block) '_' currentDate];
-    currentDirectory = fullfile(baseDirectory,currentDate,currentBlockDirectory);
+    currentDirectory = fullfile(mainDirectory,currentDate,currentBlockDirectory);
     disp(currentDirectory);
     
-    disp('Copying original file');
-    tic;
-    if ~exist(fullfile(currentDirectory,'green_channel_128x128'),'file')
-        copyfile(fullfile(mainDirectory,currentDate,currentBlockDirectory,'green_channel_128x128.mat'),fullfile(currentDirectory,'green_channel_128x128.mat'));
-    end
-    toc;
+%     disp('Copying original file');
+%     tic;
+%     if ~exist(fullfile(currentDirectory,'green_channel_128x128'),'file')
+%         copyfile(fullfile(mainDirectory,currentDate,currentBlockDirectory,'green_channel_128x128.mat'),fullfile(currentDirectory,'green_channel_128x128.mat'));
+%     end
+%     toc;
     
     % load red and green channels
     disp('Loading green channel');
@@ -133,12 +133,12 @@ function alignBlock(block, imageSize, baseDirectory, mainDirectory)
 %     tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;
 
     %delete files
-    disp('Deleting files');
-    tic;
-    if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file')
-        delete(fullfile(currentDirectory,'green_channel_128x128.mat'));
-    end
-    toc;
+%     disp('Deleting files');
+%     tic;
+%     if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file')
+%         delete(fullfile(currentDirectory,'green_channel_128x128.mat'));
+%     end
+%     toc;
     
 end
 

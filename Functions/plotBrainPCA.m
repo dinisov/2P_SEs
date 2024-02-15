@@ -1,4 +1,4 @@
-function  plotBrainPCA(R, I, threshold,visibility)
+function  plotBrainPCA(R, I,visibility)
 %plotBrain Summary of this function goes here
 %   Detailed explanation goes here
 

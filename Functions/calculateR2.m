@@ -1,4 +1,4 @@
-function R = calculateR2(meanVolData,ephys)
+function R = calculateR23D(meanVolData,ephys)
 %calculateR2 Summary of this function goes here
 %   Detailed explanation goes here
 

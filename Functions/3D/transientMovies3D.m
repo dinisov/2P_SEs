@@ -1,4 +1,4 @@
-function transientMovies(R, chosenFlies, resultsDirectory, trim)
+function transientMovies3D(R, chosenFlies, resultsDirectory, trim)
 %transientMovies Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -19,17 +19,17 @@ for fly = 1:length(R)
         if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
             
             blankTrials = R(fly).BLOCK(b).meanBlankTransient;
-            blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+            blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:,:);
             
-            makeMovie(prepareMovieData(blankTrials),fullfile(subDirectory,'blankTrials.avi'),false);
+            makeMovie3D(prepareMovieData(blankTrials),fullfile(subDirectory,'blankTrials.avi'),false);
             
             % global response transient
-            allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 1]);
-            allSeq = (allSeq(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+            allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 4 1]);
+            allSeq = (allSeq(trim+1:end-trim,trim+1:end-trim,:,:) - blankTrials)./blankTrials;
         else
             % global response transient
-            allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 1]);
-            allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:);
+            allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 4 1]);
+            allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:,:);
         end
         
         save(fullfile(subDirectory,'global_transient'),'allSeq');
@@ -40,18 +40,18 @@ for fly = 1:length(R)
 % 
 %         figure; plot(mean(seqAux));
 
-        makeMovie(prepareMovieData(allSeq),fullfile(subDirectory,'global.avi'), false);
+        makeMovie3D(prepareMovieData(allSeq),fullfile(subDirectory,'global.avi'),false);
         
 %         blah = cell(1,11);
         
         % response transient per sequence
         for s = 1:16     
-            seq = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,s,:,:)),[2 3 1]);
+            seq = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,s,:,:,:)),[2 3 4 1]);
             
             if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
-                seq = (seq(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+                seq = (seq(trim+1:end-trim,trim+1:end-trim,:,:) - blankTrials)./blankTrials;
             else
-                seq = seq(trim+1:end-trim,trim+1:end-trim,:);
+                seq = seq(trim+1:end-trim,trim+1:end-trim,:,:);
             end
             
 %             for i = 1:11
@@ -61,7 +61,7 @@ for fly = 1:length(R)
             
             seq = prepareMovieData(seq);
             
-            makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']),false);
+            makeMovie3D(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']),false);
         end
         
         % make movie of difference between global transient and no stimulus
