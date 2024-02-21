@@ -14,7 +14,7 @@ finalSize = [128 128];
 
 %%
 
-chosenFlies = [106];
+chosenFlies = [6:24];
 chosenBlocks = []; % leave empty if aligning all blocks for one fly
 
 flagParamSaveList = who;
@@ -62,7 +62,7 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize)
     
     imageSize = [fly.pixelX fly.pixelY];
     nFrames = fly.realFrames;
-    
+
     tic
     disp('Loading data');
     % load green channel

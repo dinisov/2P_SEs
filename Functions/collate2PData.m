@@ -1,4 +1,4 @@
-function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, mainDirectory, RDMDirectory, sequenceDirectory, groupedBlocks)
+function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks)
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -20,7 +20,7 @@ for fly = 1:length(chosenFlies)
         
         currentBlock = thisFlyBlocks(b,:);
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
-        currentDirectory = fullfile(mainDirectory,currentDate,flyID);
+        currentDirectory = fullfile(dataDirectory,currentDate,flyID);
         
         disp(flyID);
         

@@ -16,7 +16,7 @@ blocks = blocks(~logical(blocks.Exclude),:);
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-chosenFlies = 85:120;
+chosenFlies = [28:41];
 
 % leave empty if aligning all blocks for one fly
 chosenBlocks = [];

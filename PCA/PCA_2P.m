@@ -6,7 +6,7 @@ addpath('..\..\2P SEs\Functions\');
 addpath('../../Extracted datasets/');
 
 resultsDirectory = '../../2P Results';
-dataDirectory = '../../2P Data';
+dataDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
 blocks = readtable('../../2P Record/2P_record');
 
@@ -15,7 +15,7 @@ blocks = blocks(~logical(blocks.Exclude),:);
 
 % chosenFlies = 25:35; %cholinergic CC LED
 % chosenFlies = [19:24 57:63];% pan-neuronal LED
-chosenFlies = [106];
+chosenFlies = [94 101];
 
 imageSize = [32 32];
 
@@ -76,7 +76,7 @@ for fly = chosenFlies
             XSeq = reshape(SEProfiles,[imageSize(1)*imageSize(2) 16]);
             
     %         FLIES(fly).BLOCK(b).XSeq = XSeq - repmat(mean(XSeq,2),[1 16]);
-            FLIES(fly).BLOCK(b).XSeq = XSeq;
+            FLIES(fly).BLOCK(b).XSeq = XSeq.';
         end
         
         if any(strcmp(pcaType,'time'))
@@ -121,7 +121,7 @@ end
 
 % load jentzsch_data.mat
 
-for fly = 1:length(FLIES)
+for fly = chosenFlies
     
     % the blocks corresponding to this fly
     thisFlyBlocks = blocks(blocks.Fly == fly,:);
@@ -153,17 +153,19 @@ for fly = 1:length(FLIES)
             [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XSeq);
             
             for i = 1:n_comp_seq
-               figure; imagesc(reshape(score(:,i),imageSize)); colorbar; colormap(jet(256));
+               figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
 
-               figure; create_seq_eff_plot(normalize(coeff(:,i)),normalize(six_hertz));
+               sign_ephys = sortOrientation(score(:,i),normalize(six_hertz));
+
+               figure; create_seq_eff_plot(normalize(score(:,i)),normalize(sign_ephys*six_hertz));
 
                saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
                
                % overlay plot on brain
-               plotBrainPCA(reshape(score(:,i),imageSize),trimmedBrainImg,'on');
+               plotBrainPCA(reshape(coeff(:,i),imageSize),trimmedBrainImg,'on');
                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
                close;
             end
@@ -324,3 +326,16 @@ cp_num = {[-2 -4 -1],[3 2 -2],[1 1],[1 1 2]};
 % end
 % 
 % figure; create_seq_eff_plot(normalize(mean(profiles,2)),[]);
+
+function sign_ephys = sortOrientation(scores,ephys)
+
+    sse_plus = sum((normalize(scores)-normalize(ephys)).^2);
+    sse_minus = sum((normalize(scores)-normalize(-ephys)).^2);
+
+    if sse_plus < sse_minus
+        sign_ephys = 1;
+    else
+        sign_ephys = -1;
+    end
+
+end

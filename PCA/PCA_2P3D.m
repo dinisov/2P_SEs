@@ -16,7 +16,7 @@ blocks = blocks(~logical(blocks.Exclude),:);
 
 % chosenFlies = 25:35; %cholinergic CC LED
 % chosenFlies = [19:24 57:63];% pan-neuronal LED
-chosenFlies = [107:120];
+chosenFlies = [119];
 
 imageSize = [32 32];
 
@@ -29,7 +29,7 @@ n_pixels = prod(imageSize);
 load six_hertz.mat
 
 % choose from ['time','sequence']
-pcaType = {'sequence','time'};
+pcaType = {'sequence'};
 
 % number of components to retain for time and sequence
 n_comp_seq = 5;
@@ -79,7 +79,7 @@ for fly = chosenFlies
             XSeq = reshape(SEProfiles,[imageSize(1)*imageSize(2)*n_z 16]);
             
     %         FLIES(fly).BLOCK(b).XSeq = XSeq - repmat(mean(XSeq,2),[1 16]);
-            FLIES(fly).BLOCK(b).XSeq = XSeq;
+            FLIES(fly).BLOCK(b).XSeq = XSeq.';
 
         end
         
@@ -87,11 +87,9 @@ for fly = chosenFlies
             % construct a matrix of activity over time
             activities = permute(squeeze(mean(results.meanDataSeq,2)),[2 3 4 1]);
             
-            % remove sides from images for clustering
+            % remove sides from images
             activities([1:trim end-(trim-1):end],:,:,:) = [];
             activities(:, [1:trim end-(trim-1):end],:,:) = [];
-
-%         activities = makeTransient(activities);
 
             %data matrix for activities
             XAct = reshape(activities,[imageSize(1)*imageSize(2)*n_z size(activities,4)]);
@@ -125,7 +123,7 @@ end
 
 % load jentzsch_data.mat
 
-for fly = 1:length(FLIES)
+for fly = chosenFlies
     
     % the blocks corresponding to this fly
     thisFlyBlocks = blocks(blocks.Fly == fly,:);
@@ -153,11 +151,13 @@ for fly = 1:length(FLIES)
             [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XSeq);
             
             for i = 1:n_comp_seq
-               plot3D(reshape(score(:,i),[imageSize n_z]),'off'); colorbar; colormap(jet(256));
+               plot3D(reshape(coeff(:,i),[imageSize n_z]),'off');
                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
 
-               figure; create_seq_eff_plot(normalize(coeff(:,i)),normalize(six_hertz));
+               sign_ephys = sortOrientation(score(:,i),normalize(six_hertz));
+
+               figure; create_seq_eff_plot(normalize(score(:,i)),normalize(sign_ephys*six_hertz));
 
                saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
@@ -325,3 +325,16 @@ cp_num = {[-2 -4 -1],[3 2 -2],[1 1],[1 1 2]};
 % end
 % 
 % figure; create_seq_eff_plot(normalize(mean(profiles,2)),[]);
+
+function sign_ephys = sortOrientation(scores,ephys)
+
+    sse_plus = sum((normalize(scores)-normalize(ephys)).^2);
+    sse_minus = sum((normalize(scores)-normalize(-ephys)).^2);
+
+    if sse_plus < sse_minus
+        sign_ephys = 1;
+    else
+        sign_ephys = -1;
+    end
+
+end

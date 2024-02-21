@@ -1,4 +1,4 @@
-function FLIES = collate2PData3D(flyRecord, chosenFlies, gridSize, mainDirectory, RDMDirectory, sequenceDirectory, groupedBlocks)
+function FLIES = collate2PData3D(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks)
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -20,7 +20,7 @@ for fly = 1:length(chosenFlies)
         
         currentBlock = thisFlyBlocks(b,:);
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
-        currentDirectory = fullfile(mainDirectory,currentDate,flyID);
+        currentDirectory = fullfile(dataDirectory,currentDate,flyID);
         
         disp(flyID);
         
@@ -69,10 +69,6 @@ for fly = 1:length(chosenFlies)
         nVolTotal = currentBlock.realFrames/nSlices;
         BLOCKS(b).nVol = nVolTotal/(currentBlock.BlockLength+currentBlock.BlankBlocks);
 
-        if ~exist(fullfile(currentDirectory,'brain.jpg'),'file')
-            copyfile(fullfile(RDMDirectory,'Gcamp7s_CC',currentDate,flyID,'brain.jpg'),fullfile(currentDirectory,'brain.jpg'));
-        end
-
         BLOCKS(b).brainImage = imread(fullfile(currentDirectory,'brain.jpg'));
         BLOCKS(b).nStimuli = currentBlock.nStimuli;
         BLOCKS(b).blankBlocks = currentBlock.BlankBlocks;
@@ -98,7 +94,7 @@ for fly = 1:length(chosenFlies)
     
     FLIES(fly).BLOCKS = BLOCKS;
     
-    % concatenate data from different blocks
+    % concatenate data from different blocks (THIS NEEDS WORK)
     if groupedBlocks   
         %concatenate aligned blocks
         FLIES(fly).greenChannel = cell(1,1,nBlocks); %#ok<*UNRCH>

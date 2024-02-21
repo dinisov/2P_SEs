@@ -6,18 +6,15 @@ addpath('D:\group_vanswinderen\Dinis\2P SEs\Functions\');
 
 close all; clear;
 
-% mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
-mainDirectory = '../2P Data';
-
-outputDirectory = '../2P Results';
-
 RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
 
 %where the sequence data is located (stimulus files)
-% sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\SE_2P_data\Data_LEDs';
 sequenceDirectory = fullfile(RDMDirectory,'RPiData/');
 
-% scratchDirectory = '../../2P Data';
+%where the main data is found
+dataDirectory = fullfile(RDMDirectory,'Gcamp7s_CC/');
+
+outputDirectory = '../2P Results';
 
 flyRecord = readtable('../2P Record/2P_record');
 
@@ -31,7 +28,7 @@ gridSize = [32 32];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = 116:120;
+chosenFlies = 80;
 
 % chosenFlies = flyList;%do not choose any flies
 
@@ -40,7 +37,7 @@ groupedBlocks = 0;
 
 %% collate, reduce, filter and concatenate pre-aligned data
 
-FLIES = collate2PData(flyRecord, chosenFlies, gridSize, mainDirectory, RDMDirectory, sequenceDirectory, groupedBlocks);
+FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks);
 
 %% analyse SEs
 % separates images according to preceding sequence of stimuli and
