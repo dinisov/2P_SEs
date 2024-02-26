@@ -15,11 +15,11 @@ blocks = blocks(~logical(blocks.Exclude),:);
 
 % chosenFlies = 25:35; %cholinergic CC LED
 % chosenFlies = [19:24 57:63];% pan-neuronal LED
-chosenFlies = [94 101];
+chosenFlies = [114];
 
 imageSize = [32 32];
 
-trim = 3;
+trim = 6;
 
 imageSize = imageSize-2*trim;
 
@@ -92,7 +92,7 @@ for fly = chosenFlies
             %data matrix for activities
             XAct = reshape(activities,[imageSize(1)*imageSize(2) size(activities,3)]);
 
-            FLIES(fly).BLOCK(b).XAct = XAct;
+            FLIES(fly).BLOCK(b).XAct = XAct.';
         end
         
     end
@@ -137,7 +137,7 @@ for fly = chosenFlies
         trimmedBrainImg = brainImage(2*trim*16+1:end-(2*trim*16),2*trim*16+1:end-(2*trim*16));
         
         thisFlyDirectory = fullfile(resultsDirectory,['Fly' num2str(fly)],['Block' num2str(b)],'PCA');
-%         thisFlyDirectory = outputDirectory;
+
         if ~exist(thisFlyDirectory,'dir')
            mkdir(thisFlyDirectory); 
         end
@@ -188,15 +188,15 @@ for fly = chosenFlies
             [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XAct);
 
             for i = 1:n_comp_t
-               figure; imagesc(reshape(score(:,i),imageSize)); colorbar; colormap(jet(256));
+               figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
-               figure; plot(normalize(coeff(:,i)));
+               figure; plot(normalize(score(:,i)));
                saveas(gcf,fullfile(thisFlyDirectory,['c_act' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
                
                % overlay plot on brain
-               plotBrainPCA(reshape(score(:,i),imageSize),trimmedBrainImg,'on');
+               plotBrainPCA(reshape(coeff(:,i),imageSize),trimmedBrainImg,'on');
                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
                close;
             end

@@ -16,7 +16,7 @@ blocks = blocks(~logical(blocks.Exclude),:);
 
 % chosenFlies = 25:35; %cholinergic CC LED
 % chosenFlies = [19:24 57:63];% pan-neuronal LED
-chosenFlies = [119];
+chosenFlies = [117:117];
 
 imageSize = [32 32];
 
@@ -29,7 +29,7 @@ n_pixels = prod(imageSize);
 load six_hertz.mat
 
 % choose from ['time','sequence']
-pcaType = {'sequence'};
+pcaType = {'sequence','time'};
 
 % number of components to retain for time and sequence
 n_comp_seq = 5;
@@ -94,7 +94,7 @@ for fly = chosenFlies
             %data matrix for activities
             XAct = reshape(activities,[imageSize(1)*imageSize(2)*n_z size(activities,4)]);
 
-            FLIES(fly).BLOCK(b).XAct = XAct;
+            FLIES(fly).BLOCK(b).XAct = XAct.';
         end
         
     end
@@ -132,14 +132,25 @@ for fly = chosenFlies
         
         thisBlock = thisFlyBlocks(b,:);
 
-        n_z = thisBlock.Steps;
+        n_z = thisBlock.Steps; flyback = thisBlock.FlybackFrames;
 
         currentDate = char(datetime(thisBlock.Date,'Format','dMMMyy'));
         currentFlyDirectory = ['fly' num2str(thisBlock.FlyOnDay) '_exp' num2str(thisBlock.Block) '_' currentDate];
-        brainImage = imread(fullfile(dataDirectory,currentDate,currentFlyDirectory,'brain.jpg'));
-        
-        trimmedBrainImg = brainImage(2*trim*16+1:end-(2*trim*16),2*trim*16+1:end-(2*trim*16));
 
+        % might save a volume to make this faster
+        load(fullfile(dataDirectory,currentDate,currentFlyDirectory,'green_channel_aligned.mat'),'green_channel_aligned');
+        
+        % get rid of flyback frames
+        green_channel_aligned = green_channel_aligned(:,:,1:(size(green_channel_aligned,3) - flyback),:);
+        
+        brain = mean(green_channel_aligned,4);
+        
+        trimmedBrain = brain(2*trim*4+1:end-(2*trim*4),2*trim*4+1:end-(2*trim*4),:);% this assumes a 128x128 image
+        
+        % normalize the brain for greater contrast (after trimming so no edges)
+        trimmedBrain = trimmedBrain - min(trimmedBrain,[],'all');
+        trimmedBrain = trimmedBrain ./ max(trimmedBrain,[],'all');
+        
         if any(strcmp(pcaType,'sequence'))
 
             thisFlyDirectory = fullfile(resultsDirectory,['Fly' num2str(fly)],['Block' num2str(b)],'PCA');
@@ -151,21 +162,22 @@ for fly = chosenFlies
             [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XSeq);
             
             for i = 1:n_comp_seq
-               plot3D(reshape(coeff(:,i),[imageSize n_z]),'off');
+               plot3D(reshape(coeff(:,i),[imageSize n_z]),'on');
                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
 
                sign_ephys = sortOrientation(score(:,i),normalize(six_hertz));
 
-               figure; create_seq_eff_plot(normalize(score(:,i)),normalize(sign_ephys*six_hertz));
+%                figure; create_seq_eff_plot(normalize(score(:,i)),normalize(sign_ephys*six_hertz));
+               figure; create_seq_eff_plot(normalize(score(:,i)),[]); ylabel('PCA score');
 
                saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
                
                % overlay plot on brain
-%                plotBrainPCA(reshape(score(:,i),imageSize),trimmedBrainImg,'on');
-%                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
-%                close;
+               plotBrainPCA3D(imresize3(reshape(coeff(:,i),[imageSize n_z]),size(trimmedBrain),'box'),trimmedBrain,'on');
+               saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
+               close;
             end
             
             figure; plot(explained);
@@ -186,18 +198,18 @@ for fly = chosenFlies
             [coeff,score,latent,tsquared,explained,mu] = pca(FLIES(fly).BLOCK(b).XAct);
 
             for i = 1:n_comp_t
-               plot3D(reshape(score(:,i),[imageSize n_z]),'off'); colorbar; colormap(jet(256));
+               plot3D(reshape(coeff(:,i),[imageSize n_z]),'off'); colorbar; colormap(jet(256));
                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
 
-               plot(normalize(coeff(:,i)));
+               plot(normalize(score(:,i)));
                saveas(gcf,fullfile(thisFlyDirectory,['c_act' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '.png']));
                close;
                
                % overlay plot on brain
-%                plotBrainPCA(reshape(score(:,i),imageSize),trimmedBrainImg,'on');
-%                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
-%                close;
+               plotBrainPCA3D(imresize3(reshape(coeff(:,i),[imageSize n_z]),size(trimmedBrain),'box'),trimmedBrain,'on');
+               saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
+               close;
             end
             
             figure; plot(explained);
@@ -267,22 +279,37 @@ end
 
 %% average some components of interest
 
-% "L/R" component
+close all;
+
+% % the component numbers for each fly/block
+% flies = [80 94 98 101 103];
+% % normalised by mean transient
+% chosen_blocks = {[1],[1],[1],[1],[1]};
+% cp_num = {[1],[1],[1],[1],[1]};
 
 % the component numbers for each fly/block
-flies = [25 27 32 35];
+% flies = [80 94 98 101 103 84 83 95 100];
+% % normalised by mean transient
+% chosen_blocks = {[1],[1],[1],[1],[1],[1],[1],[1],[1]};
+% cp_num = {[1],[1],[1],[1],[1],[1],[2],[1],[2]};
+
+% % the component numbers for each fly/block
+% flies = [106 107 115 116 118 120];
+% % normalised by mean transient
+% chosen_blocks = {[1],[1],[1],[1],[1],[1]};
+% cp_num = {[1],[1],[1],[1],[1],[1]};
+
+% % the component numbers for each fly/block
+flies = [80,94,98,101,103,106,107,114,115,116,118, 120];
 % normalised by mean transient
-blocks = {[1 2 3],[1 2 3],[1 2],[1 2 3]};
-cp_num = {[-2 -4 -1],[3 2 -2],[1 1],[1 1 2]};
+chosen_blocks = {[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1]};
+cp_num = {[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1]};
 
-% not normalised
-% blocks = {[1],[1 2 3],[1],[2 3],[1 2],[1 2 3]};
-% cp_num = {[-3],[-4 2 -3],[-3],[-2 2],[2 -2],[2 -2 2]};
-
-% flies = [25];
-% % % normalised by mean transient
-% blocks = {[1 2 3]};
-% cp_num = {[-2 -4 -1]};
+% the component numbers for each fly/block
+% flies = [80];
+% % normalised by mean transient
+% chosen_blocks = {[1 2 3]};
+% cp_num = {[1 2 1]};
 
 % flies = [35];
 % % % normalised by mean transient
@@ -299,32 +326,41 @@ cp_num = {[-2 -4 -1],[3 2 -2],[1 1],[1 1 2]};
 % blocks = {[1 2]};
 % cp_num = {[1 1]};
 
-% trim = [3 3 3 3 3 3];
-% 
-% profiles = zeros(16,length(cell2mat(cp_num)));
-% 
-% p = 1;
-% 
-% for fly = 1:length(flies)
-%     disp(fly)
-%     imageSize = [32 32]-2*trim(fly);
-%    
-%     for b = 1:length(blocks{fly})
-%         
-%         thisFlyDirectory = fullfile(resultsDirectory,['Fly' num2str(flies(fly))],['Block' num2str(blocks{fly}(b))],'PCA');
-%         pca_results = load(fullfile(thisFlyDirectory,'pca_results_normalised'),'coeff','score');
-%         
-%         profiles(:,p) = sign(cp_num{fly}(b))*pca_results.coeff(:,abs(cp_num{fly}(b)));
-%         
-%         figure; imagesc(reshape(sign(cp_num{fly}(b))*pca_results.score(:,abs(cp_num{fly}(b))),imageSize)); colorbar; colormap(jet(256));
-%         figure; create_seq_eff_plot(normalize(sign(cp_num{fly}(b))*pca_results.coeff(:,abs(cp_num{fly}(b)))),normalize(six_hertz));
-%         
-%         p = p + 1;
-%     end
-%     
-% end
-% 
-% figure; create_seq_eff_plot(normalize(mean(profiles,2)),[]);
+trim = [3 3 3 3 3 3 3 3 3 3 3 3];
+
+profiles = zeros(16,length(cell2mat(cp_num)));
+
+p = 1;
+
+for fly = 1:length(flies)
+    disp(fly);
+    imageSize = [32 32]-2*trim(fly);
+   
+    for b = 1:length(chosen_blocks{fly})
+        
+        thisFlyDirectory = fullfile(resultsDirectory,['Fly' num2str(flies(fly))],['Block' num2str(chosen_blocks{fly}(b))],'PCA');
+        pca_results = load(fullfile(thisFlyDirectory,'pca_results_normalised'),'coeff','score');
+        
+        profiles(:,p) = sign(cp_num{fly}(b))*pca_results.score(:,abs(cp_num{fly}(b)));
+        
+%         plot3D(sign(cp_num{fly}(b))*reshape(pca_results.coeff(:,abs(cp_num{fly}(b))),[imageSize 7]),'on');
+%         figure; create_seq_eff_plot(normalize(sign(cp_num{fly}(b))*pca_results.score(:,abs(cp_num{fly}(b)))),normalize(six_hertz));
+        
+        p = p + 1;
+    end
+    
+end
+
+figure; create_seq_eff_plot(mean(profiles,2),[],'error',std(profiles,[],2)/sqrt(size(profiles,2))); ylabel('Mean PCA Score');
+
+% figure; create_seq_eff_plot(profiles,[]);
+% legend({'Baseline','Red light ON','Recovery'},'box','off'); ylabel('PCA Score');
+
+% figure; create_seq_eff_plot(profiles(:,[1 3]),[]);
+% legend({'Baseline','Recovery'},'box','off'); ylabel('PCA Score');
+
+% figure; create_seq_eff_plot(profiles(:,[2]),[]);
+% legend({'Red light ON'},'box','off'); ylabel('PCA Score');
 
 function sign_ephys = sortOrientation(scores,ephys)
 

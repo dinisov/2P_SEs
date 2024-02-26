@@ -6,7 +6,7 @@ function  plotBrainPCA(R, I,visibility)
     hold on;
     
     % R mapped to [0 1]
-    R_plot = R-min(R,[],'all');
+    R_plot = R - min(R,[],'all');
     R_plot = R_plot./max(R_plot,[],'all');
     
     h = image(xlim,ylim,ind2rgb(uint8(255 * R_plot), jet(256))); colormap(jet); caxis([min(R,[],'all') max(R,[],'all')]);

@@ -14,7 +14,7 @@ finalSize = [128 128];
 
 %%
 
-chosenFlies = [6:24];
+chosenFlies = [25:41];
 chosenBlocks = []; % leave empty if aligning all blocks for one fly
 
 flagParamSaveList = who;
