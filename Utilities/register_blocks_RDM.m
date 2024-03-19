@@ -11,25 +11,29 @@ mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\
 blocks = readtable('../../2P Record/2P_record');
 
 %get rid of excluded flies
-blocks = blocks(~logical(blocks.Exclude),:);
+% blocks = blocks(~logical(blocks.Exclude),:);
 
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-chosenFlies = [28:41];
+chosenFlies = [20];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = [];
+chosenBlocks = {1};
+
+% chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
+% 
+% chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
 %%
 
 % this level is flies just in case we 
-for fly = chosenFlies
+for fly = 1:length(chosenFlies)
 
-    thisFlyBlocks = blocks(blocks.Fly == fly,:);
+    thisFlyBlocks = blocks(blocks.Fly == chosenFlies(fly),:);
 
-    if ~isempty(chosenBlocks)
-        thisFlyBlocks = thisFlyBlocks(ismember(thisFlyBlocks.Block,chosenBlocks),:);
+    if ~isempty(chosenBlocks{fly})
+        thisFlyBlocks = thisFlyBlocks(ismember(thisFlyBlocks.Block,chosenBlocks{fly}),:);
     end
     
     %align inside each block
@@ -66,79 +70,83 @@ function alignBlock(block, imageSize, mainDirectory)
 %         copyfile(fullfile(mainDirectory,currentDate,currentBlockDirectory,'green_channel_128x128.mat'),fullfile(currentDirectory,'green_channel_128x128.mat'));
 %     end
 %     toc;
+
+    if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file')
     
-    % load red and green channels
-    disp('Loading green channel');
-    tic; green_channel = load(fullfile(currentDirectory,'green_channel_128x128')); toc;
+        % load red and green channels
+        disp('Loading green channel');
+        tic; green_channel = load(fullfile(currentDirectory,'green_channel_128x128')); toc;
 
-%     disp('Loading red channel');
-%     tic; red_channel = load(fullfile(currentDirectory,'red_channel_128x128')); toc;
+    %     disp('Loading red channel');
+    %     tic; red_channel = load(fullfile(currentDirectory,'red_channel_128x128')); toc;
 
-    %hyperstack the green and red channels (pixelX,pixelY,nSlices,time)
-    green_channel = reshape(green_channel.rData,[imageSize nSlices nVolTotal]);
-%     rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
-    
-    % average over the volume
-    avg_z_green = squeeze(mean(green_channel,3));
-%     avg_z_red = squeeze(sum(rc_hstack,3));
+        %hyperstack the green and red channels (pixelX,pixelY,nSlices,time)
+        green_channel = reshape(green_channel.rData,[imageSize nSlices nVolTotal]);
+    %     rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
 
-    if block.Align
+        % average over the volume
+        avg_z_green = squeeze(mean(green_channel,3));
+    %     avg_z_red = squeeze(sum(rc_hstack,3));
 
-        % z-average aligned
-        avg_z_green_aligned = zeros(size(avg_z_green));
-    %     avg_z_red_aligned = zeros(size(avg_z_red));
+        if block.Align
 
-        % full stack aligned
-        green_channel_aligned = zeros(size(green_channel));
-    
-        %make a reference image for registering (mean of first recording of nVol)
-        refImage = mean(avg_z_green(:,:,1:nVol),3);
+            % z-average aligned
+            avg_z_green_aligned = zeros(size(avg_z_green));
+        %     avg_z_red_aligned = zeros(size(avg_z_red));
 
-        [opt,metric]=imregconfig('multimodal');
+            % full stack aligned
+            green_channel_aligned = zeros(size(green_channel));
 
-    %     opt.MaximumIterations = 300;
-        opt.InitialRadius = 1e-3;
+            %make a reference image for registering (mean of first recording of nVol)
+            refImage = mean(avg_z_green(:,:,1:nVol),3);
 
-        %register green channel
-        disp('Aligning stacks');
-        tic;
-        parfor vol = 1:nVolTotal
-            
-            im_trans = imregtform(avg_z_green(:,:,vol),refImage,'translation',opt,metric);
-            R = imref2d(size(refImage));
-            
-            % apply transformation to avg image
-            avg_z_green_aligned(:,:,vol) = imwarp(avg_z_green(:,:,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
-    %         avg_z_red_aligned(:,:,i) = imwarp(avg_z_red(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
-    
-            % apply transformation to each slice in z direction (can this be done all at once for a volume?)
-            for z = 1:nSlices
-                green_channel_aligned(:,:,z,vol) = imwarp(green_channel(:,:,z,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+            [opt,metric]=imregconfig('multimodal');
+
+        %     opt.MaximumIterations = 300;
+            opt.InitialRadius = 1e-3;
+
+            %register green channel
+            disp('Aligning stacks');
+            tic;
+            parfor vol = 1:nVolTotal
+
+                im_trans = imregtform(avg_z_green(:,:,vol),refImage,'translation',opt,metric);
+                R = imref2d(size(refImage));
+
+                % apply transformation to avg image
+                avg_z_green_aligned(:,:,vol) = imwarp(avg_z_green(:,:,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+        %         avg_z_red_aligned(:,:,i) = imwarp(avg_z_red(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
+
+                % apply transformation to each slice in z direction (can this be done all at once for a volume?)
+                for z = 1:nSlices
+                    green_channel_aligned(:,:,z,vol) = imwarp(green_channel(:,:,z,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+                end
+
             end
-    
-        end
-        toc;
-        
-        disp('Saving AVG green channel aligned');
-        tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned','-v7.3','-nocompression'); toc;
-        disp('Saving full green channel aligned');
-        tic; save(fullfile(currentDirectory,'green_channel_aligned'),'green_channel_aligned','-v7.3','-nocompression'); toc;
-    
-    end
-    
-%     disp('Saving green channel before alignment');
-%     tic; save(fullfile(currentDirectory,'avg_z_green'),'avg_z_green','-v7.3','-nocompression'); toc;
-    
-%     disp('Saving red channel');
-%     tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;
+            toc;
 
-    %delete files
-%     disp('Deleting files');
-%     tic;
-%     if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file')
-%         delete(fullfile(currentDirectory,'green_channel_128x128.mat'));
-%     end
-%     toc;
+            disp('Saving AVG green channel aligned');
+            tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned','-v7.3','-nocompression'); toc;
+            disp('Saving full green channel aligned');
+            tic; save(fullfile(currentDirectory,'green_channel_aligned'),'green_channel_aligned','-v7.3','-nocompression'); toc;
+
+        end
+
+    %     disp('Saving green channel before alignment');
+    %     tic; save(fullfile(currentDirectory,'avg_z_green'),'avg_z_green','-v7.3','-nocompression'); toc;
+
+    %     disp('Saving red channel');
+    %     tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;
+
+        %delete files
+    %     disp('Deleting files');
+    %     tic;
+    %     if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file')
+    %         delete(fullfile(currentDirectory,'green_channel_128x128.mat'));
+    %     end
+    %     toc;
+
+    end
     
 end
 

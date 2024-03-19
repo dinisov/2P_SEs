@@ -15,7 +15,7 @@ function fitMovies3D(R, FLIES, outputDirectory, gridSize, chosenFlies, trimSize)
                mkdir(subDirectory); 
             end
             
-            n_z = size(R(fly).BLOCK(b).meanBlankTransient,3);
+            n_z = size(R(fly).BLOCK(b).meanDataSeq,5);
             
             %TODO: make for loop of movies below
 

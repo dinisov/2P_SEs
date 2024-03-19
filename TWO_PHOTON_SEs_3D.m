@@ -10,7 +10,7 @@ close all; clear;
 % mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 % mainDirectory = '../2P Data';
 
-outputDirectory = '../2P Results 3D';
+outputDirectory = '../2P Results 3D 2';
 
 RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
 
@@ -34,7 +34,7 @@ gridSize = [32 32];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [64:66 68:72];
+chosenFlies = [107:114];
 
 % chosenFlies = flyList;%do not choose any flies
 

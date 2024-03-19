@@ -63,15 +63,37 @@ for fly = 1:length(chosenFlies)
         else
             BLOCKS(b).randomSequence = csvread(fullfile(sequenceDirectory,'Data_LEDs',[flyID '.csv'])).';
         end
+
+        nBadTrials = 0;
+        nBadBlankTrials = 0;
+
+        %remove bad trials and associated frames (this should be put inside a function)
+        if ~isempty(currentBlock.removeFrames{1})
+            removeFrames = eval(currentBlock.removeFrames{1});
+            badTrials = eval(currentBlock.badTrials{1});
+            nBadTrials = length(badTrials);
+
+            BLOCKS(b).greenChannel(:,:,:,removeFrames) = [];
+            
+            auxRandomSequence = reshape(BLOCKS(b).randomSequence,[currentBlock.nStimuli length(BLOCKS(b).randomSequence)/currentBlock.nStimuli]);
+            
+            nBadBlankTrials = sum(auxRandomSequence(1,badTrials) == 5);% 5's were used for a blank trial
+%             nBadNormalTrials = length(badTrials)-nBadBlankTrials;
+
+            auxRandomSequence(:,badTrials) = [];
+            
+            BLOCKS(b).randomSequence = auxRandomSequence(:).';
+
+        end
         
         % calculate number of volumes per stimulus train
-        nSlices = currentBlock.Steps + currentBlock.FlybackFrames;
-        nVolTotal = currentBlock.realFrames/nSlices;
-        BLOCKS(b).nVol = nVolTotal/(currentBlock.BlockLength+currentBlock.BlankBlocks);
+%         nSlices = currentBlock.Steps + currentBlock.FlybackFrames;
+        nVolTotal = size(BLOCKS(b).greenChannel,4);
+        BLOCKS(b).nVol = nVolTotal/(currentBlock.BlockLength+currentBlock.BlankBlocks-nBadTrials);
 
         BLOCKS(b).brainImage = imread(fullfile(currentDirectory,'brain.jpg'));
         BLOCKS(b).nStimuli = currentBlock.nStimuli;
-        BLOCKS(b).blankBlocks = currentBlock.BlankBlocks;
+        BLOCKS(b).blankBlocks = currentBlock.BlankBlocks-nBadBlankTrials;%this may depend on trial removal
         
         % plot before fitlering
         figure; plot(squeeze(mean(mean(mean(BLOCKS(b).greenChannel,3),1),2)));

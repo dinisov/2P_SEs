@@ -16,7 +16,7 @@ blocks = blocks(~logical(blocks.Exclude),:);
 
 % chosenFlies = 25:35; %cholinergic CC LED
 % chosenFlies = [19:24 57:63];% pan-neuronal LED
-chosenFlies = [117:117];
+chosenFlies = [95:102 104:106];
 
 imageSize = [32 32];
 
@@ -300,21 +300,30 @@ close all;
 % cp_num = {[1],[1],[1],[1],[1],[1]};
 
 % % the component numbers for each fly/block
-flies = [80,94,98,101,103,106,107,114,115,116,118, 120];
-% normalised by mean transient
-chosen_blocks = {[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1]};
-cp_num = {[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1]};
-
-% the component numbers for each fly/block
-% flies = [80];
+% flies = [80,94,98,101,103,106,107,114,115,116,118, 120];
 % % normalised by mean transient
-% chosen_blocks = {[1 2 3]};
-% cp_num = {[1 2 1]};
+% chosen_blocks = {[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1]};
+% cp_num = {[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1],[1]};
 
-% flies = [35];
+% minor components 7 stacks
+flies = [107 114 116 118 120];
+% normalised by mean transient
+chosen_blocks = {[1],[1],[1],[1],[1],[1]};
+cp_num = {[-3],[-3],[4],[3],[-4],[4]};
+
+% flies = [95:102 104:106];
+% component = 5;
+% block = 3;
 % % % normalised by mean transient
-% blocks = {[1 2 3]};
-% cp_num = {[1 1 2]};
+% chosen_blocks = {[block],[block],[block],[block],[block],[block],[block],[block],[block],[block],[block]};
+% % chosen_blocks = {[2],[2],[2],[2],[2],[2],[2],[2],[2],[2],[2]};
+% % chosen_blocks = {[3],[3],[3],[3],[3],[3],[3],[3],[3],[3],[3]};
+% cp_num = {[component],[component],[component],[component],[component],[component],[component],[component],[component],[component],[component]};
+
+% flies = [80 94];
+% % % normalised by mean transient
+% chosen_blocks = {[3],[3]};
+% cp_num = {[1],[1]};
 
 % flies = [27];
 % % % normalised by mean transient
@@ -343,15 +352,41 @@ for fly = 1:length(flies)
         
         profiles(:,p) = sign(cp_num{fly}(b))*pca_results.score(:,abs(cp_num{fly}(b)));
         
-%         plot3D(sign(cp_num{fly}(b))*reshape(pca_results.coeff(:,abs(cp_num{fly}(b))),[imageSize 7]),'on');
-%         figure; create_seq_eff_plot(normalize(sign(cp_num{fly}(b))*pca_results.score(:,abs(cp_num{fly}(b)))),normalize(six_hertz));
-        
+%         plot3D(sign(cp_num{fly}(b))*reshape(pca_results.coeff(:,abs(cp_num{fly}(b))),[imageSize 4]),'on');
+%         saveas(gcf,['fly_' num2str(flies(fly)) '_block_' num2str(chosen_blocks{fly}(b)) '_cp_' num2str(abs(cp_num{fly}(b))) '.png']);
+%         figure; create_seq_eff_plot(normalize(sign(cp_num{fly}(b))*pca_results.score(:,abs(cp_num{fly}(b)))),[]);
+%         saveas(gcf,['fly_' num2str(flies(fly)) '_block_' num2str(chosen_blocks{fly}(b)) '_cp_' num2str(abs(cp_num{fly}(b))) '_profile.png']);
+
         p = p + 1;
     end
     
 end
 
 figure; create_seq_eff_plot(mean(profiles,2),[],'error',std(profiles,[],2)/sqrt(size(profiles,2))); ylabel('Mean PCA Score');
+
+names = {'before','during','after'};
+
+saveas(gcf,['Component averages/mean_cp' num2str(component) '_' names{block} '.png']);
+% saveas(gcf,'mean_cp1_during.png');
+% saveas(gcf,'mean_cp1_after.png');
+
+%%
+
+% load six_hertz.mat
+% 
+% load behaviour_results.mat
+
+% figure; create_seq_eff_plot(normalize([mean(profiles,2)]),[]); ylabel('Z-score');
+% % legend({'Two-photon','Ephys'},'box','off');
+% saveas(gcf,'average_cp1_before.png');
+% 
+% figure; create_seq_eff_plot(normalize([mean(profiles,2) -RTs]),[]); ylabel('Z-score');
+% legend({'Two-photon','Behaviour'},'box','off');
+% saveas(gcf,'minor_cps_behav.png');
+
+% figure; create_seq_eff_plot(normalize([mean(profiles,2) six_hertz -RTs]),[]); ylabel('Z-score');
+% legend({'Two-photon','Ephys','Behaviour'},'box','off');
+% saveas(gcf,'minor_cps_behav_ephys.png');
 
 % figure; create_seq_eff_plot(profiles,[]);
 % legend({'Baseline','Red light ON','Recovery'},'box','off'); ylabel('PCA Score');

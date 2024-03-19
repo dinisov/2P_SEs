@@ -11,11 +11,12 @@ mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\
 blocks = readtable('../../2P Record/2P_record');
 
 %get rid of excluded flies
-blocks = blocks(~logical(blocks.Exclude),:);
+% blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
+chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 
-chosenFlies = 119:120;
+chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
 for fly = 1:length(chosenFlies)
     
@@ -30,7 +31,7 @@ for fly = 1:length(chosenFlies)
 
         nBlocks = height(thisFlyBlocks);
 
-        for b = 1:nBlocks
+        for b = chosenBlocks{fly}
 
             currentBlock = thisFlyBlocks(b,:);
             flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
@@ -40,7 +41,7 @@ for fly = 1:length(chosenFlies)
             totalFrames = currentBlock.realFrames;
             trials = totalFrames/nSlices;
 
-    %         disp(currentDirectory);
+%             disp(currentDirectory);
     
            if ~exist([currentDirectory '/green_channel.raw'],'file')
 

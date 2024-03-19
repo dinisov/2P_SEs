@@ -19,7 +19,7 @@ chosenFlies = [114];
 
 imageSize = [32 32];
 
-trim = 6;
+trim = 3;
 
 imageSize = imageSize-2*trim;
 
@@ -28,7 +28,7 @@ n_pixels = prod(imageSize);
 load six_hertz.mat
 
 % choose from ['time','sequence']
-pcaType = {'sequence','time'};
+pcaType = {'sequence'};
 
 % number of components to retain for time and sequence
 n_comp_seq = 5;
@@ -165,7 +165,7 @@ for fly = chosenFlies
                close;
                
                % overlay plot on brain
-               plotBrainPCA(reshape(coeff(:,i),imageSize),trimmedBrainImg,'on');
+               plotBrainPCA(reshape(-coeff(:,i),imageSize),trimmedBrainImg,'on');
                saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(fly) '_' num2str(b) '_overlay.png']));
                close;
             end
@@ -271,10 +271,10 @@ end
 % "L/R" component
 
 % the component numbers for each fly/block
-flies = [25 27 32 35];
-% normalised by mean transient
-blocks = {[1 2 3],[1 2 3],[1 2],[1 2 3]};
-cp_num = {[-2 -4 -1],[3 2 -2],[1 1],[1 1 2]};
+% flies = [25 27 32 35];
+% % normalised by mean transient
+% blocks = {[1 2 3],[1 2 3],[1 2],[1 2 3]};
+% cp_num = {[-2 -4 -1],[3 2 -2],[1 1],[1 1 2]};
 
 % not normalised
 % blocks = {[1],[1 2 3],[1],[2 3],[1 2],[1 2 3]};

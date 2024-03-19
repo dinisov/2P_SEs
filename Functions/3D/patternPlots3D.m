@@ -29,6 +29,18 @@ function patternPlots3D(R, FLIES, chosenFlies, outputDirectory)
                 % subtract and divide by blank trial average (dF/F)
                 aux = permute(repmat(meanBlankTrials,[1 1 1 16]),[4 1 2 3]);
                 thisBlockData = (thisBlockData-aux)./aux;
+                
+            else
+                
+                meanTransient = R(fly).BLOCK(b).meanTransient;
+                meanTransient = meanTransient(trim+1:end-trim,trim+1:end-trim,:,:);
+                meanTransient = mean(meanTransient,4);
+                plot3D(meanTransient,'off');
+                saveas(gcf,fullfile(subDirectory,'average_transient.png')); 
+                
+                % subtract and divide by blank trial average (dF/F)
+                aux = permute(repmat(meanTransient,[1 1 1 16]),[4 1 2 3]);
+                thisBlockData = (thisBlockData-aux)./aux;
                  
             end
            
@@ -63,10 +75,6 @@ function patternPlots3D(R, FLIES, chosenFlies, outputDirectory)
 end
 
 function data = prepareMovieData(data)
-
-%     data = data(:,:,2:end); %get rid of first time point
-%     data = data-mean(data,3); % normalise by mean along time
-%     data = data-data(:,:,end); % normalise by time point
 
     %map to interval [0,1]
     data = data - min(data,[],'all'); % make minimum 0

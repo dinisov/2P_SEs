@@ -27,9 +27,13 @@ for fly = 1:length(R)
             allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 4 1]);
             allSeq = (allSeq(trim+1:end-trim,trim+1:end-trim,:,:) - blankTrials)./blankTrials;
         else
+            
+            meanTransient = R(fly).BLOCK(b).meanTransient;
+            meanTransient = meanTransient(trim+1:end-trim,trim+1:end-trim,:,:);
+            
             % global response transient
             allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 4 1]);
-            allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:,:);
+            allSeq = (allSeq(trim+1:end-trim,trim+1:end-trim,:,:) - meanTransient)./meanTransient;
         end
         
         save(fullfile(subDirectory,'global_transient'),'allSeq');
@@ -51,7 +55,7 @@ for fly = 1:length(R)
             if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
                 seq = (seq(trim+1:end-trim,trim+1:end-trim,:,:) - blankTrials)./blankTrials;
             else
-                seq = seq(trim+1:end-trim,trim+1:end-trim,:,:);
+                seq = (seq(trim+1:end-trim,trim+1:end-trim,:,:) - meanTransient)./meanTransient;
             end
             
 %             for i = 1:11
@@ -79,10 +83,6 @@ end
 end
 
 function data = prepareMovieData(data)
-
-%     data = data(:,:,2:end); %get rid of first time point
-%     data = data-mean(data,3); % normalise by mean along time
-%     data = data-data(:,:,end); % normalise by time point
 
     %map to interval [0,1]
     data = data - min(data,[],'all'); % make minimum 0
