@@ -4,11 +4,11 @@
 
 close all; clear;
 
-mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
+mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Matt\';
 
-scratchDirectory = '../../2P Data';
+scratchDirectory = '../../2P_Data';
 
-blocks = readtable('../../2P Record/2P_record');
+blocks = readtable('../../2P Record/2P_record_Matt');
 
 %get rid of excluded flies
 blocks = blocks(~logical(blocks.Exclude),:);
@@ -16,10 +16,10 @@ blocks = blocks(~logical(blocks.Exclude),:);
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-chosenFlies = 74;
+chosenFlies = [6];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = [];
+chosenBlocks = [2];
 
 %%
 
@@ -63,6 +63,12 @@ function alignBlock(block, imageSize, baseDirectory, mainDirectory)
     disp('Copying original file');
     tic;
     if ~exist(fullfile(currentDirectory,'green_channel_128x128'),'file')
+        disp([fullfile(mainDirectory,currentDate,currentBlockDirectory,'green_channel_128x128.mat')])
+        disp([fullfile(currentDirectory,'green_channel_128x128.mat')])
+        if exist(currentDirectory) == 0
+            mkdir(currentDirectory)
+            disp(['(Output directory had to be made)'])
+        end
         copyfile(fullfile(mainDirectory,currentDate,currentBlockDirectory,'green_channel_128x128.mat'),fullfile(currentDirectory,'green_channel_128x128.mat'));
     end
     toc;
