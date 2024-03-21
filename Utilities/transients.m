@@ -22,7 +22,7 @@ gridSize = [32 32];
 
 flyList = unique(blocks.Fly);
 
-chosenFlies = 43:43;
+chosenFlies = 80;
 
 trim = 3;
 
@@ -46,6 +46,8 @@ for fly = chosenFlies
            mkdir(subDirectory); 
         end
         
+        seqStruct = struct;
+        
         % global response transient
         allSeq = permute(squeeze(sum(results.meanDataSeq,2)),[2 3 1]);
         allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:);
@@ -58,7 +60,21 @@ for fly = chosenFlies
             seq = seq(trim+1:end-trim,trim+1:end-trim,:);
             
             makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']));
+            seqStruct(s).data = seq;
         end
+        
+        %Analyse and plot
+        seqMeans = nan(1,size(seqStruct(1).data,3));
+        for s = 1:16
+            seqMeans(s,:) = squeeze( nanmean(nanmean(seqStruct(s).data,1),2) )';
+        end
+        
+        figure
+        hold on
+        for s = 1:16
+           plot(seqMeans(s,:)) 
+        end
+        legend
         
     end
         
