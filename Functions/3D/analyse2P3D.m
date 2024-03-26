@@ -25,6 +25,12 @@ function R = analyse2P3D(FLIES, chosenFlies, outputDirectory, groupedBlocks)
             meanTransient = R(fly).BLOCK(b).meanTransient;
 
             save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient');
+            
+            dataSeq = R(fly).BLOCK(b).dataSeq;
+            inds = find( sum( dataSeq(:,:,:,:,:,:), [1,2,3,4,5] ) ~= 0 ); %Find only non-zero trials
+            dataSeqReduced = dataSeq(:,:,:,:,:,inds);
+            save(fullfile(thisBlockDirectory,'results_extended_reduced'),'dataSeqReduced','-v7.3');
+            disp(['Extended transient results saved'])
         end
         
         % add brain images to results structure
