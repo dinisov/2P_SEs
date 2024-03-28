@@ -90,6 +90,11 @@ for fly = 1:length(chosenFlies)
 %         nSlices = currentBlock.Steps + currentBlock.FlybackFrames;
         nVolTotal = size(BLOCKS(b).greenChannel,4);
         BLOCKS(b).nVol = nVolTotal/(currentBlock.BlockLength+currentBlock.BlankBlocks-nBadTrials);
+        %QA
+        if mod( BLOCKS(b).nVol,1 ) ~= 0
+            ['## Error: Non-integer number of volumes calculated ##']
+            crash = yes
+        end
 
         BLOCKS(b).brainImage = imread(fullfile(currentDirectory,'brain.jpg'));
         BLOCKS(b).nStimuli = currentBlock.nStimuli;
