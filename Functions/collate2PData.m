@@ -53,24 +53,47 @@ for fly = 1:length(chosenFlies)
             BLOCKS(b).randomSequence = csvread(fullfile(sequenceDirectory,'Data_LEDs',[flyID '.csv'])).';
         end
         
-        % calculate number of volumes per stimulus train
-        nSlices = currentBlock.Steps + currentBlock.FlybackFrames;
-        nVolTotal = currentBlock.realFrames/nSlices;
-        BLOCKS(b).nVol = nVolTotal/(currentBlock.BlockLength+currentBlock.BlankBlocks);
+        nBadTrials = 0;
+        nBadBlankTrials = 0;
 
-        if ~exist(fullfile(currentDirectory,'brain.jpg'),'file')
-            copyfile(fullfile(RDMDirectory,'Gcamp7s_CC',currentDate,flyID,'brain.jpg'),fullfile(currentDirectory,'brain.jpg'));
+        %remove bad trials and associated frames (this should be put inside a function)
+        if ~isempty(currentBlock.removeFrames{1})
+            removeFrames = eval(currentBlock.removeFrames{1});
+            badTrials = eval(currentBlock.badTrials{1});
+            nBadTrials = length(badTrials);
+
+            BLOCKS(b).greenChannel(:,:,removeFrames) = [];
+            
+            auxRandomSequence = reshape(BLOCKS(b).randomSequence,[currentBlock.nStimuli length(BLOCKS(b).randomSequence)/currentBlock.nStimuli]);
+            
+            nBadBlankTrials = sum(auxRandomSequence(1,badTrials) == 5);% 5's were used for a blank trial
+%             nBadNormalTrials = length(badTrials)-nBadBlankTrials;
+
+            auxRandomSequence(:,badTrials) = [];
+            
+            BLOCKS(b).randomSequence = auxRandomSequence(:).';
+
         end
+        
+        % calculate number of volumes per stimulus train
+        nVolTotal = size(BLOCKS(b).greenChannel,3);
+        BLOCKS(b).nVol = nVolTotal/(currentBlock.BlockLength+currentBlock.BlankBlocks-nBadTrials);
+
+%         if ~exist(fullfile(currentDirectory,'brain.jpg'),'file')
+%             copyfile(fullfile(RDMDirectory,'Gcamp7s_CC',currentDate,flyID,'brain.jpg'),fullfile(currentDirectory,'brain.jpg'));
+%         end
 
         BLOCKS(b).brainImage = imread(fullfile(currentDirectory,'brain.jpg'));
         BLOCKS(b).nStimuli = currentBlock.nStimuli;
-        BLOCKS(b).blankBlocks = currentBlock.BlankBlocks;
+        BLOCKS(b).blankBlocks = currentBlock.BlankBlocks-nBadBlankTrials;
         
+        % plot before fitlering
         figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
         
         % apply a savitsky-golay filter to remove larger trends in data
         BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,55);
         
+        % plot after filtering
         figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
     
         BLOCKS(b).blankImageStack = [];

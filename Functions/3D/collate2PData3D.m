@@ -93,7 +93,7 @@ for fly = 1:length(chosenFlies)
 
         BLOCKS(b).brainImage = imread(fullfile(currentDirectory,'brain.jpg'));
         BLOCKS(b).nStimuli = currentBlock.nStimuli;
-        BLOCKS(b).blankBlocks = currentBlock.BlankBlocks-nBadBlankTrials;%this may depend on trial removal
+        BLOCKS(b).blankBlocks = currentBlock.BlankBlocks-nBadBlankTrials;
         
         % plot before fitlering
         figure; plot(squeeze(mean(mean(mean(BLOCKS(b).greenChannel,3),1),2)));
