@@ -7,8 +7,9 @@ sourceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Matt\'; %
 altSinkDirectory = 'D:\group_vanswinderen\Matt\2p\2P_Data\'; %If empty, will save to sourceDirectory, otherwise will save to here
 
 overrideAlreadyDone = 1; %Whether to override already processed block skipping
+deletePrecursors = 1; 
 
-blocks = readtable('../../2P Record/2P_record_Matt');
+blocks = readtable('../../2P Record/2P_record_MattNew');
 
 %get rid of excluded flies
 blocks = blocks(~logical(blocks.Exclude),:);
@@ -18,8 +19,8 @@ finalSize = [128 128];
 
 %%
 
-chosenFlies = [6];
-chosenBlocks = [2]; % leave empty if aligning all blocks for one fly
+chosenFlies = [7];
+chosenBlocks = []; % leave empty if aligning all blocks for one fly
 
 flagParamSaveList = who;
 %flagParamSaveList = [flagParamSaveList;'flagParamSaveList';'fly'];
@@ -60,7 +61,16 @@ for fly = chosenFlies
             codeStartTime = posixtime(datetime('now'));
 
             %loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize);
-            loadReduceSave(currentSourceDirectory, 'green_channel.raw', currentBlock, finalSize, currentAltSinkDirectory);
+            %%loadReduceSave(currentSourceDirectory, 'green_channel.raw', currentBlock, finalSize, currentAltSinkDirectory);
+            if deletePrecursors == 1
+                %QA
+                if isempty( dir([fullfile(currentSourceDirectory,'Image_*.raw')]) ) ~= 1
+                    delete(fullfile(currentSourceDirectory,'green_channel.raw'))
+                    disp(['Precursor deleted'])
+                else
+                    ['-# Alert: Raw image not detected; Unsafe to delete precursor #-']
+                end
+            end
 
             codeEndTime = posixtime(datetime('now'));
             MET = codeEndTime - codeStartTime;
