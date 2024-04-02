@@ -37,7 +37,7 @@ for fly = 1:length(R)
         end
         
         save(fullfile(subDirectory,'global_transient'),'allSeq');
-        
+                
 %         sizeSeq = size(allSeq);
 % 
 %         seqAux = reshape(allSeq,[prod(sizeSeq(1:2)) sizeSeq(3)]);
@@ -49,6 +49,7 @@ for fly = 1:length(R)
 %         blah = cell(1,11);
         
         % response transient per sequence
+        sepSeq = [];
         for s = 1:16     
             seq = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,s,:,:,:)),[2 3 4 1]);
             
@@ -66,7 +67,11 @@ for fly = 1:length(R)
             seq = prepareMovieData(seq);
             
             makeMovie3D(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']),false);
+
+            sepSeq(:,:,:,:,s) = seq;
         end
+        
+        save(fullfile(subDirectory,'separated_transients'),'sepSeq');
         
         % make movie of difference between global transient and no stimulus
         % transient
