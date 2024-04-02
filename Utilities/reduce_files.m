@@ -61,7 +61,7 @@ for fly = chosenFlies
             codeStartTime = posixtime(datetime('now'));
 
             %loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize);
-            %%loadReduceSave(currentSourceDirectory, 'green_channel.raw', currentBlock, finalSize, currentAltSinkDirectory);
+            loadReduceSave(currentSourceDirectory, 'green_channel.raw', currentBlock, finalSize, currentAltSinkDirectory);
             if deletePrecursors == 1
                 %QA
                 if isempty( dir([fullfile(currentSourceDirectory,'Image_*.raw')]) ) ~= 1
