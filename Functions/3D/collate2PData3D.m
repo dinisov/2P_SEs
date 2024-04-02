@@ -42,7 +42,7 @@ for fly = 1:length(chosenFlies)
         else
             % I am guessing I checked no interpolation is going on in z
             % direction?
-            BLOCKS(b).greenChannel = imresize3(reshape(green_channel_aligned,[128 128 size(green_channel_aligned,3)*size(green_channel_aligned,4)]),[gridSize size(green_channel_aligned,3)*size(green_channel_aligned,4)],'box');
+            BLOCKS(b).greenChannel = imresize3(reshape(green_channel_aligned,[size(green_channel_aligned,[1 2]) prod(size(green_channel_aligned,[3 4]))]),[gridSize size(green_channel_aligned,3)*size(green_channel_aligned,4)],'box');
 %         BLOCKS(b).redChannel = imresize3(avg_z_red_aligned,[gridSize size(avg_z_red_aligned,3)],'box');
         end
         toc;

@@ -34,7 +34,7 @@ gridSize = [32 32];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [107:114];
+chosenFlies = [81];
 
 % chosenFlies = flyList;%do not choose any flies
 
