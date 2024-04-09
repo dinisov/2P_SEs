@@ -63,12 +63,14 @@ for fly = 1:length(R)
 %                 blah{i}(s) = max(seq(:,:,i),[],'all');%-min(seq(:,:,i),[],'all');
 %             end
 %             blah(s) = mean(seq(:,:,6),'all');
+
+            sepSeq(:,:,:,:,s) = seq; %Moved above movie ranging adjustment
             
             seq = prepareMovieData(seq);
             
             makeMovie3D(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']),false);
 
-            sepSeq(:,:,:,:,s) = seq;
+            %sepSeq(:,:,:,:,s) = seq;
         end
         
         save(fullfile(subDirectory,'separated_transients'),'sepSeq');
