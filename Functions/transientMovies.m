@@ -6,7 +6,7 @@ function transientMovies(R, chosenFlies, resultsDirectory, trim)
 
 for fly = 1:length(R)
     
-    for b = 1:length(R(fly).BLOCK)
+    for b = [R(fly).BLOCK.blockNum]
         
         thisBlockDirectory = fullfile(resultsDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]);
         

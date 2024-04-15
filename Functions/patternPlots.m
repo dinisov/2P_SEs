@@ -6,7 +6,7 @@ function patternPlots(R, FLIES, chosenFlies, outputDirectory)
     % newGridSize = gridSize-2*trim;
 
     for fly = 1:length(FLIES)
-        for b = 1:length(FLIES(fly).BLOCKS)
+        for b = [FLIES(fly).BLOCKS.blockNum]  
             subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Oddballs');
             if ~exist(subDirectory,'dir')
                mkdir(subDirectory); 

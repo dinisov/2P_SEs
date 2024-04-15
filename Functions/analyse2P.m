@@ -10,7 +10,7 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
     for fly = 1:length(FLIES)
         disp(['Fly ' num2str(fly)]);
         thisFly = FLIES(fly);
-        for b = 1:length(thisFly.BLOCKS)
+        for b = [thisFly.BLOCKS.blockNum]
             disp(['Block ' num2str(b)]);
             thisBlock = thisFly.BLOCKS(b);
             R(fly).BLOCK(b) = analyse2PBlock(thisBlock);

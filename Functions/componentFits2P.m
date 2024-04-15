@@ -1,9 +1,9 @@
-function R = componentFits2P3D(R, FLIES, groupedBlocks)
+function R = componentFits2P(R, FLIES, groupedBlocks)
 %componentFits2P Summary of this function goes here
 %   Detailed explanation goes here
-load slrp_lrpr.mat
+% load slrp_lrpr.mat
 
-load six_hertz.mat
+load('six_hertz.mat','six_hertz');
 
 %% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS per volume
 
@@ -12,7 +12,7 @@ tic;
 
 % for each block of each fly
 for fly = 1:length(FLIES)
-    for b = 1:length(FLIES(fly).BLOCKS)   
+    for b = [FLIES(fly).BLOCKS.blockNum]  
         meanDataSeq = R(fly).BLOCK(b).meanDataSeq;
         for vol = 1:FLIES(fly).BLOCKS(b).nVol
             thisVolData = permute(squeeze(meanDataSeq(vol,:,:,:)),[2,3,1]);

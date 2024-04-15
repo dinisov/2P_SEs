@@ -14,13 +14,15 @@ for fly = 1:length(chosenFlies)
     
     currentDate = char(datetime(thisFlyBlocks.Date(1),'Format','dMMMyy'));
     
-    nBlocks = height(thisFlyBlocks);
+    blockNumbers = thisFlyBlocks.Block.';
     
-    for b = 1:nBlocks
-        
-        currentBlock = thisFlyBlocks(b,:);
+    for b = blockNumbers
+
+        currentBlock = thisFlyBlocks(blockNumbers==b,:);
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
         currentDirectory = fullfile(dataDirectory,currentDate,flyID);
+
+        BLOCKS(b).blockNum = b;
         
         disp(flyID);
         

@@ -14,7 +14,7 @@ sequenceDirectory = fullfile(RDMDirectory,'RPiData/');
 %where the main data is found
 dataDirectory = fullfile(RDMDirectory,'Gcamp7s_CC/');
 
-outputDirectory = '../2P Results';
+outputDirectory = '../2P Results 2';
 
 flyRecord = readtable('../2P Record/2P_record');
 
@@ -28,7 +28,7 @@ gridSize = [32 32];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = 121;
+chosenFlies = 118;
 
 % chosenFlies = flyList;%do not choose any flies
 

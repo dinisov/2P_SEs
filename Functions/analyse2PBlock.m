@@ -37,5 +37,6 @@ function R = analyse2PBlock(block)
     R.dataSeqIso = dataSeqIso;% this still holds the 32 sequences
     R.meanDataSeq = meanDataSeq;
     R.nData = nData;
+    R.blockNum = block.blockNum;
     
 end

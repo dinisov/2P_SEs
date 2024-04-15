@@ -8,7 +8,7 @@ function fitMovies(R, FLIES, outputDirectory, gridSize, chosenFlies, trimSize)
     newGridSize = gridSize-2*trimSize;
 
     for fly = 1:length(FLIES)
-        for b = 1:length(FLIES(fly).BLOCKS)
+        for b = [FLIES(fly).BLOCKS.blockNum]
             subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Movies');
             if ~exist(subDirectory,'dir')
                mkdir(subDirectory); 
