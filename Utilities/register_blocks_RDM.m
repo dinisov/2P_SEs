@@ -4,11 +4,11 @@
 
 close all; clear;
 
-mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
+mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Matt\';
 
 % scratchDirectory = '../../2P Data';
 
-blocks = readtable('../../2P Record/2P_record');
+blocks = readtable('../../2P Record/2P_record_MattNew');
 
 %get rid of excluded flies
 % blocks = blocks(~logical(blocks.Exclude),:);
@@ -16,10 +16,10 @@ blocks = readtable('../../2P Record/2P_record');
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-chosenFlies = [20];
+chosenFlies = [8:9];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = {1};
+chosenBlocks = {};
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % 
@@ -32,7 +32,7 @@ for fly = 1:length(chosenFlies)
 
     thisFlyBlocks = blocks(blocks.Fly == chosenFlies(fly),:);
 
-    if ~isempty(chosenBlocks{fly})
+    if ~isempty(chosenBlocks) && ~isempty(chosenBlocks{fly})
         thisFlyBlocks = thisFlyBlocks(ismember(thisFlyBlocks.Block,chosenBlocks{fly}),:);
     end
     
@@ -145,7 +145,8 @@ function alignBlock(block, imageSize, mainDirectory)
     %         delete(fullfile(currentDirectory,'green_channel_128x128.mat'));
     %     end
     %     toc;
-
+    else
+        disp(['green_channel_128x128.mat',' did not exist in ',currentDirectory])
     end
     
 end
