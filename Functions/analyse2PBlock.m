@@ -37,6 +37,10 @@ function R = analyse2PBlock(block)
     R.dataSeqIso = dataSeqIso;% this still holds the 32 sequences
     R.meanDataSeq = meanDataSeq;
     R.nData = nData;
+    
+    % these avoid later passing FLIES without need
     R.blockNum = block.blockNum;
+    R.Trim = block.Trim;
+    R.nVol = block.nVol;
     
 end

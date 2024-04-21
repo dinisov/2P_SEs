@@ -23,6 +23,7 @@ for fly = 1:length(chosenFlies)
         currentDirectory = fullfile(dataDirectory,currentDate,flyID);
 
         BLOCKS(b).blockNum = b;
+        BLOCKS(b).Trim = currentBlock.Trim;
         
         disp(flyID);
         

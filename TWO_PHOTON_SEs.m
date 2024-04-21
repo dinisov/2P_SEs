@@ -26,62 +26,27 @@ imageSize = [128 128];
 % final grid size
 gridSize = [32 32];
 
+% side trim
+% trim = 3;
+
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = 118;
+chosenFlies = 81;
 
 % chosenFlies = flyList;%do not choose any flies
 
 %whether to analyse grouped blocks
 groupedBlocks = 0;
 
-%% collate, reduce, filter and concatenate pre-aligned data
+%% process flies
 
-FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks);
+% transient movies; component fits; fit movies; t-tests; oddballs; LvsR;
+% plotting
+% analysisToggle = [1 0 0 0 1 0 1]; %not functional yet
 
-%% analyse SEs
-% separates images according to preceding sequence of stimuli and
-% calculates mean images as a function of the sequence
-
-R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks);
-
-%% make movies of transients as differences to mean
-
-transientMovies(R, chosenFlies, outputDirectory, 4);
-
-%% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS (per volume/time and collapsed across time)
-
-R = componentFits2P(R, FLIES, groupedBlocks);
-
-%% make movies of fits over time
-
-fitMovies(R, FLIES, outputDirectory, gridSize, chosenFlies, 3);
-
-%% calculate mass t-tests
-
-R = ttests2P(R, FLIES, groupedBlocks);
-
-%% RRRR-RRRA and AAAA-AAAR (collapsed and over time videos)
-
-patternPlots(R, FLIES, chosenFlies, outputDirectory);
-
-%% L vs R analysis (t-tests, L-R, L and R, L and R movies)
-
-analyseLvsR(R, FLIES, chosenFlies, outputDirectory, 3);
-
-%% plotting
-disp('Plotting stuff');
-tic;
-% plot results per block
-for fly = 1:length(FLIES)
-    subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))]);
-    if ~exist(subDirectory,'dir')
-       mkdir(subDirectory); 
-    end
-    plotFly(R(fly), groupedBlocks, subDirectory,'off');
+for fly = chosenFlies
+    processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, groupedBlocks);
 end
-toc;
-
 %% fit and plot some seq eff profiles of interest
 
 % options = optimset('Algorithm','interior-point','FinDiffType','central');

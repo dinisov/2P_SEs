@@ -1,18 +1,20 @@
-function R = analyseLvsR(R, FLIES, chosenFlies, outputDirectory, trim)
+function R = analyseLvsR(R, chosenR, outputDirectory)
 %analyseLvsR Summary of this function goes here
 %   Detailed explanation goes here
 
 disp('Calculating L vs R');
 tic;
 % for each block
-for fly = 1:length(FLIES)
-    for b = [FLIES(fly).BLOCKS.blockNum]  
+for fly = 1:length(R)
+    for b = [R(fly).BLOCK.blockNum]  
 
-        subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'LvsR');
+        subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenR(fly))],['Block' num2str(b)],'LvsR');
 
         if ~exist(subDirectory,'dir')
            mkdir(subDirectory); 
         end
+        
+        trim = R(fly).BLOCK(b).Trim;
         
         thisBlockData = squeeze(sum(R(fly).BLOCK(b).dataSeqIso,1)./size(R(fly).BLOCK(b).dataSeqIso,1));
 

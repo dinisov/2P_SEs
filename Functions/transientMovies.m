@@ -1,4 +1,4 @@
-function transientMovies(R, chosenFlies, resultsDirectory, trim)
+function transientMovies(R, chosenFlies, resultsDirectory)
 %transientMovies Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -14,6 +14,8 @@ for fly = 1:length(R)
         if ~exist(subDirectory,'dir')
            mkdir(subDirectory); 
         end
+        
+        trim = R(fly).BLOCK(b).Trim;
         
         % blank trial transient movie
         if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
