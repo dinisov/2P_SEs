@@ -16,10 +16,10 @@ blocks = readtable('../../2P Record/2P_record');
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-chosenFlies = [20];
+chosenFlies = [21];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = {1};
+chosenBlocks = {[]};
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % 

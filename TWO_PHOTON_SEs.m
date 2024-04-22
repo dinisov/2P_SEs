@@ -24,14 +24,14 @@ flyRecord = flyRecord(~logical(flyRecord.Exclude),:);
 imageSize = [128 128];
 
 % final grid size
-gridSize = [32 32];
+gridSize = [64 64];
 
 % side trim
 % trim = 3;
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = 81;
+chosenFlies = 20:121;
 
 % chosenFlies = flyList;%do not choose any flies
 
@@ -42,10 +42,10 @@ groupedBlocks = 0;
 
 % transient movies; component fits; fit movies; t-tests; oddballs; LvsR;
 % plotting
-% analysisToggle = [1 0 0 0 1 0 1]; %not functional yet
+analysisToggle = [1 1 1 0 0 0 1];
 
 for fly = chosenFlies
-    processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, groupedBlocks);
+    processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks);
 end
 %% fit and plot some seq eff profiles of interest
 
