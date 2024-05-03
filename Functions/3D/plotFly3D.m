@@ -3,7 +3,8 @@ function plotFly3D(R, groupedBlocks, outputDirectory, visibility)
 
 %% per block
 for b = 1:length(R.BLOCK)
-    subDirectory = fullfile(outputDirectory,['Block' num2str(b)]);
+    %subDirectory = fullfile(outputDirectory,['Block' num2str(b)]); %Old 
+    subDirectory = fullfile(outputDirectory,['Block' num2str(R.BLOCK(b).thisBlockID)]); %New
     if ~exist(subDirectory,'dir')
        mkdir(subDirectory); 
     end

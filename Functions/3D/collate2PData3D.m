@@ -117,7 +117,7 @@ for fly = 1:length(chosenFlies)
             BLOCKS(b) = splitStack3D(BLOCKS(b));
         end
         
-        BLOCKS(b).thisBlock = thisFlyBlocks(b);
+        BLOCKS(b).thisBlockID = thisFlyBlocks.Block(b);
     
     end
     

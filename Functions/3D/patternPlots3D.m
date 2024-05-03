@@ -7,7 +7,8 @@ function patternPlots3D(R, FLIES, chosenFlies, outputDirectory)
 
     for fly = 1:length(FLIES)
         for b = 1:length(FLIES(fly).BLOCKS)
-            subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Oddballs');
+            %subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Oddballs'); %Old
+            subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(R(fly).BLOCK(b).thisBlockID)],'Oddballs'); %New
             if ~exist(subDirectory,'dir')
                mkdir(subDirectory); 
             end

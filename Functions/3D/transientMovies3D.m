@@ -8,7 +8,8 @@ for fly = 1:length(R)
     
     for b = 1:length(R(fly).BLOCK)
         
-        thisBlockDirectory = fullfile(resultsDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]);
+        %thisBlockDirectory = fullfile(resultsDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]); %Old
+        thisBlockDirectory = fullfile(resultsDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(R(fly).BLOCK(b).thisBlockID)]); %New
         
         subDirectory = fullfile(thisBlockDirectory,'Transients');
         if ~exist(subDirectory,'dir')

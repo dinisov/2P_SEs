@@ -11,11 +11,14 @@ function R = analyse2P3D(FLIES, chosenFlies, outputDirectory, groupedBlocks)
         disp(['Fly ' num2str(fly)]);
         thisFly = FLIES(fly);
         for b = 1:length(thisFly.BLOCKS)
-            disp(['Block ' num2str(b)]);
             thisBlock = thisFly.BLOCKS(b);
+            thisBlockID = thisFly.BLOCKS(b).thisBlockID;
+            disp(['Analysing block ' num2str(b),' of ',num2str(length(thisFly.BLOCKS)),' (ID: ',num2str(thisBlockID),')']);
             R(fly).BLOCK(b) = analyse2PBlock3D(thisBlock);
+            %R(fly).BLOCK(b).thisBlockID = [thisBlockID]; %Causes crashes due to dissimilar sizes with above function output
             
-            thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]);
+            %thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]); %Dinis system, does not account for gaps
+            thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(thisBlockID)]); %Matt new, skips excluded block IDs
             if ~exist(thisBlockDirectory,'dir')
                 mkdir(thisBlockDirectory); 
             end
@@ -29,13 +32,22 @@ function R = analyse2P3D(FLIES, chosenFlies, outputDirectory, groupedBlocks)
             dataSeq = R(fly).BLOCK(b).dataSeq;
             inds = find( sum( dataSeq(:,:,:,:,:,:), [1,2,3,4,5] ) ~= 0 ); %Find only non-zero trials
             dataSeqReduced = dataSeq(:,:,:,:,:,inds);
-            save(fullfile(thisBlockDirectory,'results_extended_reduced'),'dataSeqReduced','-v7.3');
+            %save(fullfile(thisBlockDirectory,'results_extended_reduced'),'dataSeqReduced','-v7.3');
+            dataStruct = struct;
+            dataStruct.dataSeqReduced = dataSeqReduced;
+            dataStruct.flyName = chosenFlies(fly);
+            %if isfield(thisFly.BLOCKS,'thisBlock') == 1
+            dataStruct.blockName = thisBlockID;
+            %end
+            save(fullfile(thisBlockDirectory,'results_extended_reduced'),'dataStruct','-v7.3');
             disp(['Extended transient results saved'])
         end
         
         % add brain images to results structure
         for b = 1:length(thisFly.BLOCKS)
             R(fly).BLOCK(b).brainImage = FLIES(fly).BLOCKS(b).brainImage;
+            thisBlockID = thisFly.BLOCKS(b).thisBlockID;
+            R(fly).BLOCK(b).thisBlockID = thisBlockID; %And append this too
         end
         
         %THIS NEEDS WORK

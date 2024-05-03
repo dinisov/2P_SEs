@@ -10,7 +10,8 @@ function fitMovies3D(R, FLIES, outputDirectory, gridSize, chosenFlies, trimSize)
     for fly = 1:length(FLIES)
         
         for b = 1:length(FLIES(fly).BLOCKS)
-            subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Movies');
+            %subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Movies'); %Old
+            subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(R(fly).BLOCK(b).thisBlockID)],'Movies'); %New
             if ~exist(subDirectory,'dir')
                mkdir(subDirectory); 
             end
