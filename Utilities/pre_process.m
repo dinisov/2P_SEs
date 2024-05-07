@@ -6,19 +6,20 @@ if ~exist('IJM','var')
     ImageJ;
 end
 
-mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
+mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Matt\';
 
-blocks = readtable('../../2P Record/2P_record');
+blocks = readtable('../../2P Record/2P_record_MattNew');
 
 %get rid of excluded flies
 % blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
-chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
+chosenFlies = [23];
 
-chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
+chosenBlocks = {[1,2,3]};
 
 for fly = 1:length(chosenFlies)
+    disp(['Now processing dataset ',num2str(fly),' from selected fly/s: ',num2str(chosenFlies)])
     
     BLOCKS = struct;
     
@@ -32,10 +33,11 @@ for fly = 1:length(chosenFlies)
         nBlocks = height(thisFlyBlocks);
 
         for b = chosenBlocks{fly}
-
             currentBlock = thisFlyBlocks(b,:);
             flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
             currentDirectory = fullfile(mainDirectory,currentDate,flyID);
+            
+            disp(['Current: ',flyID,' (Fly ',num2str(currentBlock.Fly),' Block ',num2str(currentBlock.Block),')'])
 
             nSlices = currentBlock.Steps + currentBlock.FlybackFrames;
             totalFrames = currentBlock.realFrames;
@@ -51,27 +53,58 @@ for fly = 1:length(chosenFlies)
 
                ij.IJ.run('Raw...',['open=' currentDirectory '/' imageFile.name '  width=512 height=512 little-endian number=200000']);
 
-               %green channel
-               ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel.raw']);
-               
-%                ij.IJ.run('Close');
-
-%                ij.IJ.run("Stack to Hyperstack...",['"channels=1 slices=' num2str(nSlices) ' frames=' num2str(trials)]);
-%                ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
-%                ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel_AVG.raw']);
-               
-%                ij.IJ.selectWindow('green_channel.raw');
-%                ij.IJ.run('Close');
-
-                if ~exist([currentDirectory '/brain.jpg'],'file')             
-                   ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
-                   ij.IJ.run('Jpeg...',['path=' currentDirectory '/brain.jpg']);  
-                   ij.IJ.run('Close');
-                end
+               if currentBlock.nChannels == 2
                    
-               ij.IJ.run('Close');
+                   %de-interleave channels
+                   ij.IJ.run("Deinterleave", "how=2");
+                   
+                   ij.IJ.selectWindow([imageFile.name ' #1']);
+                   
+                   %save green channel
+                   ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel.raw']);
+                   
+                   if ~exist([currentDirectory '/brain.jpg'],'file')             
+                       ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
+                       ij.IJ.run('Jpeg...',['path=' currentDirectory '/brain.jpg']);  
+                       ij.IJ.run('Close');
+                   end
 
+                   ij.IJ.run('Close');
+                   
+                   ij.IJ.selectWindow([imageFile.name ' #2']);
+                   
+                   %save red channel
+                   ij.IJ.run('Raw Data...',['path=' currentDirectory '/red_channel.raw']);
+                   ij.IJ.run('Close');
+                   
+               else
+               
+                   %green channel
+                   ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel.raw']);
+
+    %                ij.IJ.run('Close');
+
+    %                ij.IJ.run("Stack to Hyperstack...",['"channels=1 slices=' num2str(nSlices) ' frames=' num2str(trials)]);
+    %                ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
+    %                ij.IJ.run('Raw Data...',['path=' currentDirectory '/green_channel_AVG.raw']);
+
+    %                ij.IJ.selectWindow('green_channel.raw');
+    %                ij.IJ.run('Close');
+
+                    if ~exist([currentDirectory '/brain.jpg'],'file')             
+                       ij.IJ.run('Z Project...','"Projection type"="Average Intensity" all');
+                       ij.IJ.run('Jpeg...',['path=' currentDirectory '/brain.jpg']);  
+                       ij.IJ.run('Close');
+                    end
+
+                   ij.IJ.run('Close');
+                   
+               end
+           else
+               ['-# Data not found for this block/fly! #-']                
            end
         end
+    else
+        ['-# No blocks found for this fly! #-']
     end
 end
