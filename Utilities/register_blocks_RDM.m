@@ -16,10 +16,10 @@ blocks = readtable('../../2P Record/2P_record');
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-chosenFlies = [20];
+chosenFlies = [57:121];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = {1};
+chosenBlocks = [];
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % 
@@ -32,8 +32,8 @@ for fly = 1:length(chosenFlies)
 
     thisFlyBlocks = blocks(blocks.Fly == chosenFlies(fly),:);
 
-    if ~isempty(chosenBlocks{fly})
-        thisFlyBlocks = thisFlyBlocks(ismember(thisFlyBlocks.Block,chosenBlocks{fly}),:);
+    if ~isempty(chosenBlocks)
+        thisFlyBlocks = thisFlyBlocks(ismember(thisFlyBlocks.Block,chosenBlocks),:);
     end
     
     %align inside each block
@@ -71,7 +71,7 @@ function alignBlock(block, imageSize, mainDirectory)
 %     end
 %     toc;
 
-    if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file')
+    if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file') && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
     
         % load red and green channels
         disp('Loading green channel');

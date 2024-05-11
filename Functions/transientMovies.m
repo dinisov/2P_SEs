@@ -1,4 +1,4 @@
-function transientMovies(R, chosenFlies, resultsDirectory, trim)
+function transientMovies(R, chosenFlies, resultsDirectory)
 %transientMovies Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -6,7 +6,7 @@ function transientMovies(R, chosenFlies, resultsDirectory, trim)
 
 for fly = 1:length(R)
     
-    for b = 1:length(R(fly).BLOCK)
+    for b = [R(fly).BLOCK.blockNum]
         
         thisBlockDirectory = fullfile(resultsDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]);
         
@@ -14,6 +14,8 @@ for fly = 1:length(R)
         if ~exist(subDirectory,'dir')
            mkdir(subDirectory); 
         end
+        
+        trim = R(fly).BLOCK(b).Trim;
         
         % blank trial transient movie
         if ~isempty(R(fly).BLOCK(b).meanBlankTransient)

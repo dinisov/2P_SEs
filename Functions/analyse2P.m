@@ -10,7 +10,7 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
     for fly = 1:length(FLIES)
         disp(['Fly ' num2str(fly)]);
         thisFly = FLIES(fly);
-        for b = 1:length(thisFly.BLOCKS)
+        for b = [thisFly.BLOCKS.blockNum]
             disp(['Block ' num2str(b)]);
             thisBlock = thisFly.BLOCKS(b);
             R(fly).BLOCK(b) = analyse2PBlock(thisBlock);
@@ -27,7 +27,8 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
         end
         
         % add brain images to results structure
-        for b = 1:length(thisFly.BLOCKS)
+        %(need to do this separately to avoid dissimilar structures)
+        for b = [thisFly.BLOCKS.blockNum]
             R(fly).BLOCK(b).brainImage = FLIES(fly).BLOCKS(b).brainImage;
         end
         

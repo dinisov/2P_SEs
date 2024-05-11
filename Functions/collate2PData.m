@@ -1,4 +1,4 @@
-function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks)
+function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, ~)
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -14,13 +14,16 @@ for fly = 1:length(chosenFlies)
     
     currentDate = char(datetime(thisFlyBlocks.Date(1),'Format','dMMMyy'));
     
-    nBlocks = height(thisFlyBlocks);
+    blockNumbers = thisFlyBlocks.Block.';
     
-    for b = 1:nBlocks
-        
-        currentBlock = thisFlyBlocks(b,:);
+    for b = blockNumbers
+
+        currentBlock = thisFlyBlocks(blockNumbers==b,:);
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
         currentDirectory = fullfile(dataDirectory,currentDate,flyID);
+
+        BLOCKS(b).blockNum = b;
+        BLOCKS(b).Trim = currentBlock.Trim;
         
         disp(flyID);
         
@@ -109,25 +112,25 @@ for fly = 1:length(chosenFlies)
     FLIES(fly).BLOCKS = BLOCKS;
     
     % concatenate data from different blocks
-    if groupedBlocks   
-        %concatenate aligned blocks
-        FLIES(fly).greenChannel = cell(1,1,nBlocks); %#ok<*UNRCH>
-    %     FLIES(fly).redChannel = cell(1,1,nBlocks);
-        FLIES(fly).randomSequence = cell(1,nBlocks);
-
-    %     for b = [1 3]
-        for b = 1:nBlocks
-            FLIES(fly).greenChannel{b} = FLIES(fly).BLOCKS(b).greenChannel;
-    %         FLIES(fly).redChannel{b} = FLIES(fly).BLOCKS(b).redChannel;
-            FLIES(fly).randomSequence{b} = FLIES(fly).BLOCKS(b).randomSequence;
-        end
-
-        FLIES(fly).greenChannel = cell2mat(FLIES(fly).greenChannel);
-    %     FLIES(fly).redChannel = cell2mat(FLIES(fly).redChannel);
-        FLIES(fly).randomSequence = cell2mat(FLIES(fly).randomSequence);
-        FLIES(fly).nVol = BLOCKS(1).nVol;
-%         FLIES(fly).brainImage = BLOCKS(1).brainImage; % all blocks aligned to first so brain image of first block is image for all
-    end
+%     if groupedBlocks   
+%         %concatenate aligned blocks
+%         FLIES(fly).greenChannel = cell(1,1,nBlocks); %#ok<*UNRCH>
+%     %     FLIES(fly).redChannel = cell(1,1,nBlocks);
+%         FLIES(fly).randomSequence = cell(1,nBlocks);
+% 
+%     %     for b = [1 3]
+%         for b = 1:nBlocks
+%             FLIES(fly).greenChannel{b} = FLIES(fly).BLOCKS(b).greenChannel;
+%     %         FLIES(fly).redChannel{b} = FLIES(fly).BLOCKS(b).redChannel;
+%             FLIES(fly).randomSequence{b} = FLIES(fly).BLOCKS(b).randomSequence;
+%         end
+% 
+%         FLIES(fly).greenChannel = cell2mat(FLIES(fly).greenChannel);
+%     %     FLIES(fly).redChannel = cell2mat(FLIES(fly).redChannel);
+%         FLIES(fly).randomSequence = cell2mat(FLIES(fly).randomSequence);
+%         FLIES(fly).nVol = BLOCKS(1).nVol;
+% %         FLIES(fly).brainImage = BLOCKS(1).brainImage; % all blocks aligned to first so brain image of first block is image for all
+%     end
     
 end
 

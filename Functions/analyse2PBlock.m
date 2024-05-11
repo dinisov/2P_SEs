@@ -38,4 +38,9 @@ function R = analyse2PBlock(block)
     R.meanDataSeq = meanDataSeq;
     R.nData = nData;
     
+    % these avoid later passing FLIES without need
+    R.blockNum = block.blockNum;
+    R.Trim = block.Trim;
+    R.nVol = block.nVol;
+    
 end
