@@ -8,7 +8,7 @@ mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\
 
 % scratchDirectory = '../../2P Data';
 
-blocks = readtable('../../2P Record/2P_record');
+blocks = readtable("D:\group_vanswinderen\Dinis\2P Record\2P_record");
 
 %get rid of excluded flies
 % blocks = blocks(~logical(blocks.Exclude),:);
@@ -16,10 +16,11 @@ blocks = readtable('../../2P Record/2P_record');
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-chosenFlies = [57:121];
+chosenFlies = [196:199];
 
 % leave empty if aligning all blocks for one fly
 chosenBlocks = [];
+    %FORMAT MUST BE {[<block/s>]} 
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % 
@@ -32,8 +33,8 @@ for fly = 1:length(chosenFlies)
 
     thisFlyBlocks = blocks(blocks.Fly == chosenFlies(fly),:);
 
-    if ~isempty(chosenBlocks)
-        thisFlyBlocks = thisFlyBlocks(ismember(thisFlyBlocks.Block,chosenBlocks),:);
+    if ~isempty(chosenBlocks) && ~isempty(chosenBlocks{fly})
+        thisFlyBlocks = thisFlyBlocks(ismember(thisFlyBlocks.Block,chosenBlocks{fly}),:);
     end
     
     %align inside each block
