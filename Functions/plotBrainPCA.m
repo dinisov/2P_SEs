@@ -13,7 +13,8 @@ function  plotBrainPCA(R, I,visibility)
     colorbar;
 %     c.Label.String = '\bf{Correlation coefficient}';
     set(h,'alphadata',abs(R./max(abs(R),[],'all')));
+    set(g.Parent,'position',[0 0 .9 .9]);
+    set(h.Parent,'position',[0 0 .9 .9]);
 %         saveas(gcf,fullfile(outputDirectory,[fieldNames{i} '_brain.png']));
 %     close all;
-    
 end

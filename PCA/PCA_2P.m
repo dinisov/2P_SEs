@@ -23,7 +23,7 @@ trim = 3;
 
 imageSize = imageSize-2*trim;
 
-n_pixels = prod(imageSize);
+% n_pixels = prod(imageSize);
 
 load six_hertz.mat
 

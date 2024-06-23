@@ -1,4 +1,4 @@
-function fitMovies(R, outputDirectory, gridSize, chosenR)
+function fitMovies(R, outputDirectory, gridSize, chosenFlies)
 % fitMovies Makes movies of component fits over time
 %   Detailed explanation goes here
 
@@ -8,7 +8,7 @@ function fitMovies(R, outputDirectory, gridSize, chosenR)
 
     for fly = 1:length(R)
         for b = [R(fly).BLOCK.blockNum]
-            subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenR(fly))],['Block' num2str(b)],'Movies');
+            subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Movies');
             if ~exist(subDirectory,'dir')
                mkdir(subDirectory); 
             end
