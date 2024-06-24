@@ -44,7 +44,9 @@ if analysisToggle(7)
 end
 
 %% global transient analysis
-
+if analysisToggle(8)
+    globalTransients(R, chosenFlies, outputDirectory);
+end
 
 %% plotting
 if analysisToggle(7)

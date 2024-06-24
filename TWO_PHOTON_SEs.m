@@ -47,7 +47,7 @@ groupedBlocks = 0;
 % transient movies; component fits; fit movies; t-tests; oddballs; LvsR;
 % PCA
 % plotting
-analysisToggle = [0 0 0 0 0 0 1];
+analysisToggle = [0 0 0 0 0 0 1 1];
 
 for fly = chosenFlies
     if ~isempty(flyRecord(flyRecord.Fly == fly,:))

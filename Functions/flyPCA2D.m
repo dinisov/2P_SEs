@@ -16,10 +16,6 @@ FLIES = struct;
 for fly = 1:length(R)
     
     for b = [R(fly).BLOCK.blockNum]    
-        subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'PCA');
-        if ~exist(subDirectory,'dir')
-           mkdir(subDirectory); 
-        end
         
         results = R(fly).BLOCK(b);
         
@@ -29,7 +25,7 @@ for fly = 1:length(R)
     
         % if blank blocks were collected use as pedestal, otherwise use mean
         % transient
-        if results.meanBlankTransient
+        if isfield(results,'meanBlankTransient')
             sizeAux = size(results.meanBlankTransient); sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];
     
             % normalise each sequence transient by the mean blank transient (i.e. make dF/F)
