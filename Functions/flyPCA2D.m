@@ -21,7 +21,7 @@ for fly = 1:length(R)
         
         trim = results.Trim;
         
-        imageSize = size(R(1).BLOCK(1).meanDataSeq,[3 4]) - 2 * trim;
+        imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
     
         % if blank blocks were collected use as pedestal, otherwise use mean
         % transient
@@ -49,19 +49,19 @@ for fly = 1:length(R)
             FLIES(fly).BLOCK(b).XSeq = XSeq.';
         end
         
-        if any(strcmp(pcaType,'time'))
-            % construct a matrix of activity over time
-            activities = permute(squeeze(mean(results.meanDataSeq,2)),[2 3 1]);
-            
-            % trim sides
-            activities([1:trim end-(trim-1):end],:,:) = [];
-            activities(:, [1:trim end-(trim-1):end],:) = [];
-
-            %data matrix for activities
-            XAct = reshape(activities,[imageSize(1)*imageSize(2) size(activities,3)]);
-
-            FLIES(fly).BLOCK(b).XAct = XAct.';
-        end
+%         if any(strcmp(pcaType,'time'))
+%             % construct a matrix of activity over time
+%             activities = permute(squeeze(mean(results.meanDataSeq,2)),[2 3 1]);
+%             
+%             % trim sides
+%             activities([1:trim end-(trim-1):end],:,:) = [];
+%             activities(:, [1:trim end-(trim-1):end],:) = [];
+% 
+%             %data matrix for activities
+%             XAct = reshape(activities,[imageSize(1)*imageSize(2) size(activities,3)]);
+% 
+%             FLIES(fly).BLOCK(b).XAct = XAct.';
+%         end
         
     end
     
@@ -72,6 +72,10 @@ end
 for fly = 1:length(R)
 
     for b = [R(fly).BLOCK.blockNum]
+        
+        trim = results.Trim;
+        
+        imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
 
         brainImage = R(fly).BLOCK(b).brainImage;
         

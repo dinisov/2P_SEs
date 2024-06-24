@@ -31,13 +31,13 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = 81;
+chosenFlies = 121:199;
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
-flyRecord = flyRecord(1,:);% for testing
+% flyRecord = flyRecord(1,:);% for testing
 
-chosenBlocks = 1;
+% chosenBlocks = 1;
 
 %whether to analyse grouped blocks
 groupedBlocks = 0;
@@ -45,9 +45,8 @@ groupedBlocks = 0;
 %% process flies
 
 % transient movies; component fits; fit movies; t-tests; oddballs; LvsR;
-% PCA
-% plotting
-analysisToggle = [0 0 0 0 0 0 1 1];
+% PCA; global transient
+analysisToggle = [1 1 1 0 1 0 1 1];
 
 for fly = chosenFlies
     if ~isempty(flyRecord(flyRecord.Fly == fly,:))
