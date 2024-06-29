@@ -73,7 +73,7 @@ for fly = 1:length(R)
 
     for b = [R(fly).BLOCK.blockNum]
         
-        trim = results.Trim;
+        trim = R(fly).BLOCK(b).Trim;
         
         imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
 
