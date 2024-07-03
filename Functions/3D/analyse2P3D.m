@@ -10,7 +10,7 @@ function R = analyse2P3D(FLIES, chosenFlies, outputDirectory, groupedBlocks)
     for fly = 1:length(FLIES)
         disp(['Fly ' num2str(fly)]);
         thisFly = FLIES(fly);
-        for b = 1:length(thisFly.BLOCKS)
+        for b = [thisFly.BLOCKS.blockNum]%1:length(thisFly.BLOCKS)
             disp(['Block ' num2str(b)]);
             thisBlock = thisFly.BLOCKS(b);
             R(fly).BLOCK(b) = analyse2PBlock3D(thisBlock);
@@ -25,10 +25,20 @@ function R = analyse2P3D(FLIES, chosenFlies, outputDirectory, groupedBlocks)
             meanTransient = R(fly).BLOCK(b).meanTransient;
 
             save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient');
+
+            dataSeq = R(fly).BLOCK(b).dataSeq;
+            inds = find( sum( dataSeq(:,:,:,:,:,:), [1,2,3,4,5] ) ~= 0 ); %Find only non-zero trials
+            dataSeqReduced = dataSeq(:,:,:,:,:,inds);
+            dataStruct = struct;
+            dataStruct.dataSeqReduced = dataSeqReduced;
+            dataStruct.flyName = chosenFlies(fly);
+            dataStruct.blockName = thisFly.BLOCKS(b).blockNum;
+            save(fullfile(thisBlockDirectory,'results_extended_reduced'),'dataStruct','-v7.3');
+            disp(['Extended transient results saved'])
         end
         
         % add brain images to results structure
-        for b = 1:length(thisFly.BLOCKS)
+        for b = [thisFly.BLOCKS.blockNum]%1:length(thisFly.BLOCKS)
             R(fly).BLOCK(b).brainImage = FLIES(fly).BLOCKS(b).brainImage;
         end
         
