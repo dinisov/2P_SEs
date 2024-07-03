@@ -2,27 +2,27 @@ close all; clear;
 
 addpath('D:\group_vanswinderen\Dinis\Scripts\Global functions\');
 addpath('D:\group_vanswinderen\Dinis\Scripts\Indexes and legends\');
-addpath('D:\group_vanswinderen\Dinis\2P SEs\Functions\');
-addpath('D:\group_vanswinderen\Dinis\2P SEs\Functions\3D');
+addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\');
+addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\3D');
 
 close all; clear;
 
 % mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 % mainDirectory = '../2P Data';
 
-outputDirectory = '../2P Results 3D 2';
+outputDirectory = 'D:\group_vanswinderen\Matt\2p\2P Results 3D 3';
 
 RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
 
 %where the sequence data is located (stimulus files)
-sequenceDirectory = fullfile(RDMDirectory,'RPiData/');
+sequenceDirectory = 'I:\RFDG2021-Q4413\Matt';
 
 %where the main data is found
 dataDirectory = fullfile(RDMDirectory,'Gcamp7s_CC/');
 
 % scratchDirectory = '../../2P Data';
 
-flyRecord = readtable('../2P Record/2P_record');
+flyRecord = readtable("D:\group_vanswinderen\Dinis\2P Record\2P_record");
 
 %get rid of excluded flies
 flyRecord = flyRecord(~logical(flyRecord.Exclude),:);
@@ -34,7 +34,7 @@ gridSize = [32 32];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [81];
+chosenFlies = [184];
 
 % chosenFlies = flyList;%do not choose any flies
 
@@ -53,7 +53,7 @@ R = analyse2P3D(FLIES, chosenFlies, outputDirectory, groupedBlocks);
 
 %% make movies of transients as differences to mean
 
-transientMovies3D(R, chosenFlies, outputDirectory, 4);
+transientMovies3D(R, chosenFlies, outputDirectory);
 
 %% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS (per volume/time and collapsed across time)
 
@@ -61,7 +61,7 @@ R = componentFits2P3D(R, FLIES, groupedBlocks);
 
 %% make movies of fits over time
 
-fitMovies3D(R, FLIES, outputDirectory, gridSize, chosenFlies, 3);
+fitMovies3D(R, FLIES, outputDirectory, gridSize, chosenFlies);
 
 %% calculate mass t-tests
 
