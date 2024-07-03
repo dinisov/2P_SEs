@@ -16,6 +16,7 @@ R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks);
 if analysisToggle(1)
     transientMovies(R, chosenFlies, outputDirectory);
 end
+
 %% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS (per volume/time and collapsed across time)
 if analysisToggle(2)
     R = componentFits2P(R, groupedBlocks);
@@ -36,6 +37,17 @@ end
 if analysisToggle(6)
     analyseLvsR(R, chosenFlies, outputDirectory);
 end
+
+%% PCA analysis
+if analysisToggle(7)
+    flyPCA2D(R, chosenFlies, outputDirectory);
+end
+
+%% global transient analysis
+if analysisToggle(8)
+    globalTransients(R, chosenFlies, outputDirectory);
+end
+
 %% plotting
 if analysisToggle(7)
     disp('Plotting stuff');
