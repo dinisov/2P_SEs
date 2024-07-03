@@ -11,7 +11,7 @@ tic;
 
 % for each block of each fly
 for fly = 1:length(FLIES)
-    for b = 1:length(FLIES(fly).BLOCKS)   
+    for b = [R(fly).BLOCK.blockNum] %1:length(FLIES(fly).BLOCKS)   
         meanDataSeq = R(fly).BLOCK(b).meanDataSeq;
         for vol = 1:FLIES(fly).BLOCKS(b).nVol
             thisVolData = permute(squeeze(meanDataSeq(vol,:,:,:,:)),[2,3,4,1]);

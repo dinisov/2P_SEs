@@ -1,16 +1,18 @@
 function patternPlots3D(R, FLIES, chosenFlies, outputDirectory)
 %patternPlots Summary of this function goes here
 %   Detailed explanation goes here
-    trim = 3;
+    %trim = 3;
 
     % newGridSize = gridSize-2*trim;
 
     for fly = 1:length(FLIES)
-        for b = 1:length(FLIES(fly).BLOCKS)
+        for b = [R(fly).BLOCK.blockNum] %1:length(FLIES(fly).BLOCKS)
             subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Oddballs');
             if ~exist(subDirectory,'dir')
                mkdir(subDirectory); 
             end
+
+            trim = R(fly).BLOCK(b).Trim;
             
            %data averaged over time
            thisBlockData = squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1));
