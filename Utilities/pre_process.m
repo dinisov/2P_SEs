@@ -8,15 +8,15 @@ end
 
 mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
-blocks = readtable('../../2P Record/2P_record');
+blocks = readtable("D:\group_vanswinderen\Dinis\2P Record\2P_record");
 
 %get rid of excluded flies
 % blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
-chosenFlies = [9];
+chosenFlies = [200:205,188];
 
-chosenBlocks = {[1]};
+chosenBlocks = {[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2]};
 
 for fly = 1:length(chosenFlies)
     
@@ -99,7 +99,11 @@ for fly = 1:length(chosenFlies)
                    
                end
 
+           else
+               disp(['-# Preprocessed data already existing for ',flyID,' #-'])
            end
         end
+    else
+        disp(['-# No blocks found for fly ',num2str(chosenFlies(fly)),' #-'])
     end
 end
