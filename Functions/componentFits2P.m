@@ -1,4 +1,4 @@
-function R = componentFits2P(R, ~)
+%%function R = componentFits2P(R, ~)
 %componentFits2P Summary of this function goes here
 %   Detailed explanation goes here
 % load slrp_lrpr.mat
@@ -18,7 +18,18 @@ for fly = 1:length(R)
             thisVolData = permute(squeeze(meanDataSeq(vol,:,:,:)),[2,3,1]);
             R(fly).BLOCK(b).r2Vol(vol) = calculateR2(thisVolData,six_hertz);
             R(fly).BLOCK(b).rVol(vol) = calculateR(thisVolData,six_hertz);
-        end    
+        end 
+        %Behav separation, if applicable
+        if isfield( R(fly).BLOCK(b) , 'dataSeqBehav' )
+            for statInd = 1:size( R(fly).BLOCK(b).dataSeqBehav,2 )
+                meanDataSeqBehav = R(fly).BLOCK(b).dataSeqBehav(statInd).meanDataSeqReduced;
+                for vol = 1:R(fly).BLOCK(b).nVol
+                    thisVolData = permute(squeeze(meanDataSeqBehav(vol,:,:,:)),[2,3,1]);
+                    R(fly).BLOCK(b).dataSeqBehav(statInd).r2Vol(vol) = calculateR2(thisVolData,six_hertz);
+                    R(fly).BLOCK(b).dataSeqBehav(statInd).rVol(vol) = calculateR(thisVolData,six_hertz);
+                end 
+            end
+        end
     end
 end
 
@@ -44,6 +55,14 @@ for fly = 1:length(R)
         thisBlockData = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1)),[2,3,1]);
         R(fly).BLOCK(b).r2 = calculateR2(thisBlockData,six_hertz);
         R(fly).BLOCK(b).r = calculateR(thisBlockData,six_hertz);
+        %Behav separation, if applicable
+        if isfield( R(fly).BLOCK(b) , 'dataSeqBehav' )
+            for statInd = 1:size( R(fly).BLOCK(b).dataSeqBehav,2 )
+                thisBlockData = permute(squeeze(mean( R(fly).BLOCK(b).dataSeqBehav(statInd).meanDataSeqReduced ,1)),[2,3,1]);
+                R(fly).BLOCK(b).dataSeqBehav(statInd).r2 = calculateR2(thisBlockData,six_hertz);
+                R(fly).BLOCK(b).dataSeqBehav(statInd).r = calculateR(thisBlockData,six_hertz);                
+            end
+        end
     end
 end
 
@@ -58,4 +77,4 @@ end
 % end
 toc;
 
-end
+%%end
