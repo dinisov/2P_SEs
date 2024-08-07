@@ -1,4 +1,4 @@
-%%function R = componentFits2P(R, ~)
+function R = componentFits2P(R, ~)
 %componentFits2P Summary of this function goes here
 %   Detailed explanation goes here
 % load slrp_lrpr.mat
@@ -77,4 +77,4 @@ end
 % end
 toc;
 
-%%end
+end
