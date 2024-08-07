@@ -1,4 +1,4 @@
-function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, ~)
+function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, ~, separateByState)
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -56,6 +56,29 @@ for fly = 1:length(chosenFlies)
             BLOCKS(b).randomSequence = csvread(fullfile(sequenceDirectory,'Data_LEDs',[flyID '.csv'])).';
         end
         
+        %Get behavioural data (if requested)
+        if separateByState == 1
+            if exist([currentDirectory,filesep,'behavSequence.mat']) ~= 0
+                load([currentDirectory,filesep,'behavSequence.mat']);
+                if isfield(savStruct,'acInac')
+                    behavSequence = savStruct.acInac.thisInacBinaryInterp';
+                    disp(['-- Behavioural data loaded --'])
+                    %QA
+                    if size(behavSequence,2) ~= size( BLOCKS(b).randomSequence )
+                        ['## Critical desynchronisation between behav and random sequence data! ##']
+                        crash = yes
+                    end
+                else
+                    disp(['-# Activity/Inactivity calculations not performed! #-'])
+                    behavSequence = [];
+                end
+            else
+                disp(['-# Behavioural data not found! #-'])
+                behavSequence = [];
+            end
+            BLOCKS(b).behavSequence = behavSequence;
+        end        
+        
         nBadTrials = 0;
         nBadBlankTrials = 0;
 
@@ -75,8 +98,15 @@ for fly = 1:length(chosenFlies)
             auxRandomSequence(:,badTrials) = [];
             
             BLOCKS(b).randomSequence = auxRandomSequence(:).';
-
-        end
+            
+            %Replicate for behavSequence, if applicable
+            if separateByState == 1
+                auxBehavSequence = reshape(BLOCKS(b).behavSequence,[currentBlock.nStimuli length(BLOCKS(b).behavSequence)/currentBlock.nStimuli]);
+                auxBehavSequence(:,badTrials) = [];
+                    %NOTE: UNTESTED
+            end
+            disp(['-# Bad trials have been removed #-'])            
+        end        
         
         % calculate number of volumes per stimulus train
         nVolTotal = size(BLOCKS(b).greenChannel,3);
@@ -106,7 +136,7 @@ for fly = 1:length(chosenFlies)
         if currentBlock.BlankBlocks
             BLOCKS(b) = splitStack(BLOCKS(b));
         end
-    
+            
     end
     
     FLIES(fly).BLOCKS = BLOCKS;

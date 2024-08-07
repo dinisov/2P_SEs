@@ -3,9 +3,16 @@ function R = analyse2PBlock(block)
     %% sort data according to previous sequence
 
 %     n_back = 5; 
-    
+
+    %disp( ['block.randomSequence - ', class(block.randomSequence)] )
+    %disp( ['block.greenChannel - ', class(block.greenChannel)] )
+    %load('I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\3Jun24\fly1_exp1_3Jun24\behavSequence.mat')
+    %behavSequence = savStruct.acInac.thisInacBinaryInterp;
+
     % yields 5D matrix with (vol,seq,pixelX,pixelY,trial)
-    [dataSeq, dataSeqIso] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
+    %[dataSeq, dataSeqIso] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
+    [dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence);
+        %We request dataSeqBehav even if we won't use it (It's empty in such cases)
     
     % mean across fifth (trial) dimension (much faster than nan mean)
     meanDataSeq = sum(dataSeq,5)./sum(dataSeq~=0,5);
@@ -42,5 +49,10 @@ function R = analyse2PBlock(block)
     R.blockNum = block.blockNum;
     R.Trim = block.Trim;
     R.nVol = block.nVol;
+    
+    %Tack on behav-separated data if applicable
+    if ~isempty(dataSeqBehav)
+        R.dataSeqBehav = dataSeqBehav; %Note: Structure, not double array    
+    end
     
 end

@@ -2,21 +2,22 @@ close all; clear;
 
 addpath('D:\group_vanswinderen\Dinis\Scripts\Global functions\');
 addpath('D:\group_vanswinderen\Dinis\Scripts\Indexes and legends\');
-addpath('D:\group_vanswinderen\Dinis\2P SEs\Functions\');
+addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\');
 
 close all; clear;
 
 RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
 
 %where the sequence data is located (stimulus files)
-sequenceDirectory = fullfile(RDMDirectory,'RPiData/');
+%sequenceDirectory = 'I:\RFDG2021-Q4413\2P_Data\RPiData';
+sequenceDirectory = 'I:\RFDG2021-Q4413\Matt';
 
 %where the main data is found
 dataDirectory = fullfile(RDMDirectory,'Gcamp7s_CC/');
 
-outputDirectory = '../2P Results 2';
+outputDirectory = '../2P Results 3';
 
-flyRecord = readtable('../2P Record/2P_record');
+flyRecord = readtable("D:\group_vanswinderen\Dinis\2P Record\2P_record");
 
 %get rid of excluded flies
 flyRecord = flyRecord(~logical(flyRecord.Exclude),:);
@@ -31,7 +32,7 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = 121:199;
+chosenFlies = [185];%174,175,176,177,178,179,180,181];
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
@@ -47,10 +48,12 @@ groupedBlocks = 0;
 % transient movies; component fits; fit movies; t-tests; oddballs; LvsR;
 % PCA; global transient
 analysisToggle = [1 1 1 0 1 0 1 1];
+separateByState = 1; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
 
 for fly = chosenFlies
     if ~isempty(flyRecord(flyRecord.Fly == fly,:))
-        processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks);
+        %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks);
+        processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState);
     end
 end
 %% fit and plot some seq eff profiles of interest

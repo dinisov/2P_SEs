@@ -13,6 +13,8 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
         for b = [thisFly.BLOCKS.blockNum]
             disp(['Block ' num2str(b)]);
             thisBlock = thisFly.BLOCKS(b);
+            disp(thisBlock)
+            %earthquke
             R(fly).BLOCK(b) = analyse2PBlock(thisBlock);
             
             thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]);
@@ -24,6 +26,30 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
             meanTransient = R(fly).BLOCK(b).meanTransient;
 
             save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient');
+            %Check for behav state data
+            if ~isempty(R(fly).BLOCK(b).dataSeqBehav)
+                %disp(R(fly).BLOCK(b).dataSeqBehav)
+                for stat = 1:size(R(fly).BLOCK(b).dataSeqBehav,2)
+                    %disp( R(fly).BLOCK(b).dataSeqBehav(stat) )
+                    %R(fly).BLOCK(b).dataSeqBehav(stat).state
+                    thisState = R(fly).BLOCK(b).dataSeqBehav(stat).state;
+                    %dataSeq = R(fly).BLOCK(b).dataSeqBehav(stat).dataSeq; %Not in use currently cos filled with unnecessary zeroes
+                    dataSeqBehavReduced = R(fly).BLOCK(b).dataSeqBehav(stat).dataSeqReduced;
+                    meanDataSeqBehavReduced = R(fly).BLOCK(b).dataSeqBehav(stat).meanDataSeqReduced;
+                    %disp( num2str(size(dataSeq)) )
+                    thisDir = [thisBlockDirectory,filesep,'State_',num2str(R(fly).BLOCK(b).dataSeqBehav(stat).state)];
+                    if exist(thisDir) ~= 7
+                        mkdir(thisDir);                        
+                    end
+                    %disp(dataSeq)
+                    tic
+                    save( [thisDir,filesep,'stateResults'],...
+                        'thisState','dataSeqBehavReduced', 'meanDataSeqBehavReduced', '-v7.3'); %MATLAB version specification necessary in case dataSeq is large
+                        %Note: meanDataSeqReduced is *vastly* smaller than dataSeqBehavReduced, so it might be good to save as separate
+                    disp(['Saved data for behav state ',num2str(thisState),' to ',thisDir,' in ',num2str(toc),'s'])
+                end
+            end
+            
         end
         
         % add brain images to results structure

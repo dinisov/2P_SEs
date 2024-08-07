@@ -7,6 +7,10 @@ function BLOCK = splitStack(BLOCK)
     
     % remove blank stimuli from random sequence
     BLOCK.randomSequence = BLOCK.randomSequence(~indBlank);
+    %Apply same indices to behavSequence, if applicable
+    if isfield(BLOCK,'behavSequence')
+        BLOCK.behavSequence = BLOCK.behavSequence(~indBlank); %Will crash if not exact same length
+    end
     
     % construct index of frames corresponding to blank blocks of stimuli
     indBlankStack = reshape(indBlank,[BLOCK.nStimuli length(indBlank)/BLOCK.nStimuli]).';
