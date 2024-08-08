@@ -28,6 +28,33 @@ if isfield(R,'r')
     plotBrain(R.r, brainImage, signLevel, subDirectory, visibility);
 end
 
+%Behav separated
+if isfield( R , 'dataSeqBehav' ) %Note difference from usual architecture, because 'R' here is actually 'R(fly).BLOCK(b)', inherited 
+    for statInd = 1:size( R.dataSeqBehav,2 )
+        outputStateDirectory = [outputDirectory,filesep,'State_',num2str(R.dataSeqBehav(statInd).state)];
+        disp(['Plotting stuff to ',outputStateDirectory])
+        subDirectory = fullfile(outputStateDirectory,'Collapsed');
+        if ~exist(subDirectory,'dir')
+           mkdir(subDirectory); 
+        end
+        
+        %(Skip T-tests, because not implemented currently)
+        
+        if isfield(R.dataSeqBehav(statInd),'r2')
+            % plot r_squared
+            plotR2(R.dataSeqBehav(statInd).r2, subDirectory, visibility);
+        end
+        
+        if isfield(R.dataSeqBehav(statInd),'r')
+            % plot r
+            plotR(R.dataSeqBehav(statInd).r, subDirectory, visibility);
+            % plot r overlayed in fly's brain (thresholded by significance)
+            signLevel = 0.05;
+            plotBrain(R.dataSeqBehav(statInd).r, brainImage, signLevel, subDirectory, visibility);
+        end
+    end
+end
+
 %% per volume
 
 nVol = size(R.meanDataSeq,1);
@@ -63,6 +90,41 @@ for vol = 1:nVol
         plotBrain(R.rVol(vol), brainImage, signLevel, thisVolDirectory, visibility);
     end
     
+end
+
+%Behav separated
+if isfield( R , 'dataSeqBehav' ) %Note difference from usual architecture, because 'R' here is actually 'R(fly).BLOCK(b)', inherited 
+    for statInd = 1:size( R.dataSeqBehav,2 )
+        nVol = size(R.meanDataSeq,1);
+
+        outputStateDirectory = [outputDirectory,filesep,'State_',num2str(R.dataSeqBehav(statInd).state)];
+        subDirectory = fullfile(outputStateDirectory,'Per volume');
+        if ~exist(subDirectory,'dir')
+           mkdir(subDirectory); 
+        end
+        
+        for vol = 1:nVol
+            thisVolDirectory = fullfile(subDirectory,num2str(vol));
+            if ~exist(thisVolDirectory,'dir')
+               mkdir(thisVolDirectory); 
+            end
+
+            % plot r_squared
+            if isfield(R.dataSeqBehav(statInd),'r2Vol')
+                plotR2(R.dataSeqBehav(statInd).r2Vol(vol), thisVolDirectory, visibility);
+            end
+
+            if isfield(R.dataSeqBehav(statInd),'rVol')
+                % plot r
+                plotR(R.dataSeqBehav(statInd).rVol(vol), thisVolDirectory, visibility);
+                % plot r overlayed in fly's brain (thresholded by significance)
+                signLevel = 0.05;
+                plotBrain(R.dataSeqBehav(statInd).rVol(vol), brainImage, signLevel, thisVolDirectory, visibility);
+            end
+        
+        end
+        
+    end
 end
 
  
