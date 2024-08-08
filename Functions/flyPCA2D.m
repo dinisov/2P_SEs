@@ -62,6 +62,33 @@ for fly = 1:length(R)
 % 
 %             FLIES(fly).BLOCK(b).XAct = XAct.';
 %         end
+
+        %And behav separated data, if applicable
+        if isfield( R(fly).BLOCK(b) , 'dataSeqBehav' )
+            for statInd = 1:size( R(fly).BLOCK(b).dataSeqBehav,2 )
+                imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
+                if isfield(results,'meanBlankTransient')
+                    sizeAux = size(results.meanBlankTransient); sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];
+                    % normalise each sequence transient by the mean blank transient (i.e. make dF/F)
+                    results.dataSeqBehav(statInd).meanDataSeqReduced = results.dataSeqBehav(statInd).meanDataSeqReduced./repmat(reshape(permute(results.meanBlankTransient,[3 1 2]),sizeAux),[1 16 1 1]);
+                else
+                    sizeAux = size(results.meanTransient); sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];
+                    results.meanTransient = results.meanTransient(:,:,1:end);
+                    results.dataSeqBehav(statInd).meanDataSeqReduced = results.dataSeqBehav(statInd).meanDataSeqReduced./repmat(reshape(permute(results.meanTransient,[3 1 2]),sizeAux),[1 16 1 1]);
+                end
+                if any(strcmp(pcaType,'sequence'))
+                    % construct a matrix of SE profiles averaged across time
+                    SEProfiles = permute(squeeze(sum(results.dataSeqBehav(statInd).meanDataSeqReduced,1)),[2 3 1]);
+                    % trim sides
+                    SEProfiles = SEProfiles(trim+1:end-trim,trim+1:end-trim,:);
+                    %data matrix for SEs
+                    XSeq = reshape(SEProfiles,[imageSize(1)*imageSize(2) 16]);
+                    %FLIES(fly).BLOCK(b).XSeq = XSeq.';
+                    FLIES(fly).BLOCK(b).dataSeqBehav(statInd).XSeq = XSeq.';
+                    FLIES(fly).BLOCK(b).dataSeqBehav(statInd).state = results.dataSeqBehav(statInd).state;
+                end
+            end            
+        end
         
     end
     
@@ -75,78 +102,120 @@ for fly = 1:length(R)
         
         trim = R(fly).BLOCK(b).Trim;
         
-        imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
+        %imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
 
         brainImage = R(fly).BLOCK(b).brainImage;
         
         trimmedBrainImg = brainImage(2*trim*16+1:end-(2*trim*16),2*trim*16+1:end-(2*trim*16));
         
-        thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'PCA');
-        disp(thisFlyDirectory);
-        if ~exist(thisFlyDirectory,'dir')
-           mkdir(thisFlyDirectory); 
-        end
-
-        if any(strcmp(pcaType,'sequence'))
+        data = struct;
         
-            [coeff,score,~,~,explained,~] = pca(FLIES(fly).BLOCK(b).XSeq);
-            
-            for i = 1:n_comp_seq
-               figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
-               saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
-               close;
-
-               sign_ephys = sortOrientation(score(:,i),normalize(six_hertz));
-
-               figure; create_seq_eff_plot(normalize(score(:,i)),normalize(sign_ephys*six_hertz));
-
-               saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
-               close;
-               
-               % overlay plot on brain
-               plotBrainPCA(reshape(-coeff(:,i),imageSize),trimmedBrainImg,'on');
-               saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '_overlay.png']));
-               close;
-            end
-            
-            figure; plot(explained);
-            saveas(gcf,fullfile(thisFlyDirectory,'explained.png')); 
-            close;
-            
-            save(fullfile(thisFlyDirectory,'pca_results_normalised'),'coeff','score','explained');
-
+        %------
+        c = 1;
+        data(c).name = 'All';
+        data(c).XSeq = FLIES(fly).BLOCK(b).XSeq;
+        data(c).imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim; %Moved here to be in setup loop
+        data(c).thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'PCA');
+        %disp(data(c).thisFlyDirectory);
+        if ~exist(data(c).thisFlyDirectory,'dir')
+           mkdir(data(c).thisFlyDirectory); 
         end
-
-        if any(strcmp(pcaType,'time'))
-
-            thisFlyDirectory = fullfile(resultsDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'PCAact');
-            if ~exist(thisFlyDirectory,'dir')
-               mkdir(thisFlyDirectory); 
+        c = c + 1;
+        %The reason for this rigamarole is so behav separated data can be added if existing
+        if isfield( R(fly).BLOCK(b) , 'dataSeqBehav' )
+            for statInd = 1:size( R(fly).BLOCK(b).dataSeqBehav,2 )
+                data(c).name = ['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)];
+                data(c).XSeq = FLIES(fly).BLOCK(b).dataSeqBehav(statInd).XSeq;
+                data(c).imageSize = size(R(fly).BLOCK(b).dataSeqBehav(statInd).meanDataSeqReduced,[3 4]) - 2 * trim;
+                data(c).thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)],'PCA');
+                %disp(data(c).thisFlyDirectory);
+                if ~exist(data(c).thisFlyDirectory,'dir')
+                   mkdir(data(c).thisFlyDirectory); 
+                end
+                c = c + 1;
             end
-            
-            [coeff,score,~,~,explained,~] = pca(FLIES(fly).BLOCK(b).XAct);
-
-            for i = 1:n_comp_t
-               figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
-               saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
-               close;
-               figure; plot(normalize(score(:,i)));
-               saveas(gcf,fullfile(thisFlyDirectory,['c_act' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
-               close;
-               
-               % overlay plot on brain
-               plotBrainPCA(reshape(coeff(:,i),imageSize),trimmedBrainImg,'on');
-               saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '_overlay.png']));
-               close;
-            end
-            
-            figure; plot(explained);
-            saveas(gcf,fullfile(thisFlyDirectory,'explained.png')); 
-            close;
-            
-            save(fullfile(thisFlyDirectory,'pca_results_normalised'),'coeff','score','explained');
-
         end
+        %------
+        
+        
+        for datInd = 1:size(data,2) %Makes the code run for as many loops as there are data (1 - n)
+            thisData = data(datInd).XSeq;
+            thisFlyDirectory = data(datInd).thisFlyDirectory;
+            imageSize = data(datInd).imageSize;
+
+            if any(strcmp(pcaType,'sequence'))
+                tic
+
+                %[coeff,score,~,~,explained,~] = pca(FLIES(fly).BLOCK(b).XSeq);
+                [coeff,score,~,~,explained,~] = pca( thisData );
+
+                for i = 1:n_comp_seq
+                   figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
+                   saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
+                   close;
+
+                   sign_ephys = sortOrientation(score(:,i),normalize(six_hertz));
+
+                   figure; create_seq_eff_plot(normalize(score(:,i)),normalize(sign_ephys*six_hertz));
+
+                   saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
+                   close;
+
+                   % overlay plot on brain
+                   plotBrainPCA(reshape(-coeff(:,i),imageSize),trimmedBrainImg,'on');
+                   saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '_overlay.png']));
+                   close;
+                end
+
+                figure; plot(explained);
+                saveas(gcf,fullfile(thisFlyDirectory,'explained.png')); 
+                close;
+
+                save(fullfile(thisFlyDirectory,'pca_results_normalised'),'coeff','score','explained');
+                disp(['Processed PCA for ',data(datInd).name,' in ',num2str(toc),'s'])
+                disp(thisFlyDirectory);
+
+            end
+
+            %The upstream processing for this has been disabled currently
+            %{
+            if any(strcmp(pcaType,'time'))
+
+                %thisFlyDirectory = fullfile(resultsDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'PCAact');
+                thisFlyDirectory = strrep( thisFlyDirectory, 'PCA', 'PCAact' );
+                if ~exist(thisFlyDirectory,'dir')
+                   mkdir(thisFlyDirectory); 
+                end
+
+                %[coeff,score,~,~,explained,~] = pca(FLIES(fly).BLOCK(b).XAct);
+                [coeff,score,~,~,explained,~] = pca( <not implemented> );
+
+                for i = 1:n_comp_t
+                   figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
+                   saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
+                   close;
+                   figure; plot(normalize(score(:,i)));
+                   saveas(gcf,fullfile(thisFlyDirectory,['c_act' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
+                   close;
+
+                   % overlay plot on brain
+                   plotBrainPCA(reshape(coeff(:,i),imageSize),trimmedBrainImg,'on');
+                   saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '_overlay.png']));
+                   close;
+                end
+
+                figure; plot(explained);
+                saveas(gcf,fullfile(thisFlyDirectory,'explained.png')); 
+                close;
+
+                save(fullfile(thisFlyDirectory,'pca_results_normalised'),'coeff','score','explained');
+
+            end
+            %}
+        
+        
+        end
+        
 
     end
 
