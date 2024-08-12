@@ -1,8 +1,9 @@
-function R = calculateR23D(meanVolData,ephys)
+function R = calculateR23D(meanVolData,ephys, Display)
 %calculateR2 Summary of this function goes here
 %   Detailed explanation goes here
 
-options = optimset('Algorithm','interior-point','FinDiffType','central');
+%options = optimset('Algorithm','interior-point','FinDiffType','central');
+options = optimset('Algorithm','interior-point','FinDiffType','central','Display',Display);
 
 load('slrp_lrpr.mat','slrp','lrpr','weird');
 

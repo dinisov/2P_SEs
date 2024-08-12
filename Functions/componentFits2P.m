@@ -12,11 +12,14 @@ tic;
 
 % for each block of each fly
 for fly = 1:length(R)
+    disp(['Processing fly #',num2str(fly)])
     for b = [R(fly).BLOCK.blockNum]  
+        disp(['Processing block ',num2str(b)])
         meanDataSeq = R(fly).BLOCK(b).meanDataSeq;
         for vol = 1:R(fly).BLOCK(b).nVol
             thisVolData = permute(squeeze(meanDataSeq(vol,:,:,:)),[2,3,1]);
-            R(fly).BLOCK(b).r2Vol(vol) = calculateR2(thisVolData,six_hertz);
+            %R(fly).BLOCK(b).r2Vol(vol) = calculateR2(thisVolData,six_hertz);
+            R(fly).BLOCK(b).r2Vol(vol) = calculateR2(thisVolData,six_hertz,'off');
             R(fly).BLOCK(b).rVol(vol) = calculateR(thisVolData,six_hertz);
         end 
         %Behav separation, if applicable
@@ -25,8 +28,9 @@ for fly = 1:length(R)
                 meanDataSeqBehav = R(fly).BLOCK(b).dataSeqBehav(statInd).meanDataSeqReduced;
                 for vol = 1:R(fly).BLOCK(b).nVol
                     thisVolData = permute(squeeze(meanDataSeqBehav(vol,:,:,:)),[2,3,1]);
-                    R(fly).BLOCK(b).dataSeqBehav(statInd).r2Vol(vol) = calculateR2(thisVolData,six_hertz);
+                    %R(fly).BLOCK(b).dataSeqBehav(statInd).r2Vol(vol) = calculateR2(thisVolData,six_hertz);
                     R(fly).BLOCK(b).dataSeqBehav(statInd).rVol(vol) = calculateR(thisVolData,six_hertz);
+                    R(fly).BLOCK(b).dataSeqBehav(statInd).r2Vol(vol) = calculateR2(thisVolData,six_hertz,'off'); %New param disables display
                 end 
             end
         end
@@ -51,15 +55,19 @@ disp('Calculating R and R^2 collapsed across volumes (time)');
 
 % for each block
 for fly = 1:length(R)
+    disp(['Processing fly #',num2str(fly)])
     for b = 1:length(R(fly).BLOCK)
+        disp(['Processing block ',num2str(b)])
         thisBlockData = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1)),[2,3,1]);
-        R(fly).BLOCK(b).r2 = calculateR2(thisBlockData,six_hertz);
+        %R(fly).BLOCK(b).r2 = calculateR2(thisBlockData,six_hertz);
+        R(fly).BLOCK(b).r2 = calculateR2(thisBlockData,six_hertz,'off');
         R(fly).BLOCK(b).r = calculateR(thisBlockData,six_hertz);
         %Behav separation, if applicable
         if isfield( R(fly).BLOCK(b) , 'dataSeqBehav' )
             for statInd = 1:size( R(fly).BLOCK(b).dataSeqBehav,2 )
                 thisBlockData = permute(squeeze(mean( R(fly).BLOCK(b).dataSeqBehav(statInd).meanDataSeqReduced ,1)),[2,3,1]);
-                R(fly).BLOCK(b).dataSeqBehav(statInd).r2 = calculateR2(thisBlockData,six_hertz);
+                %R(fly).BLOCK(b).dataSeqBehav(statInd).r2 = calculateR2(thisBlockData,six_hertz);
+                R(fly).BLOCK(b).dataSeqBehav(statInd).r2 = calculateR2(thisBlockData,six_hertz,'off');
                 R(fly).BLOCK(b).dataSeqBehav(statInd).r = calculateR(thisBlockData,six_hertz);                
             end
         end
