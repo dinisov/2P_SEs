@@ -68,6 +68,12 @@ end
         nonEmptyInds = find( squeeze( sum(dataSeq, [1:4]) ) ~= 0 ); %Do only once to save time
         tic
         unBehavs = unique( behavSeq );
+        %QA
+        if length(unBehavs) > 4
+            ['-# Alert: Potentially anomalous number of unique behavioural states #-']
+            crash = yes
+            %Considering how long it takes to process a state, this is a safeguard
+        end
         for unI = 1:length(unBehavs)
             disp(['Searching for behaviour state ',num2str(unBehavs(unI))])
             thisInds = find( behavSeq == unBehavs(unI) );
@@ -82,6 +88,7 @@ end
             dataSeqBehav(unI).state = unBehavs(unI); %What state this referred to
             dataSeqBehav(unI).dataSeqReduced = dataSeqReduced;
             dataSeqBehav(unI).meanDataSeqReduced = meanDataSeqReduced;
+            dataSeqBehav(unI).behavSeq = behavSeq; %Save information (with every state, but w/e)
             %disp([num2str(size(dataSeq)),' -> ',num2str(size(dataSeqBehav(unI).dataSeq))])
             disp([num2str(size(dataSeq)),' -> ',num2str(size(dataSeqBehav(unI).dataSeqReduced))])
         end
