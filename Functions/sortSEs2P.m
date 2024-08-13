@@ -74,6 +74,7 @@ end
             crash = yes
             %Considering how long it takes to process a state, this is a safeguard
         end
+        d = 1;
         for unI = 1:length(unBehavs)
             disp(['Searching for behaviour state ',num2str(unBehavs(unI))])
             thisInds = find( behavSeq == unBehavs(unI) );
@@ -81,18 +82,25 @@ end
             %dataSeqBehav(unI).dataSeq = dataSeq( :,:,:,:, thisInds  );
             thisInds = intersect( thisInds, nonEmptyInds ); %Reduce, since dataSeq is len 5000 unnecessarily
             disp(['(Reduced to ',num2str(length(thisInds)),' non-zero instances)'])
+            %QA for empty
+            if isempty( thisInds )
+                ['-# State data empty; Deleting #-']
+                continue
+            end
             dataSeqReduced = dataSeq( :,:,:,:, thisInds );
             dataSeqReduced(isnan(dataSeqReduced)) = 0; %Just in case
             meanDataSeqReduced = mean( dataSeqReduced, 5 ); %Slightly different to how done in analyse2PBlock, but conceptually same?
             
-            dataSeqBehav(unI).state = unBehavs(unI); %What state this referred to
-            dataSeqBehav(unI).dataSeqReduced = dataSeqReduced;
-            dataSeqBehav(unI).meanDataSeqReduced = meanDataSeqReduced;
-            dataSeqBehav(unI).behavSeq = behavSeq; %Save information (with every state, but w/e)
+            dataSeqBehav(d).state = unBehavs(unI); %What state this referred to
+            dataSeqBehav(d).dataSeqReduced = dataSeqReduced;
+            dataSeqBehav(d).meanDataSeqReduced = meanDataSeqReduced;
+            dataSeqBehav(d).behavSeq = behavSeq; %Save information (with every state, but w/e)
             %disp([num2str(size(dataSeq)),' -> ',num2str(size(dataSeqBehav(unI).dataSeq))])
-            disp([num2str(size(dataSeq)),' -> ',num2str(size(dataSeqBehav(unI).dataSeqReduced))])
+            disp([num2str(size(dataSeq)),' -> ',num2str(size(dataSeqBehav(d).dataSeqReduced))])
+            d = d + 1;
         end
-        disp([num2str(toc),'s to assemble dataSeqBehav for ',num2str(unI),' unique state/s'])
+        %disp([num2str(toc),'s to assemble dataSeqBehav for ',num2str(unI),' unique state/s'])
+        disp([num2str(toc),'s to assemble dataSeqBehav for ',num2str(d-1),' unique state/s'])
     end
     
 end

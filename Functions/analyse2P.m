@@ -27,7 +27,7 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
 
             save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient');
             %Check for behav state data
-            if ~isempty(R(fly).BLOCK(b).dataSeqBehav)
+            if isfield( R(fly).BLOCK(b), 'dataSeqBehav' ) && ~isempty(R(fly).BLOCK(b).dataSeqBehav)
                 %disp(R(fly).BLOCK(b).dataSeqBehav)
                 for stat = 1:size(R(fly).BLOCK(b).dataSeqBehav,2)
                     %disp( R(fly).BLOCK(b).dataSeqBehav(stat) )
@@ -47,6 +47,24 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
                         'thisState','dataSeqBehavReduced', 'meanDataSeqBehavReduced', '-v7.3'); %MATLAB version specification necessary in case dataSeq is large
                         %Note: meanDataSeqReduced is *vastly* smaller than dataSeqBehavReduced, so it might be good to save as separate
                     disp(['Saved data for behav state ',num2str(thisState),' to ',thisDir,' in ',num2str(toc),'s'])
+                    %Make a little figure to see where this state occurred in time
+                    if isfield( R(fly).BLOCK(b).dataSeqBehav(stat), 'behavSeq' )
+                        behavSeq = R(fly).BLOCK(b).dataSeqBehav(stat).behavSeq;
+                        figure
+                        plot( behavSeq, 'Color', 'k' )
+                        if length( unique(behavSeq) ) > 1
+                            ylim([nanmin(behavSeq)*1.1, nanmax(behavSeq)*1.1])
+                        else
+                            disp(['-# Only one state present in plot data #-'])
+                        end
+                        hold on
+                        behavSeq( behavSeq ~= thisState ) = NaN;
+                        plot( behavSeq , 'Color', 'g' )
+                        xlabel('Time')
+                        ylabel('State')
+                        title(['State\_',num2str(thisState)])
+                        saveas(gcf,fullfile(thisDir,['StateSeqFigure.png']));
+                    end
                 end
             end
             
