@@ -22,6 +22,8 @@ for fly = 1:length(chosenFlies)
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
         currentDirectory = fullfile(dataDirectory,currentDate,flyID);
 
+        BLOCKS(b).flyNum = chosenFlies(fly);
+        BLOCKS(b).flyID = flyID;
         BLOCKS(b).blockNum = b;
         BLOCKS(b).Trim = currentBlock.Trim;
         
