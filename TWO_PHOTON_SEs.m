@@ -17,7 +17,7 @@ dataDirectory = fullfile(RDMDirectory,'Gcamp7s_CC/');
 
 outputDirectory = '../2P Results 3';
 
-flyRecord = readtable("D:\group_vanswinderen\Dinis\2P Record\2P_record");
+flyRecord = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 
 %get rid of excluded flies
 flyRecord = flyRecord(~logical(flyRecord.Exclude),:);
@@ -32,7 +32,7 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [185];%174,175,176,177,178,179,180,181];
+chosenFlies = [168]%,169,178,181];
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
@@ -45,9 +45,9 @@ groupedBlocks = 0;
 
 %% process flies
 
-% transient movies; component fits; fit movies; t-tests; oddballs; LvsR;
-% PCA; global transient
-analysisToggle = [1 1 1 0 1 0 1 1];
+% transient movies; component fits; fit movies; t-tests; oddballs; LvsR; PCA; global transient
+%analysisToggle = [1 1 1 0 1 0 1 1];
+analysisToggle = [0 0 0 0 0 0 1 0];
 separateByState = 1; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
 
 for fly = chosenFlies

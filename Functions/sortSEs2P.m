@@ -95,8 +95,10 @@ end
             dataSeqBehav(d).dataSeqReduced = dataSeqReduced;
             dataSeqBehav(d).meanDataSeqReduced = meanDataSeqReduced;
             dataSeqBehav(d).behavSeq = behavSeq; %Save information (with every state, but w/e)
+            dataSeqBehav(d).numInstances = size(dataSeqBehav(d).dataSeqReduced,5); %Useful for later
             %disp([num2str(size(dataSeq)),' -> ',num2str(size(dataSeqBehav(unI).dataSeq))])
-            disp([num2str(size(dataSeq)),' -> ',num2str(size(dataSeqBehav(d).dataSeqReduced))])
+            disp([num2str(size(dataSeq)),' -> ',num2str( size(dataSeqBehav(d).dataSeqReduced) )])
+            disp([ '(',num2str(dataSeqBehav(d).numInstances),' instances)' ])
             d = d + 1;
         end
         %disp([num2str(toc),'s to assemble dataSeqBehav for ',num2str(unI),' unique state/s'])

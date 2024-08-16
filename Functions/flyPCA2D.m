@@ -47,6 +47,7 @@ for fly = 1:length(R)
             XSeq = reshape(SEProfiles,[imageSize(1)*imageSize(2) 16]);
             
             FLIES(fly).BLOCK(b).XSeq = XSeq.';
+            FLIES(fly).BLOCK(b).numInstances = length( find( squeeze( sum( results.dataSeq, [1:4]) ) ~= 0 ) ); %Find non-zero layers and imply size of actual data
         end
         
 %         if any(strcmp(pcaType,'time'))
@@ -86,6 +87,7 @@ for fly = 1:length(R)
                     %FLIES(fly).BLOCK(b).XSeq = XSeq.';
                     FLIES(fly).BLOCK(b).dataSeqBehav(statInd).XSeq = XSeq.';
                     FLIES(fly).BLOCK(b).dataSeqBehav(statInd).state = results.dataSeqBehav(statInd).state;
+                    FLIES(fly).BLOCK(b).dataSeqBehav(statInd).numInstances = results.dataSeqBehav(statInd).numInstances; %As above, but using provided information
                 end
             end            
         end
@@ -120,6 +122,7 @@ for fly = 1:length(R)
         if ~exist(data(c).thisFlyDirectory,'dir')
            mkdir(data(c).thisFlyDirectory); 
         end
+        data(c).numInstances = FLIES(fly).BLOCK(b).numInstances; %Such data not available (currently) for All data
         c = c + 1;
         %The reason for this rigamarole is so behav separated data can be added if existing
         if isfield( R(fly).BLOCK(b) , 'dataSeqBehav' )
@@ -131,6 +134,11 @@ for fly = 1:length(R)
                 %disp(data(c).thisFlyDirectory);
                 if ~exist(data(c).thisFlyDirectory,'dir')
                    mkdir(data(c).thisFlyDirectory); 
+                end
+                if isfield(FLIES(fly).BLOCK(b).dataSeqBehav(statInd), 'numInstances')
+                    data(c).numInstances = FLIES(fly).BLOCK(b).dataSeqBehav(statInd).numInstances;
+                else
+                    data(c).numInstances = [];
                 end
                 c = c + 1;
             end
@@ -148,6 +156,8 @@ for fly = 1:length(R)
 
                 %[coeff,score,~,~,explained,~] = pca(FLIES(fly).BLOCK(b).XSeq);
                 [coeff,score,~,~,explained,~] = pca( thisData );
+                
+                numInstances = data(datInd).numInstances;
 
                 for i = 1:n_comp_seq
                    figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
@@ -171,7 +181,8 @@ for fly = 1:length(R)
                 saveas(gcf,fullfile(thisFlyDirectory,'explained.png')); 
                 close;
 
-                save(fullfile(thisFlyDirectory,'pca_results_normalised'),'coeff','score','explained');
+                %save(fullfile(thisFlyDirectory,'pca_results_normalised'),'coeff','score','explained');
+                save(fullfile(thisFlyDirectory,'pca_results_normalised'),'coeff','score','explained','numInstances');
                 disp(['Processed PCA for ',data(datInd).name,' in ',num2str(toc),'s'])
                 disp(thisFlyDirectory);
 
