@@ -122,6 +122,23 @@ for fly = 1:length(R)
         if ~exist(data(c).thisFlyDirectory,'dir')
            mkdir(data(c).thisFlyDirectory); 
         end
+        %And delete old directory, if existing (with care)
+        if exist( data(c).thisFlyDirectory ) == 7
+            %QA
+            temp = dir( data(c).thisFlyDirectory );
+            if nansum( [temp.isdir] ) > 2 %This is the expected number of 'directories' for a directory that contains no subdirectories
+                    %"." and ".." are special directory markers, not true directories
+                ['-# Cannot safely delete directory due to detected presence of subdirectories #-']
+            else
+                %rmdir( data(c).thisFlyDirectory ,'s' ) %Unsafe
+                delete( [data(c).thisFlyDirectory,filesep,'*.png'], [data(c).thisFlyDirectory,filesep,'*.mat'] )
+                rmdir( data(c).thisFlyDirectory ) %Will only succeed if empty
+                    %If not empty, this may have acted on a folder it wasn't meant to
+                mkdir(data(c).thisFlyDirectory); 
+                disp(['(Existing directory contents deleted, directory remade)'])
+            end            
+        end
+        
         data(c).numInstances = FLIES(fly).BLOCK(b).numInstances; %Such data not available (currently) for All data
         c = c + 1;
         %The reason for this rigamarole is so behav separated data can be added if existing
@@ -134,6 +151,23 @@ for fly = 1:length(R)
                 %disp(data(c).thisFlyDirectory);
                 if ~exist(data(c).thisFlyDirectory,'dir')
                    mkdir(data(c).thisFlyDirectory); 
+                end
+                %And delete old directory, if existing (with care)
+                    %Copy of above
+                if exist( data(c).thisFlyDirectory ) == 7
+                    %QA
+                    temp = dir( data(c).thisFlyDirectory );
+                    if nansum( [temp.isdir] ) > 2 %This is the expected number of 'directories' for a directory that contains no subdirectories
+                            %"." and ".." are special directory markers, not true directories
+                        ['-# Cannot safely delete directory due to detected presence of subdirectories #-']
+                    else
+                        %rmdir( data(c).thisFlyDirectory ,'s' ) %Unsafe
+                        delete( [data(c).thisFlyDirectory,filesep,'*.png'], [data(c).thisFlyDirectory,filesep,'*.mat'] )
+                        rmdir( data(c).thisFlyDirectory ) %Will only succeed if empty
+                            %If not empty, this may have acted on a folder it wasn't meant to
+                        mkdir(data(c).thisFlyDirectory); 
+                        disp(['(Existing directory contents deleted, directory remade)'])
+                    end            
                 end
                 if isfield(FLIES(fly).BLOCK(b).dataSeqBehav(statInd), 'numInstances')
                     data(c).numInstances = FLIES(fly).BLOCK(b).dataSeqBehav(statInd).numInstances;

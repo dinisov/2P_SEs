@@ -35,7 +35,8 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
                     thisState = R(fly).BLOCK(b).dataSeqBehav(stat).state;
                     %dataSeq = R(fly).BLOCK(b).dataSeqBehav(stat).dataSeq; %Not in use currently cos filled with unnecessary zeroes
                     dataSeqBehavReduced = R(fly).BLOCK(b).dataSeqBehav(stat).dataSeqReduced;
-                    meanDataSeqBehavReduced = R(fly).BLOCK(b).dataSeqBehav(stat).meanDataSeqReduced;
+                    %meanDataSeqBehavReduced = R(fly).BLOCK(b).dataSeqBehav(stat).meanDataSeqReduced;
+                    meanDataSeqBehav = R(fly).BLOCK(b).dataSeqBehav(stat).meanDataSeqReduced;
                     %disp( num2str(size(dataSeq)) )
                     thisDir = [thisBlockDirectory,filesep,'State_',num2str(R(fly).BLOCK(b).dataSeqBehav(stat).state)];
                     if exist(thisDir) ~= 7
@@ -43,9 +44,13 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
                     end
                     %disp(dataSeq)
                     tic
-                    save( [thisDir,filesep,'stateResults'],...
-                        'thisState','dataSeqBehavReduced', 'meanDataSeqBehavReduced', '-v7.3'); %MATLAB version specification necessary in case dataSeq is large
+                    %save( [thisDir,filesep,'stateResults'],...
+                    %    'thisState','dataSeqBehavReduced', 'meanDataSeqBehavReduced', '-v7.3'); %MATLAB version specification necessary in case dataSeq is large
                         %Note: meanDataSeqReduced is *vastly* smaller than dataSeqBehavReduced, so it might be good to save as separate
+                    save( [thisDir,filesep,'stateResults'],...
+                        'meanBlankTransient','thisState','meanDataSeqBehav'); %Non-trial
+                    save( [thisDir,filesep,'stateResultsExtendedReduced'],...
+                        'meanBlankTransient','thisState','dataSeqBehavReduced', '-v7.3'); %W/ trial
                     disp(['Saved data for behav state ',num2str(thisState),' to ',thisDir,' in ',num2str(toc),'s'])
                     %Make a little figure to see where this state occurred in time
                     if isfield( R(fly).BLOCK(b).dataSeqBehav(stat), 'behavSeq' )
