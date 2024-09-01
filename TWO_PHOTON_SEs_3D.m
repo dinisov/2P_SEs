@@ -2,8 +2,8 @@ close all; clear;
 
 addpath('D:\group_vanswinderen\Dinis\Scripts\Global functions\');
 addpath('D:\group_vanswinderen\Dinis\Scripts\Indexes and legends\');
-addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\');
-addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\3D');
+addpath('.\Functions\');
+addpath('.\Functions\3D');
 
 close all; clear;
 
