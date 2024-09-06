@@ -11,8 +11,11 @@ function R = analyse2PBlock(block)
 
     % yields 5D matrix with (vol,seq,pixelX,pixelY,trial)
     %[dataSeq, dataSeqIso] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
-    [dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence);
-        %We request dataSeqBehav even if we won't use it (It's empty in such cases)
+    if isfield( block, 'behavSequence' )
+        [dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence);
+    else
+        [dataSeq, dataSeqIso, ~] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
+    end
     
     % mean across fifth (trial) dimension (much faster than nan mean)
     meanDataSeq = sum(dataSeq,5)./sum(dataSeq~=0,5);
@@ -51,7 +54,7 @@ function R = analyse2PBlock(block)
     R.nVol = block.nVol;
     
     %Tack on behav-separated data if applicable
-    if ~isempty(dataSeqBehav)
+    if exist('dataSeqBehav') && ~isempty(dataSeqBehav)
         R.dataSeqBehav = dataSeqBehav; %Note: Structure, not double array    
     end
     
