@@ -88,12 +88,14 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize)
     %rearrange
     data = permute(reshape(data, [imageSize nFrames]),[2 1 3]);
 
-    rData = zeros([finalSize nFrames]);
+    %%rData = zeros([finalSize nFrames]); %Disabled, since imresize3 almost certainly makes a new variable?
     
     tic
     disp('Reducing size');
     %reduce green channel (nothing comes close to this in terms of speed)
-    rData = imresize3(data,size(rData),'box');
+    %rData = imresize3(data,size(rData),'box');
+    rData = imresize3(data,[finalSize nFrames],'box'); %Adjusted since rData no longer 'pre' defined
+    clear data
     toc
     
     reducedFileRDM = fullfile(RDMDirectory, ['green_channel_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat']);
