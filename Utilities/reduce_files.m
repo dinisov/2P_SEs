@@ -2,9 +2,9 @@
 
 close all; clear;
 
-rdmDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
+rdmDirectory = '/QRISdata/Q4413/2P_Data/Gcamp7s_CC/';
 
-blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
+blocks = readtable("/QRISdata/Q4413/2P Record/2P_record");
 
 %get rid of excluded flies
 % blocks = blocks(~logical(blocks.Exclude),:);
@@ -17,8 +17,8 @@ finalSize = [128 128];
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
-chosenFlies = [228];
-chosenBlocks = {[3]}; % leave empty if reducing all blocks for one fly
+chosenFlies = [230];
+chosenBlocks = {[1,2]}; % leave empty if reducing all blocks for one fly
     %MUST BE IN FORMAT {[blocks]}
 
 flagParamSaveList = who;
@@ -51,8 +51,8 @@ for fly = 1:length(chosenFlies)
         disp(['Fly: ',flyID]);
         
         codeStartTime = posixtime(datetime('now'));
-        loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize, 3); %currentBlock corresponds to currentFly
-        
+        loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize, 12); %currentBlock corresponds to currentFly
+
         codeEndTime = posixtime(datetime('now'));
         MET = codeEndTime - codeStartTime;
         disp(['-- Total time to process: ',num2str(MET),'s --']) 
@@ -60,13 +60,14 @@ for fly = 1:length(chosenFlies)
 end
 
 function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
-    %New argument 'fragments' added, which dictates how many pieces to split loading/etc into
-        %For context, a standard 1h recording will require ~200GB of RAM if not fragmentised
-        
     %memUsed = nan(7,1);
-    [memStruct,~] = memory;
-    %memUsed(1) = memStruct.MemUsedMATLAB;
-    disp(['Stage 1 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+     if ~isunix
+        [memStruct,~] = memory;
+        %memUsed(1) = memStruct.MemUsedMATLAB;
+        disp(['Stage 1 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+    else
+        disp(['Stage 1 (Mem. info unavailable)'])
+    end
 
     fileRDM = fullfile(RDMDirectory, file);
 
@@ -81,16 +82,23 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
         fid = fopen(fileRDM, 'r','b');
         data = fread(fid, 512*512*nFrames, 'uint16');
         fclose(fid);
-        [memStruct,~] = memory;
-        %memUsed(2) = memStruct.MemUsedMATLAB;
-        disp(['Stage 2 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        if ~isunix
+            [memStruct,~] = memory;
+            %memUsed(2) = memStruct.MemUsedMATLAB;
+            disp(['Stage 2 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        else
+            disp(['Stage 2 (Mem. info unavailable)'])
+        end
         toc
         
         %rearrange
         data = permute(reshape(data, [imageSize nFrames]),[2 1 3]);
-        [memStruct,~] = memory;
-        %memUsed(3) = memStruct.MemUsedMATLAB;
-        disp(['Stage 3 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        if ~isunix
+            [memStruct,~] = memory;
+            disp(['Stage 3 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        else
+            disp(['Stage 3 (Mem. info unavailable)'])
+        end
     
         %%rData = zeros([finalSize nFrames]); %Disabled, since imresize3 almost certainly makes a new variable?
         
@@ -99,13 +107,19 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
         %reduce green channel (nothing comes close to this in terms of speed)
         %rData = imresize3(data,size(rData),'box');
         rData = imresize3(data,[finalSize nFrames],'box'); %Adjusted since rData no longer 'pre' defined
-        [memStruct,~] = memory;
-        %memUsed(4) = memStruct.MemUsedMATLAB;
-        disp(['Stage 4 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        if ~isunix
+            [memStruct,~] = memory;
+            disp(['Stage 4 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        else
+            disp(['Stage 4 (Mem. info unavailable)'])
+        end
         clear data
-        [memStruct,~] = memory;
-        %memUsed(5) = memStruct.MemUsedMATLAB;
-        disp(['Stage 5 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        if ~isunix
+            [memStruct,~] = memory;
+            disp(['Stage 5 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        else
+            disp(['Stage 5 (Mem. info unavailable)'])
+        end
         toc
     else
         %Memory-efficient
@@ -132,10 +146,15 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
             %%fid = fopen(fileRDM, 'r','b');
             %%data = fread(fid, 512*512*nFrames, 'uint16');
             [data,nFramesRead] = fread(fid, 512*512*nFramesEffective, 'uint16'); %Iteratively load fractions at a time
-            %fclose(fid); %Need to not do this to keep place in file
-            [memStruct,~] = memory;
-            %memUsed(2) = memStruct.MemUsedMATLAB;
-            disp(['Fragment ',num2str(frag),' Stage 2 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+            %fclose(fid); %Need to not do this to keep place in file            
+            
+            if ~isunix
+                [memStruct,~] = memory;
+                disp(['Fragment ',num2str(frag),' Stage 2 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+            else
+                disp(['Fragment ',num2str(frag),' Stage 2 (Mem. info unavailable'])
+            end
+            
             toc
             %QA for correct number of frames read
             if nFramesRead ~= 512*512*nFramesEffective
@@ -148,9 +167,13 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
             %rearrange
             %data = permute(reshape(data, [imageSize nFrames]),[2 1 3]);
             data = permute(reshape(data, [imageSize nFramesEffective]),[2 1 3]);
-            [memStruct,~] = memory;
-            %memUsed(3) = memStruct.MemUsedMATLAB;
-            disp(['Stage 3 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+            
+            if ~isunix
+                [memStruct,~] = memory;
+                disp(['Fragment ',num2str(frag),' Stage 3 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+            else
+                disp(['Fragment ',num2str(frag),' Stage 3 (Mem. info unavailable)'])
+            end
         
             %%rData = zeros([finalSize nFrames]); %Disabled, since imresize3 almost certainly makes a new variable?
             
@@ -160,13 +183,23 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
             %rData = imresize3(data,size(rData),'box');
             %rData = imresize3(data,[finalSize nFrames],'box'); %Adjusted since rData no longer 'pre' defined
             rData(: , : , a:a+nFramesEffective-1) = imresize3(data,[finalSize nFramesEffective],'box');
-            [memStruct,~] = memory;
-            %memUsed(4) = memStruct.MemUsedMATLAB;
-            disp(['Stage 4 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+            
+            if ~isunix
+                [memStruct,~] = memory;
+                disp(['Fragment ',num2str(frag),' Stage 4 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+            else
+                disp(['Fragment ',num2str(frag),' Stage 4 (Mem. info unavailable)'])
+            end
+
             clear data
-            [memStruct,~] = memory;
-            %memUsed(5) = memStruct.MemUsedMATLAB;
-            disp(['Stage 5 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+            
+            if ~isunix
+                [memStruct,~] = memory;
+                disp(['Fragment ',num2str(frag),' Stage 5 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+            else
+                disp(['Fragment ',num2str(frag),' Stage 5 (Mem. info unavailable)'])
+            end
+
             toc
             a = a + nFramesEffective;
         end
@@ -179,15 +212,24 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
     disp('Saving');
     % save green channel; do not compress we care about speed not size
     save(reducedFileRDM, 'rData','-v7.3','-nocompression');
-    [memStruct,~] = memory;
-    %memUsed(6) = memStruct.MemUsedMATLAB;
-    disp(['Stage 6 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+
+    if ~isunix
+        [memStruct,~] = memory;
+        disp(['Fragment ',num2str(frag),' Stage 6 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+    else
+        disp(['Fragment ',num2str(frag),' Stage 6 (Mem. info unavailable)'])
+    end
+
     toc
     
     % free up the memory 
     clear;
-    [memStruct,~] = memory;
-    %memUsed(7) = memStruct.MemUsedMATLAB;
-    disp(['Stage 7 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+
+    if ~isunix
+        [memStruct,~] = memory;
+        disp(['Fragment ',num2str(frag),' Stage 7 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+    else
+        disp(['Fragment ',num2str(frag),' Stage 7 (Mem. info unavailable)'])
+    end
     
 end
