@@ -227,9 +227,9 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
 
     if ~isunix
         [memStruct,~] = memory;
-        disp(['Fragment ',num2str(frag),' Stage 7 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        disp(['Stage 7 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
     else
-        disp(['Fragment ',num2str(frag),' Stage 7 (Mem. info unavailable)'])
+        disp(['Stage 7 (Mem. info unavailable)'])
     end
     
 end
