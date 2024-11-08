@@ -2,9 +2,9 @@
 
 close all; clear;
 
-rdmDirectory = '/QRISdata/Q4413/2P_Data/Gcamp7s_CC/';
+rdmDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
-blocks = readtable("/QRISdata/Q4413/2P Record/2P_record");
+blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 
 %get rid of excluded flies
 % blocks = blocks(~logical(blocks.Exclude),:);
@@ -17,8 +17,8 @@ finalSize = [128 128];
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
-chosenFlies = [230];
-chosenBlocks = {[1,2]}; % leave empty if reducing all blocks for one fly
+chosenFlies = [250];
+chosenBlocks = {[3]}; % leave empty if reducing all blocks for one fly
     %MUST BE IN FORMAT {[blocks]}
 
 flagParamSaveList = who;
@@ -51,7 +51,7 @@ for fly = 1:length(chosenFlies)
         disp(['Fly: ',flyID]);
         
         codeStartTime = posixtime(datetime('now'));
-        loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize, 12); %currentBlock corresponds to currentFly
+        loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize, 1); %currentBlock corresponds to currentFly
 
         codeEndTime = posixtime(datetime('now'));
         MET = codeEndTime - codeStartTime;
@@ -70,6 +70,7 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
     end
 
     fileRDM = fullfile(RDMDirectory, file);
+    disp(['Now reading: ',fileRDM])
 
     imageSize = [fly.pixelX fly.pixelY];
     nFrames = fly.realFrames;
@@ -215,9 +216,17 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
 
     if ~isunix
         [memStruct,~] = memory;
-        disp(['Fragment ',num2str(frag),' Stage 6 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        if fragments ~= 1
+            disp(['Fragment ',num2str(frag),' Stage 6 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        else
+            disp(['Stage 6 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
+        end
     else
-        disp(['Fragment ',num2str(frag),' Stage 6 (Mem. info unavailable)'])
+        if fragments ~= 1
+            disp(['Fragment ',num2str(frag),' Stage 6 (Mem. info unavailable)'])
+        else
+            disp(['Stage 6 (Mem. info unavailable)'])
+        end
     end
 
     toc
