@@ -51,6 +51,9 @@ function R = analyse2PBlock(block)
     % these avoid later passing FLIES without need
     R.blockNum = block.blockNum;
     R.Trim = block.Trim;
+    if isfield(block,'TrimCoords')
+        R.TrimCoords = block.TrimCoords;
+    end
     R.nVol = block.nVol;
     
     %Tack on behav-separated data if applicable
