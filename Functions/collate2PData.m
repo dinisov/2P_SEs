@@ -1,4 +1,4 @@
-function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, ~, separateByState)
+function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, ~, separateByState, doRolling)
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -22,12 +22,21 @@ for fly = 1:length(chosenFlies)
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
         currentDirectory = fullfile(dataDirectory,currentDate,flyID);
 
+        disp(flyID);
+
         BLOCKS(b).flyNum = chosenFlies(fly);
         BLOCKS(b).flyID = flyID;
         BLOCKS(b).blockNum = b;
         BLOCKS(b).Trim = currentBlock.Trim;
-        
-        disp(flyID);
+        %Append four-coord trim if applicable
+        if any( strcmp('TrimCoords',currentBlock.Properties.VariableNames) ) %Check if field existing
+            if ~isnan(currentBlock.TrimCoords{1})
+                BLOCKS(b).TrimCoords = str2num( currentBlock.TrimCoords{1} );
+                disp('Trim coords acquired')
+            else
+                disp(['NaN/empty trim coords'])
+            end
+        end
         
         % load 128x128 data
         disp('Loading green channel');
@@ -108,7 +117,13 @@ for fly = 1:length(chosenFlies)
                     %NOTE: UNTESTED
             end
             disp(['-# Bad trials have been removed #-'])            
-        end        
+        end
+        
+        if doRolling == 1
+            BLOCKS(b).rolling = 1;
+        else
+            BLOCKS(b).rolling = 0;
+        end
         
         % calculate number of volumes per stimulus train
         nVolTotal = size(BLOCKS(b).greenChannel,3);

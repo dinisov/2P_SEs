@@ -1,4 +1,4 @@
-function [dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(imageStack, randomSequence, nVol, nStimuli, options)
+function [dataSeq, dataSeqIso, dataSeqBehav, rollStruct] = sortSEs2P(imageStack, randomSequence, nVol, nStimuli, options)
 %this function sorts ERPs according to the past sequence of events and 
 arguments
     imageStack double
@@ -7,7 +7,10 @@ arguments
     nStimuli double
     options.nBack (1,1) {mustBeNumeric} = 5
     options.behavSequence double = []
+    options.rolling (1,1) {mustBeNumeric} = 0 %Whether to additionally calculate a rolling version of dataSeq
 end
+
+    %Reminder: This is the 2D version, so imageStack only has 3 effective dimensions (XYT), because Z is flattened
 
     %nBack = 5; %Now included as part of arguments
     %nSeq = 2^nBack;
@@ -29,6 +32,20 @@ end
     else
         hasBehav = 0;
         dataSeqBehav = []; %Class type change, empty to boot
+    end
+    
+    %Whether to tack on rolling analysis
+        %Might make an actual switch later (i.e. Block OR Rolling)
+    if isfield( options, 'rolling' ) && options.rolling == 1
+        doRolling = 1;
+        rollStruct = struct;
+        rollStruct.rollSeq = nan([nSeq/2 size(imageStack)]); %Excessive last dim probably warranted here, at least for assembly (Unlike for dataSeq)
+            %SXYT
+        rollStruct.rollSeqReduced = nan([nSeq/2 size(imageStack)]);
+    else
+        doRolling = 0;
+        rollStruct = [];
+        %rollSeq = [];
     end
 
     % groups (1,32),(2,31),(3,30), etc, as representing the same pattern
@@ -59,9 +76,104 @@ end
             % for the isomers (consumes a lot of memory)
             dataSeqIso(vol,seq,:, :, n+1) = imageStack(:,:,n*nVol + vol);
         end
+        %['vol:',num2str(vol),', max n:',num2str(n), 'last frame: ',num2str(n*nVol + vol)]
     end
     disp([num2str(toc),'s to assemble dataSeq/dataSeqIso'])
     %size(behavSeq)
+    
+    %Rolling, if applicable
+    if doRolling == 1
+        tic
+        disp(['Calculating rolling sequence'])
+        %['imageStack size:',num2str(size(imageStack))]
+        %['max projected ind:',num2str( (sequenceLength/nVol)*nVol + nVol )]
+        %['max previous block n:',num2str( n )]
+        %['max previous block ind:',num2str( n*nVol + vol )]
+        %['sequence length: ',num2str(sequenceLength)]
+        %['dataSeq size: ', num2str(size(dataSeq))]
+        
+        %kc4k
+        
+        %sizImgStack = 4800
+        %sequenceLength = 4000
+
+        %framesPer = sizImgStack / sequenceLength; %Not necessarily whole number
+        framesPer = size(imageStack,3) / sequenceLength; %Not necessarily whole number
+        disp(['Imaging frames/stimulus event: ',num2str(framesPer)])
+
+        %blirg = framesPer:framesPer:sizImgStack; %For some reason, calculating like this gives float issues
+        %frameIndices = 0:framesPer:sizImgStack;
+        frameIndices = 0:framesPer:size(imageStack,3);
+        frameIndices = frameIndices(2:end); %Nominally equal in size to sequenceLength
+        %QA
+        if size(frameIndices,2) ~= sequenceLength
+            ['## Critical failure in frame indices calculations for rolling sequence! ##']
+            crash = yes
+        end
+        %stimInds = nan( sequenceLength , ceil( sizImgStack / sequenceLength ) ); %In theory should be max number of frames per stim event
+        minFrameCount = floor( framesPer );
+        disp(['Min. frames/event: ',num2str(minFrameCount)])
+        %QA
+        if minFrameCount == 0
+            ['-# Alert: Cannot calculate rolling with sub-1 volumes/stimulus event #-']
+            crash = yes
+        end
+
+        %mirakuru
+        
+        %for vol = 1:nVol %'Vol' (i.e. Timepoint) only applicable if using block design?
+            %e.g. 4800 frames / 6 'volumes' (i.e. timepoints) = 800 nonblank stimulus blocks
+        %for n = 1:size(frameIndices)
+        rollStruct.indTracker = ones( 1, nanmax(auxSeq) ); %Effectively a count of how many frames collected per sequence total
+        rollStruct.framePos = cell(1,nanmax(auxSeq)); %For rollSeqReduced, list of frame positions of each element, split by sequence
+        k = 0;
+        for n = options.nBack+1:size(frameIndices,2) %Skip first nBack+1 elements (e.g. 5+1)
+            %seq = bin2dec(num2str(randomSequence((n*nStimuli + 1):(n*nStimuli + options.nBack)))) + 1;
+            seq = bin2dec(num2str(randomSequence(n-options.nBack:n-1))) + 1;
+                %**Should** equate to the same as above (i.e. n = 6 (First loop) -> 6-5= 1   : 6-1= 5   
+            %disp([num2str(k),' - ', num2str(seq)])
+            %n
+            %randomSequence(n-options.nBack:n-1)
+            % stack images for each vol and seq along 5th dimension (separated by pattern)
+
+            %%rollSeq(vol, auxSeq(seq),:, :, n) = imageStack(:,:,n*nVol + vol); %Note subtly different matrix insertion position
+                %NOTE: MATH NOT VERIFIED FOR IMAGESTACK INDICES
+
+            startEnd = [ frameIndices(n)-framesPer , frameIndices(n) ];
+            rangi = [ceil(startEnd(1)):floor(startEnd(2))];
+            framesToUse = rangi(end-minFrameCount+1:end);
+            %disp( ['Stim event #',num2str(i),char(10),'start/stop: ', num2str( startEnd )] )
+            %disp( ['Selected frames: ', num2str( framesToUse )] )
+
+            rollStruct.rollSeq(auxSeq(seq),:, :, [framesToUse]) = imageStack(:,:, [framesToUse] ); %Place at any random location
+            smartPos = [rollStruct.indTracker( auxSeq(seq) ) : rollStruct.indTracker( auxSeq(seq) )+minFrameCount-1 ]; %Note: Hardcoded always be min frame count 
+            %smartPos
+            rollStruct.indTracker( auxSeq(seq) ) = rollStruct.indTracker( auxSeq(seq) ) + minFrameCount;
+            rollStruct.rollSeqReduced(auxSeq(seq),:, :, smartPos  ) = imageStack(:,:, [framesToUse] ); % Place in reduced manner
+                %Verified math
+            rollStruct.framePos{ auxSeq(seq) } = [ rollStruct.framePos{ auxSeq(seq) } , framesToUse ]; %Probably inefficient
+
+            %%rollSeqWide = ??? %Intended to be a block-style version 
+                %(i.e. Instead of collecting the min. number of frames between events, collect frames for nBack)
+            k = k + 1;
+        end
+        %Trim rollSeq (if using reduced)
+        %nansum( rollSeq( :,:,:, nanmax(indTracker):end ), 'all' ) %Quick calc to reveal if any actual data in the soon-to-be-reduced portion
+        rollStruct.rollSeqReduced( :,:,:, nanmax(rollStruct.indTracker):end ) = [];
+        disp(['rollSeq reduced'])
+        
+        %end 
+        disp([num2str(toc),'s to assemble rollSeq'])
+        disp( ['size rollSeq: ',num2str(size(rollStruct.rollSeq)),' /reduced: ',num2str(size(rollStruct.rollSeqReduced))] )
+        %k
+        disp( ['last seq #:',num2str(seq),', startEnd: ',num2str(startEnd),', and framesToUse: ',num2str(framesToUse)] )
+        disp( ['collected ', num2str(k-1),' events'] )
+        disp( ['seq dist.: ',num2str(rollStruct.indTracker/minFrameCount)] )
+        %Reduce rollSeq to only non-empty elements
+        %hard
+    end
+    
+    
     
     %slice out from arrays if behavData present
     if hasBehav == 1

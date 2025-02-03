@@ -12,9 +12,11 @@ function R = analyse2PBlock(block)
     % yields 5D matrix with (vol,seq,pixelX,pixelY,trial)
     %[dataSeq, dataSeqIso] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
     if isfield( block, 'behavSequence' )
-        [dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence);
+        %[dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence);
+        [dataSeq, dataSeqIso, dataSeqBehav, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence, 'rolling', block.rolling);
     else
-        [dataSeq, dataSeqIso, ~] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
+        %[dataSeq, dataSeqIso, ~] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
+        [dataSeq, dataSeqIso, ~, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'rolling', block.rolling);
     end
     
     % mean across fifth (trial) dimension (much faster than nan mean)
@@ -51,11 +53,19 @@ function R = analyse2PBlock(block)
     % these avoid later passing FLIES without need
     R.blockNum = block.blockNum;
     R.Trim = block.Trim;
+    if isfield(block,'TrimCoords')
+        R.TrimCoords = block.TrimCoords;
+    end
     R.nVol = block.nVol;
     
     %Tack on behav-separated data if applicable
     if exist('dataSeqBehav') && ~isempty(dataSeqBehav)
         R.dataSeqBehav = dataSeqBehav; %Note: Structure, not double array    
+    end
+    
+    %Tack on rolling sequence data if applicable
+    if exist('rollStruct') && ~isempty(rollStruct)
+        R.rollStruct = rollStruct;
     end
     
 end

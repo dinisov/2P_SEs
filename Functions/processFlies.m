@@ -1,10 +1,11 @@
-function processFlies(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks)
+function processFlies(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling)
 %UNTITLED Summary of this function goes here
-%   Detailed explanation goes here
-
+disp([char(10),'-------------------------------------'])
 %% collate, reduce, filter and concatenate pre-aligned data
 
-FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks);
+%FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks);
+%FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState);
+FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling);
 
 %% analyse SEs
 % separates images according to preceding sequence of stimuli and

@@ -2,7 +2,8 @@ close all; clear;
 
 addpath('D:\group_vanswinderen\Dinis\Scripts\Global functions\');
 addpath('D:\group_vanswinderen\Dinis\Scripts\Indexes and legends\');
-addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\');
+%addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\');
+addpath('.\Functions\');
 
 close all; clear;
 
@@ -32,7 +33,7 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [168]%,169,178,181];
+chosenFlies = [250];
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
@@ -47,13 +48,15 @@ groupedBlocks = 0;
 
 % transient movies; component fits; fit movies; t-tests; oddballs; LvsR; PCA; global transient
 %analysisToggle = [1 1 1 0 1 0 1 1];
-analysisToggle = [0 0 0 0 0 0 1 0];
-separateByState = 1; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
+analysisToggle = [0 0 0 0 0 0 0 0];
+separateByState = 0; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
+doRolling = 1; %Whether to also do rolling analysis
 
 for fly = chosenFlies
     if ~isempty(flyRecord(flyRecord.Fly == fly,:))
         %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks);
-        processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState);
+        %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState);
+        processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
     end
 end
 %% fit and plot some seq eff profiles of interest
