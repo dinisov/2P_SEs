@@ -15,24 +15,35 @@ for fly = 1:length(R)
            mkdir(subDirectory); 
         end
         
-        trim = R(fly).BLOCK(b).Trim;
+        %m_
+        if ~isnan(R(fly).BLOCK(b).Trim) && ( ~isfield(R(fly).BLOCK(b),'TrimCoords') || isempty(R(fly).BLOCK(b).TrimCoords) )
+            %trim = R(fly).BLOCK(b).Trim;
+            trim = repmat( R(fly).BLOCK(b).Trim , 1 , 4 ); %Make coord-like, to simplify later
+            disp(['Using unitary trim for transient movie creation'])
+        else
+            trim = R(fly).BLOCK(b).TrimCoords; %Note matrix, not singular
+            disp(['Using coordinate trim for transient movie creation'])
+        end
         
         % blank trial transient movie
         if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
             
             blankTrials = R(fly).BLOCK(b).meanBlankTransient;
-            blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+            %blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+            blankTrials = blankTrials(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
             
             makeMovie(prepareMovieData(blankTrials),fullfile(subDirectory,'blankTrials.avi'),false);
             %makeMovie(prepareMovieData(blankTrials),fullfile(subDirectory,'blankTrials.mp4'),false);
             
             % global response transient
             allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 1]);
-            allSeq = (allSeq(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+            %allSeq = (allSeq(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+            allSeq = (allSeq(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:)-blankTrials)./blankTrials;
         else
             % global response transient
             allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 1]);
-            allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:);
+            %allSeq = allSeq(trim+1:end-trim,trim+1:end-trim,:);
+            allSeq = allSeq(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
         end
         
         save(fullfile(subDirectory,'global_transient'),'allSeq');
@@ -53,9 +64,11 @@ for fly = 1:length(R)
             seq = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,s,:,:)),[2 3 1]);
             
             if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
-                seq = (seq(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+                %seq = (seq(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+                seq = (seq(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:)-blankTrials)./blankTrials;
             else
-                seq = seq(trim+1:end-trim,trim+1:end-trim,:);
+                %seq = seq(trim+1:end-trim,trim+1:end-trim,:);
+                seq = seq(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
             end
             
 %             for i = 1:11
@@ -96,11 +109,13 @@ for fly = 1:length(R)
                 if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
                     % global response transient
                     allSeqBehav = permute(squeeze(mean( thisData ,2)),[2 3 1]);
-                    allSeqBehav = (allSeqBehav(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+                    %allSeqBehav = (allSeqBehav(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+                    allSeqBehav = (allSeqBehav(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:)-blankTrials)./blankTrials;
                 else
                     % global response transient
                     allSeqBehav = permute(squeeze(mean( thisData ,2)),[2 3 1]);
-                    allSeqBehav = allSeqBehav(trim+1:end-trim,trim+1:end-trim,:);
+                    %allSeqBehav = allSeqBehav(trim+1:end-trim,trim+1:end-trim,:);
+                    allSeqBehav = allSeqBehav(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
                 end
                 
                 save(fullfile(thisBlockStateDirectory,'global_behav_transient'),'allSeqBehav');
@@ -109,9 +124,11 @@ for fly = 1:length(R)
                 for s = 1:16     
                     seqBehav = permute(squeeze(thisData(:,s,:,:)),[2 3 1]);
                     if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
-                        seqBehav = (seqBehav(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+                        %seqBehav = (seqBehav(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
+                        seqBehav = (seqBehav(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:)-blankTrials)./blankTrials;
                     else
-                        seqBehav = seqBehav(trim+1:end-trim,trim+1:end-trim,:);
+                        %seqBehav = seqBehav(trim+1:end-trim,trim+1:end-trim,:);
+                        seqBehav = seqBehav(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
                     end
                     seqBehav = prepareMovieData(seqBehav);
                     makeMovie(seqBehav,fullfile(thisBlockStateDirectory,['seqBehav' num2str(s) '.avi']),false);

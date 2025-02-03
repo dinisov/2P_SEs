@@ -9,18 +9,27 @@ function patternPlots(R, chosenFlies, outputDirectory)
                mkdir(subDirectory); 
             end
             
-           trim = R(fly).BLOCK(b).Trim;
+           %trim = R(fly).BLOCK(b).Trim;
+           if ~isnan(R(fly).BLOCK(b).Trim) && ( ~isfield(R(fly).BLOCK(b),'TrimCoords') || isempty(R(fly).BLOCK(b).TrimCoords) )
+                trim = repmat( R(fly).BLOCK(b).Trim , 1 , 4 ); %Make coord-like, to simplify later
+                disp(['Using unitary trim for pattern plots'])
+            else
+                trim = R(fly).BLOCK(b).TrimCoords; %Note matrix, not singular
+                disp(['Using coordinate trim for pattern plots'])
+           end
             
            %data averaged over time
            thisBlockData = squeeze(mean(R(fly).BLOCK(b).meanDataSeq,1));
            
            % trim data
-           thisBlockData = thisBlockData(:,trim+1:end-trim,trim+1:end-trim);
+           %thisBlockData = thisBlockData(:,trim+1:end-trim,trim+1:end-trim);
+           thisBlockData = thisBlockData(:,trim(1)+1:end-trim(3),trim(4)+1:end-trim(2));
             
             if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
               
                 blankTrials = R(fly).BLOCK(b).meanBlankTransient;
-                blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+                %blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+                blankTrials = blankTrials(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
                 meanBlankTrials = mean(blankTrials,3);
                 figure; imagesc(meanBlankTrials); colormap(jet(256));
                 saveas(gcf,fullfile(subDirectory,'average_blanks.png')); 
@@ -51,8 +60,10 @@ function patternPlots(R, chosenFlies, outputDirectory)
            %videos of differences over time
 
            %AAAA-AAAR
-           AAAAminusAAAR_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,16,trim+1:end-trim,trim+1:end-trim)),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,8,trim+1:end-trim,trim+1:end-trim)),[2 3 1]);
-           RRRRminusRRRA_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,1,trim+1:end-trim,trim+1:end-trim)),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,9,trim+1:end-trim,trim+1:end-trim)),[2 3 1]);
+           %AAAAminusAAAR_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,16,trim+1:end-trim,trim+1:end-trim)),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,8,trim+1:end-trim,trim+1:end-trim)),[2 3 1]);
+           AAAAminusAAAR_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,16,trim(1)+1:end-trim(3),trim(4)+1:end-trim(2))),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,8,trim(1)+1:end-trim(3),trim(4)+1:end-trim(2))),[2 3 1]);
+           %RRRRminusRRRA_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,1,trim+1:end-trim,trim+1:end-trim)),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,9,trim+1:end-trim,trim+1:end-trim)),[2 3 1]);
+           RRRRminusRRRA_t = permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,1,trim(1)+1:end-trim(3),trim(4)+1:end-trim(2))),[2 3 1]) - permute(squeeze(R(fly).BLOCK(b).meanDataSeq(:,9,trim(1)+1:end-trim(3),trim(4)+1:end-trim(2))),[2 3 1]);
 
 %            AAAAminusAAAR_t = normalize(AAAAminusAAAR_t,3,'range',[0 1]);
            makeMovie(prepareMovieData(AAAAminusAAAR_t),fullfile(subDirectory,'AAAAminusAAAR_transient.avi'),false);

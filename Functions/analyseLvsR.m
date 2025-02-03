@@ -14,16 +14,25 @@ for fly = 1:length(R)
            mkdir(subDirectory); 
         end
         
-        trim = R(fly).BLOCK(b).Trim;
+        %trim = R(fly).BLOCK(b).Trim;
+        if ~isnan(R(fly).BLOCK(b).Trim) && ( ~isfield(R(fly).BLOCK(b),'TrimCoords') || isempty(R(fly).BLOCK(b).TrimCoords) )
+            trim = repmat( R(fly).BLOCK(b).Trim , 1 , 4 ); %Make coord-like, to simplify later
+            disp(['Using unitary trim for L vs R'])
+        else
+            trim = R(fly).BLOCK(b).TrimCoords; %Note matrix, not singular
+            disp(['Using coordinate trim for L vs R'])
+        end
         
         thisBlockData = squeeze(sum(R(fly).BLOCK(b).dataSeqIso,1)./size(R(fly).BLOCK(b).dataSeqIso,1));
 
         % trim data
-        thisBlockData = thisBlockData(:,trim+1:end-trim,trim+1:end-trim,:);
+        %thisBlockData = thisBlockData(:,trim+1:end-trim,trim+1:end-trim,:);
+        thisBlockData = thisBlockData(:,trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
 
         if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
             blankTrials = R(fly).BLOCK(b).meanBlankTransient;
-            blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+            %blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
+            blankTrials = blankTrials(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
             meanBlankTrials = mean(blankTrials,3);
         else
             blankTrials = 0;
@@ -49,8 +58,10 @@ for fly = 1:length(R)
         
         %% make movies over time
 
-        left = R(fly).BLOCK(b).dataSeqIso(:,1:16,trim+1:end-trim,trim+1:end-trim,:);
-        right = R(fly).BLOCK(b).dataSeqIso(:,17:32,trim+1:end-trim,trim+1:end-trim,:);
+        %left = R(fly).BLOCK(b).dataSeqIso(:,1:16,trim+1:end-trim,trim+1:end-trim,:);
+        left = R(fly).BLOCK(b).dataSeqIso(:,1:16,trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
+        %right = R(fly).BLOCK(b).dataSeqIso(:,17:32,trim+1:end-trim,trim+1:end-trim,:);
+        right = R(fly).BLOCK(b).dataSeqIso(:,17:32,trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
         
         meanLeft = sum(left,5)./sum(left~=0,5);
         meanRight = sum(right,5)./sum(right~=0,5);

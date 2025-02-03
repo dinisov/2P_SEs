@@ -11,7 +11,14 @@ for fly = 1:length(R)
             
         results = R(fly).BLOCK(b);
         
-        trim = results.Trim;
+        %trim = results.Trim;
+        if ~isnan(results.Trim) && ( ~isfield(results,'TrimCoords') || isempty(results.TrimCoords) )
+            trim = repmat( results.Trim , 1 , 4 ); %Make coord-like, to simplify later
+            disp(['Using unitary trim for Global transients'])
+        else
+            trim = results.TrimCoords; %Note matrix, not singular
+            disp(['Using coordinate trim for Global transients'])
+        end
 
         % if blank blocks were use as pedestal, otherwise use mean
         % transient
@@ -26,10 +33,13 @@ for fly = 1:length(R)
         end
 
         transients = permute(squeeze(mean(results.meanDataSeq,2)),[2 3 1]);
-            
+
         % remove sides from images
-        transients([1:trim end-(trim-1):end],:,:) = [];
-        transients(:, [1:trim end-(trim-1):end],:) = [];
+        %Old
+        %transients([1:trim end-(trim-1):end],:,:) = [];
+        %transients(:, [1:trim end-(trim-1):end],:) = [];
+        %New, using keep rather than delete
+        transients = transients(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
 
         % calculate mean and plot
         meanTransient = squeeze(mean(mean(transients,1),2));
@@ -42,6 +52,38 @@ for fly = 1:length(R)
 
         saveas(gcf,fullfile(thisFlyDirectory,'global_transient.png'));
         close;
+        
+        %Behav separated data, if applicable
+        if isfield( R(fly).BLOCK(b) , 'dataSeqBehav' )
+            for statInd = 1:size( R(fly).BLOCK(b).dataSeqBehav,2 )
+                thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)],'Transients');
+                % if blank blocks were use as pedestal, otherwise use mean transient
+                if isfield(results,'meanBlankTransient')
+                    sizeAux = size(results.meanBlankTransient); sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];
+                    % normalise each sequence transient by the mean blank transient (i.e. make dF/F)
+                    results.dataSeqBehav(statInd).meanDataSeqReduced = results.dataSeqBehav(statInd).meanDataSeqReduced./repmat(reshape(permute(results.meanBlankTransient,[3 1 2]),sizeAux),[1 16 1 1]);
+                else
+                    sizeAux = size(results.meanTransient); %sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];
+                    results.dataSeqBehav(statInd).meanDataSeqReduced = results.dataSeqBehav(statInd).meanDataSeqReduced(:,:,1:end);
+                end
+
+                transients = permute(squeeze(mean(results.dataSeqBehav(statInd).meanDataSeqReduced,2)),[2 3 1]);
+                % remove sides from images
+                %Old
+                %transients([1:trim end-(trim-1):end],:,:) = [];
+                %transients(:, [1:trim end-(trim-1):end],:) = [];
+                %New, using keep rather than delete
+                transients = transients(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
+
+                % calculate mean and plot
+                meanTransient = squeeze(mean(mean(transients,1),2));
+                plot(meanTransient); xlim([0 length(meanTransient)+1]);
+                saveas(gcf,fullfile(thisFlyDirectory,'global_transient.png'));
+                close;
+                disp(['Global transient figure saved for state ',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)])
+            end
+        end
+            
     end
         
 end

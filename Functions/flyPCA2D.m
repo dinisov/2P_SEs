@@ -19,9 +19,26 @@ for fly = 1:length(R)
         
         results = R(fly).BLOCK(b);
         
-        trim = results.Trim;
+        %n_
+        %trim = results.Trim;
+        if ~isfield(results,'TrimCoords') || isempty(results.TrimCoords)
+            trim = results.Trim;
+        else
+            trim = results.TrimCoords;
+        end
         
-        imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
+        %imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
+        asymmTrim = 0;
+        if isequal( size(trim) , [1,1] )
+            imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
+        elseif isequal( size(trim) , [1,4] )
+            imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - [trim(1)+trim(3),trim(2)+trim(4)]; %"Top, Bottom, Right, Left
+            asymmTrim = 1;
+        else
+            ['## Invalid trim parameters specified! ##']
+            disp(['Fly #',num2str(chosenFlies(fly)),' Block ',num2str(results.blockNum)])
+            crash = yes
+        end
     
         % if blank blocks were collected use as pedestal, otherwise use mean
         % transient
@@ -41,7 +58,11 @@ for fly = 1:length(R)
             SEProfiles = permute(squeeze(sum(results.meanDataSeq,1)),[2 3 1]);
     
             % trim sides
-            SEProfiles = SEProfiles(trim+1:end-trim,trim+1:end-trim,:);
+            if asymmTrim == 0
+                SEProfiles = SEProfiles(trim+1:end-trim,trim+1:end-trim,:);
+            else
+                SEProfiles = SEProfiles(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
+            end
     
             %data matrix for SEs
             XSeq = reshape(SEProfiles,[imageSize(1)*imageSize(2) 16]);
@@ -67,7 +88,12 @@ for fly = 1:length(R)
         %And behav separated data, if applicable
         if isfield( R(fly).BLOCK(b) , 'dataSeqBehav' )
             for statInd = 1:size( R(fly).BLOCK(b).dataSeqBehav,2 )
-                imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
+                %imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
+                if asymmTrim == 0
+                    imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
+                else
+                    imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - [trim(1)+trim(3),trim(2)+trim(4)]; %"Top, Bottom, Right, Left
+                end
                 if isfield(results,'meanBlankTransient')
                     sizeAux = size(results.meanBlankTransient); sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];
                     % normalise each sequence transient by the mean blank transient (i.e. make dF/F)
@@ -81,7 +107,12 @@ for fly = 1:length(R)
                     % construct a matrix of SE profiles averaged across time
                     SEProfiles = permute(squeeze(sum(results.dataSeqBehav(statInd).meanDataSeqReduced,1)),[2 3 1]);
                     % trim sides
-                    SEProfiles = SEProfiles(trim+1:end-trim,trim+1:end-trim,:);
+                    %SEProfiles = SEProfiles(trim+1:end-trim,trim+1:end-trim,:);
+                    if asymmTrim == 0
+                        SEProfiles = SEProfiles(trim+1:end-trim,trim+1:end-trim,:);
+                    else
+                        SEProfiles = SEProfiles(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
+                    end
                     %data matrix for SEs
                     XSeq = reshape(SEProfiles,[imageSize(1)*imageSize(2) 16]);
                     %FLIES(fly).BLOCK(b).XSeq = XSeq.';
@@ -102,13 +133,36 @@ for fly = 1:length(R)
 
     for b = [R(fly).BLOCK.blockNum]
         
-        trim = R(fly).BLOCK(b).Trim;
+        %d_
+        %trim = R(fly).BLOCK(b).Trim;
+        if ~isfield(R(fly).BLOCK(b),'TrimCoords') || isempty(R(fly).BLOCK(b).TrimCoords)
+            trim = R(fly).BLOCK(b).Trim;
+        else
+            trim = R(fly).BLOCK(b).TrimCoords;
+        end
         
         %imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
+        imageSize = []; %Clear just in case
+        asymmTrim = 0;
+        if isequal( size(trim) , [1,1] )
+            imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
+        elseif isequal( size(trim) , [1,4] )
+            imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - [trim(1)+trim(3),trim(2)+trim(4)]; %"Top, Bottom, Right, Left
+            asymmTrim = 1;
+        else
+            ['## Invalid trim parameters specified! ##']
+            disp(['Fly #',num2str(chosenFlies(fly)),' Block ',num2str(results.blockNum)])
+            crash = yes
+        end
 
         brainImage = R(fly).BLOCK(b).brainImage;
         
-        trimmedBrainImg = brainImage(2*trim*16+1:end-(2*trim*16),2*trim*16+1:end-(2*trim*16));
+        %%trimmedBrainImg = brainImage(2*trim*16+1:end-(2*trim*16),2*trim*16+1:end-(2*trim*16));
+        if asymmTrim == 0
+            trimmedBrainImg = brainImage(2*trim*16+1:end-(2*trim*16),2*trim*16+1:end-(2*trim*16));
+        else
+            trimmedBrainImg = brainImage(trim(1)*16+1:end-(trim(3)*16),trim(4)*16+1:end-(trim(2)*16)); %Adjusted to be four-coordinate
+        end
         
         data = struct;
         
@@ -116,7 +170,8 @@ for fly = 1:length(R)
         c = 1;
         data(c).name = 'All';
         data(c).XSeq = FLIES(fly).BLOCK(b).XSeq;
-        data(c).imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim; %Moved here to be in setup loop
+        %data(c).imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim; %Moved here to be in setup loop
+        data(c).imageSize = imageSize; %Slight adjustment in case of asymmetrical trim
         data(c).thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'PCA');
         %disp(data(c).thisFlyDirectory);
         if ~exist(data(c).thisFlyDirectory,'dir')
@@ -144,9 +199,16 @@ for fly = 1:length(R)
         %The reason for this rigamarole is so behav separated data can be added if existing
         if isfield( R(fly).BLOCK(b) , 'dataSeqBehav' )
             for statInd = 1:size( R(fly).BLOCK(b).dataSeqBehav,2 )
+                imageSize = [];
+                if asymmTrim == 0
+                    imageSize = size(R(fly).BLOCK(b).dataSeqBehav(statInd).meanDataSeqReduced,[3 4]) - 2 * trim;
+                else
+                    imageSize = size(R(fly).BLOCK(b).dataSeqBehav(statInd).meanDataSeqReduced,[3 4]) - [trim(1)+trim(3),trim(2)+trim(4)];
+                end
                 data(c).name = ['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)];
                 data(c).XSeq = FLIES(fly).BLOCK(b).dataSeqBehav(statInd).XSeq;
-                data(c).imageSize = size(R(fly).BLOCK(b).dataSeqBehav(statInd).meanDataSeqReduced,[3 4]) - 2 * trim;
+                %data(c).imageSize = size(R(fly).BLOCK(b).dataSeqBehav(statInd).meanDataSeqReduced,[3 4]) - 2 * trim;
+                data(c).imageSize = imageSize;
                 data(c).thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)],'PCA');
                 %disp(data(c).thisFlyDirectory);
                 if ~exist(data(c).thisFlyDirectory,'dir')
