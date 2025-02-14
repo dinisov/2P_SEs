@@ -8,15 +8,15 @@ end
 
 mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
-blocks = readtable("D:\group_vanswinderen\Dinis\2P Record\2P_record");
+blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record.xlsx");
 
 %get rid of excluded flies
 % blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
-chosenFlies = [200:205,188];
+chosenFlies = [263,264];
 
-chosenBlocks = {[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2,3],[1,2]};
+chosenBlocks = {[1],[1]};
 
 for fly = 1:length(chosenFlies)
     
@@ -49,7 +49,8 @@ for fly = 1:length(chosenFlies)
 
                imageFile = dir([currentDirectory '/Image*']);
 
-               ij.IJ.run('Raw...',['open=' currentDirectory '/' imageFile.name '  width=512 height=512 little-endian number=200000']);
+               %ij.IJ.run('Raw...',['open=' currentDirectory '/' imageFile.name '  width=512 height=512 little-endian number=200000']);
+               ij.IJ.run('Raw...',['open=' currentDirectory '/' imageFile.name '  width=' num2str(currentBlock.pixelX) ' height=' num2str(currentBlock.pixelY) ' little-endian number=300000']);
 
                if currentBlock.nChannels == 2
                    

@@ -17,8 +17,8 @@ finalSize = [128 128];
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
-chosenFlies = [250];
-chosenBlocks = {[3]}; % leave empty if reducing all blocks for one fly
+chosenFlies = [264];
+chosenBlocks = {[1]}; % leave empty if reducing all blocks for one fly
     %MUST BE IN FORMAT {[blocks]}
 
 flagParamSaveList = who;
@@ -81,7 +81,8 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
         disp('Loading data');
         % load green channel
         fid = fopen(fileRDM, 'r','b');
-        data = fread(fid, 512*512*nFrames, 'uint16');
+        %data = fread(fid, 512*512*nFrames, 'uint16');
+        data = fread(fid, fly.pixelX*fly.pixelY*nFrames, 'uint16');
         fclose(fid);
         if ~isunix
             [memStruct,~] = memory;

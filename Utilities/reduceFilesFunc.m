@@ -81,7 +81,8 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize)
     end
     % load green channel
     fid = fopen(fileRDM, 'r','b');
-    data = fread(fid, 512*512*nFrames, 'uint16');
+    %data = fread(fid, 512*512*nFrames, 'uint16');
+    data = fread(fid, fly.pixelX*fly.pixelY*nFrames, 'uint16'); %Generalised
     fclose(fid);
     toc
     
