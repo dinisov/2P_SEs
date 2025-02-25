@@ -38,6 +38,18 @@ for fly = 1:length(chosenFlies)
             end
         end
         
+        %Two rolling flags
+        if doRolling == 1
+            BLOCKS(b).doRolling = 1; %Whether to do rolling analysis
+        else
+            BLOCKS(b).doRolling = 0;
+        end
+        if currentBlock.BlockLength == -1 %Critically relies on this as a consistent standard
+            BLOCKS(b).isRolling = 1; %Whether data is actually rolling
+        else
+            BLOCKS(b).isRolling = 0;
+        end
+        
         % load 128x128 data
         disp('Loading green channel');
         tic; load(fullfile(currentDirectory,'avg_z_green_aligned')); toc;
@@ -60,11 +72,15 @@ for fly = 1:length(chosenFlies)
         toc;
         
         % get sequences
-        if exist(fullfile(sequenceDirectory,[flyID '.mat']),'file')
-            randomSequence = load(fullfile(sequenceDirectory,[flyID '.mat']),'randomSequence').';
-            BLOCKS(b).randomSequence = randomSequence.randomSequence-1;
+        if BLOCKS(b).isRolling == 0
+            if exist(fullfile(sequenceDirectory,[flyID '.mat']),'file')
+                randomSequence = load(fullfile(sequenceDirectory,[flyID '.mat']),'randomSequence').';
+                BLOCKS(b).randomSequence = randomSequence.randomSequence-1;
+            else
+                BLOCKS(b).randomSequence = csvread(fullfile(sequenceDirectory,'Data_LEDs',[flyID '.csv'])).';
+            end
         else
-            BLOCKS(b).randomSequence = csvread(fullfile(sequenceDirectory,'Data_LEDs',[flyID '.csv'])).';
+            BLOCKS(b).randomSequence = []; %Defer sequence calcs until derived by syncMaster
         end
         
         %Get behavioural data (if requested)
@@ -75,7 +91,8 @@ for fly = 1:length(chosenFlies)
                     behavSequence = savStruct.acInac.thisInacBinaryInterp';
                     disp(['-- Behavioural data loaded --'])
                     %QA
-                    if size(behavSequence,2) ~= size( BLOCKS(b).randomSequence )
+                    if BLOCKS(b).isRolling == 0 && size(behavSequence,2) ~= size( BLOCKS(b).randomSequence )
+                            %Only try calc if sequence info not deferred
                         ['## Critical desynchronisation between behav and random sequence data! ##']
                         crash = yes
                     end
@@ -94,7 +111,7 @@ for fly = 1:length(chosenFlies)
         nBadBlankTrials = 0;
 
         %remove bad trials and associated frames (this should be put inside a function)
-        if ~isempty(currentBlock.removeFrames{1})
+        if BLOCKS(b).isRolling == 0 && ~isempty(currentBlock.removeFrames{1})
             removeFrames = eval(currentBlock.removeFrames{1});
             badTrials = eval(currentBlock.badTrials{1});
             nBadTrials = length(badTrials);
@@ -118,13 +135,11 @@ for fly = 1:length(chosenFlies)
             end
             disp(['-# Bad trials have been removed #-'])            
         end
-        
-        if doRolling == 1
-            BLOCKS(b).rolling = 1;
-        else
-            BLOCKS(b).rolling = 0;
+        %QA to warn user if frames would have been removed if not rolling
+        if BLOCKS(b).isRolling == 1 && ~isempty(currentBlock.removeFrames{1})
+           ['-# Caution: Frames requested to be removed but this is not (currently) supported for rolling #-'] 
         end
-        
+                
         % calculate number of volumes per stimulus train
         nVolTotal = size(BLOCKS(b).greenChannel,3);
         BLOCKS(b).nVol = nVolTotal/(currentBlock.BlockLength + currentBlock.BlankBlocks-nBadTrials);
@@ -137,7 +152,7 @@ for fly = 1:length(chosenFlies)
         BLOCKS(b).nStimuli = currentBlock.nStimuli;
         BLOCKS(b).blankBlocks = currentBlock.BlankBlocks-nBadBlankTrials;
         
-        % plot before fitlering
+        % plot before filtering
         figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
         
         % apply a savitsky-golay filter to remove larger trends in data
@@ -150,8 +165,9 @@ for fly = 1:length(chosenFlies)
         
         % if there are blank blocks, split image stack (after filtering)
         % this creates a baseline based on blank blocks (an F for dF/F)
-        if currentBlock.BlankBlocks
+        if BLOCKS(b).isRolling == 0 && currentBlock.BlankBlocks
             BLOCKS(b) = splitStack(BLOCKS(b));
+                %Note: splitStack not designed for deferred sequence
         end
             
     end

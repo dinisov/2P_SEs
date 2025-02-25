@@ -1,6 +1,14 @@
-function flyPCA2D(R, chosenFlies, outputDirectory)
+function flyPCA2D(R, chosenFlies, outputDirectory, options)
+arguments
+    R struct
+    chosenFlies double
+    outputDirectory
+    options.showModel double = 1
+end
 
+if options.showModel
 load('six_hertz.mat','six_hertz');
+end
 
 % choose from ['time','sequence']
 pcaType = {'sequence'};
@@ -185,6 +193,7 @@ for fly = 1:length(R)
                     %"." and ".." are special directory markers, not true directories
                 ['-# Cannot safely delete directory due to detected presence of subdirectories #-']
             else
+                %[data(c).thisFlyDirectory,filesep,'*.png']
                 %rmdir( data(c).thisFlyDirectory ,'s' ) %Unsafe
                 delete( [data(c).thisFlyDirectory,filesep,'*.png'], [data(c).thisFlyDirectory,filesep,'*.mat'] )
                 rmdir( data(c).thisFlyDirectory ) %Will only succeed if empty
@@ -260,9 +269,16 @@ for fly = 1:length(R)
                    saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
                    close;
 
+                   if options.showModel
                    sign_ephys = sortOrientation(score(:,i),normalize(six_hertz));
 
-                   figure; create_seq_eff_plot(normalize(score(:,i)),normalize(sign_ephys*six_hertz));
+                   %figure; create_seq_eff_plot(normalize(score(:,i)),normalize(sign_ephys*six_hertz));
+                   figure; create_seq_eff_plot_Matt(normalize(score(:,i)),normalize(sign_ephys*six_hertz));
+                   else
+                   %figure; create_seq_eff_plot(normalize(score(:,i)), []); %Hide model
+                   figure; create_seq_eff_plot_Matt(normalize(score(:,i)), []); %Hide model
+                    %Matt version exists so that changes can be made outside of Global Functions folder
+                   end
 
                    saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
                    close;

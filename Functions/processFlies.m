@@ -7,6 +7,15 @@ disp([char(10),'-------------------------------------'])
 %FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState);
 FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling);
 
+%% Interrupt flow for rolling datasets
+for fly = 1:length(FLIES)
+    if any([FLIES(fly).BLOCKS.isRolling]) || doRolling
+            %Note that doRolling on non-rolling data may behave weirdly and isn't tested (yet)
+        [FLIES(fly).BLOCKS] = syncMaster( FLIES(fly).BLOCKS , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1 );
+            %BLOCKS in, (modified) BLOCKS out
+    end
+end
+
 %% analyse SEs
 % separates images according to preceding sequence of stimuli and
 % calculates mean images as a function of the sequence
@@ -41,7 +50,8 @@ end
 
 %% PCA analysis
 if analysisToggle(7)
-    flyPCA2D(R, chosenFlies, outputDirectory);
+    %flyPCA2D(R, chosenFlies, outputDirectory);
+    flyPCA2D(R, chosenFlies, outputDirectory, 'showModel', 0);
 end
 
 %% global transient analysis

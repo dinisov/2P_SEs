@@ -1,7 +1,16 @@
-function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
+%%function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
-%To improve: Absolute best frame specificity for im/stim calcs
 
+
+%To improve: Absolute best frame specificity for im/stim calcs
+    %Specifically:
+        %   - Bendy block design has some by-necessity inaccuracies with regards to stimulus aliasing (see stimCollInds/temp4)
+
+
+%Note: Current state of analysis turns block design bendy panels data into pseudo-block design data that can't actually really be analysed
+%   It is necessary to develop a system that properly mimics original LED block design data structures
+
+%{
 arguments
     BLOCKS struct
     flyRecord table
@@ -11,6 +20,16 @@ arguments
     options.rollingAnalysis double = -1
     options.dataSource double = -1 %Whether to use data from function call (-1) or to look external for registered data (1)
 end
+%}
+BLOCKS = FLIES(fly).BLOCKS;
+flyRecord = flyRecord;
+options.dataDirectory = dataDirectory;
+options.doPlot = 0
+options.doVid = 0
+options.rollingAnalysis = -1
+options.dataSource = -1 %Whether to use data from function call (-1) or to look external for registered data (1)
+
+%}
 
 
 %{
@@ -82,11 +101,11 @@ for thisBlock = [BLOCKS]
     %fileName = "I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\30Jan25\TS\fly1_30Jan25_exp2\Episode001.h5"
     fileName = hTarget;
 
-    h5disp(fileName)
+    %h5disp(fileName)
 
     syncStruct = struct;
 
-    disp(['-# Loading H5 data #-'])
+    disp(['-- Loading H5 data --'])
     tic
 
     syncStruct.AI.piezoData = h5read(fileName, '/AI/PiezoMonitor');
@@ -203,6 +222,16 @@ for thisBlock = [BLOCKS]
         end
         randomSequence = matParamStruct.matSave.randomSequence( unique(btData(:,5)) );
             %Note: Since posthoc derived, may deviate from theoretical
+
+        %Acquire information with regards to potential bendy panel block design
+        bendyBlockDesign = 0; %Default no (Rolling)
+        if isfield( matParamStruct.matSave, 'blockDesign' ) && matParamStruct.matSave.blockDesign == 1
+            bendyBlockDesign = 1; %Block
+            disp(['Bendy panel block design detected'])
+        else
+            bendyBlockDesign = 0; %Rolling
+            disp(['Bendy panel rolling design (presumably) detected'])
+        end
 
         ptbStartTime = btData(1,2)/1000; %Divide by 1000 because PTB stores down to millisecond unix time
         %ptbEndTime = btData( find( ~isnan( btData(:,2) ) , 1, 'last'  ) ,2)/1000; %Find necessary because NaN last element
@@ -447,9 +476,26 @@ for thisBlock = [BLOCKS]
 
         medBTSeqInterpZ = nanmedian( btSeqPosInterpZ , 1 ); %Time-matched (Imaging reference) list of stimulus present during that frame
             %E.g. pos 360 being 2 means frame 360 was being presented with stimulus #2
+        %QA for critical aliasing issues
+        if numel(unique(medBTSeqInterpZ)) < numel( [medBTSeqInterpZ(1):medBTSeqInterpZ(end)] )
+                %In theory detects if more elements likely existed than present in imaging frames
+            ['-# Warning: Sequence elements apparently lost due to aliasing/imaging framerate #-']
+        end
 
          %Find actual stimuli delivered (via randomSequence)   
-         imStimTerp = matParamStruct.matSave.randomSequence( medBTSeqInterpZ );
+         randomSeqOrig = matParamStruct.matSave.randomSequence; %Note that PTB script saves randomSequence as -1 (Blank), 1, (Stim 1), and 2 (Stim 2), rather than 5, 0, and 1, respectively
+         if isequal( unique( randomSeqOrig ), [-1, 1, 2] ) || isequal( unique( randomSeqOrig ), [1, 2] )
+             randomSeqCorr = randomSeqOrig;
+             randomSeqCorr( randomSeqCorr == -1 ) = 5;
+             randomSeqCorr( randomSeqCorr == 1 ) = 0;
+             randomSeqCorr( randomSeqCorr == 2 ) = 1; %Note order as critical, lest all 2 -> 1 -> 0
+         else
+             ['## Alert: Unrecognised elements present in randomSequence! ##']
+             unique( randomSeqOrig )
+             crash = yes
+         end
+
+         imStimTerp = randomSeqCorr( medBTSeqInterpZ );
             %Note: Due to volume/timing inefficiencies this may skip the first actual presented element/etc
                 %Also, number of imaging frames/volumes per element/block may be inconsistent
 
@@ -458,6 +504,174 @@ for thisBlock = [BLOCKS]
           dataStimTrim = thisImData( :,:, adjImStimStartVol:adjImStimEndVol );
           disp(['Data trimmed to stimulated portion only'])
 
+          %Siphon out blanks
+                %Start by extracting pre-experiment blank baseline (If existing)
+          if find( imStimTerp ~= 5, 1, 'first' ) ~= 1 && imStimTerp(1) == 5
+              blankBaseline = [];
+              baseInds = [ 1:find( imStimTerp ~= 5, 1, 'first' )-1 ]; %Note: Assumption that there is no pre-baseline of stimuli/etc
+              blankBaseline = dataStimTrim( :,:,baseInds );
+              blankSeq = imStimTerp( baseInds );
+              %QA
+              if numel( unique( blankSeq ) ) > 1
+                  ['## Alert: Critical overfind in blank baseline collection ##']
+                  crash = yes
+              end
+              dataStimTrim( :,:,baseInds ) = [];
+              imStimTerp( baseInds ) = [];
+
+              btSeqPosInterpZ( :, baseInds ) = []; %Trim also two relevant matrices
+              medBTSeqInterpZ( baseInds ) = [];
+
+              disp(['Blank pre-experiment baseline of ',num2str(numel(baseInds)),' elements collected; Data/sequence trimmed'])
+          end
+            
+
+          hasSiphoned = 0; %Flag to indicate whether blanks siphoned off
+          stillRollable = 1; %Flag to indicate whether data can still be analysed rolling-style after blank removal
+          if any( imStimTerp == 5 )
+              
+              if bendyBlockDesign == 0 %"Blanks indicate true blank periods, intended for alternative analysis/etc"
+                    disp(['Rolling design; Siphoning blanks for alternative analysis'])
+    
+                    %blankStack = dataStimTrim( imStimTerp == 5 );
+                    [inds] = find( imStimTerp == 5 );
+                        %Note: For rolling bendy design, this can be thought of as an actual 'blank' period
+                        %          For bendy block design, blanks are actually the analagous recording period
+                    blankStack = dataStimTrim( :,:, inds );
+                    blankInds = inds;
+        
+                    %Find if blanks occurred anywhere other than start
+                        %Deprecated on account of baseline extraction now
+                    %{
+                        %Note that a rolling paradigm with blanks only at the start doesn't exist yet
+                    temp = zeros( 1, size(imStimTerp,2) );
+                    temp( imStimTerp == 5 ) = 1;
+                    if numel( unique( bwlabel(temp) ) ) > 2 %"If blanks are non-contiguous"
+                        stillRollable = 0; %Blanks throughout
+                        disp(['Non-contiguous blanks present; Cannot do subsequent rolling analysis'])
+                    else
+                        stillRollable = 1; %Blanks only at start
+                        disp(['Blanks contiguous; Can do rolling analysis'])
+                    end
+                    %}
+                    stillRollable = 0; %If any blanks remaining, by inference they must be during exp
+        
+                    dataStimTrim( :,:,inds ) = [];
+                    imStimTerp( inds ) = [];
+                    disp(['Blank data siphoned and removed from data'])
+                    hasSiphoned = 1;
+
+
+                    %Note: imStimTerp duplication due to aliasing not addressed for this condition yet
+
+              else %"Blanks are intended recording period" (a la LED block design)
+                    disp(['Analysing for bendy block design'])
+                    stillRollable = 0; %Get this out of the way initially
+
+                    %Section readme:
+                    %{
+                    btData (PTB reference frame)
+                    is interpolated into
+                    btSeqPosInterpZ (imaging reference, values represent what element of randomSeq being presented by PTB)
+                    which is medianed into
+                    medBTSeqInterpZ (imaging reference, values indicate randomSequence element)
+                    which is used to calculate 
+                    imStimTerp (imaging reference, values indicate raw stimulus [with potential aliasing duplication])
+                    
+                    which is copied as
+                    temp (imaging reference, raw stimulus, derived from imStimTerp)
+                    is labelled for inter-stimulus periods and used to find
+                    intInds (imaging reference, values indicate start of inter-stimulus periods [imaging reference])
+                    which is extrapolated out as
+                    collInds (imaging reference, forced to be nominal number of frames [e.g. 6] after stimulus cessation)
+                    
+                    which is also used to make
+                    stimInds (imaging reference, values indicate imaging frame #)
+                    %}
+
+                    %Find inter-stimulus (i.e. Blank) periods
+                    [inds] = find( imStimTerp == 5 );
+
+                    %Acquire block length data
+                    blockLength = matParamStruct.matSave.blockLength;
+
+                    %Find block-style random sequence
+                    imStimTerpPure = imStimTerp( imStimTerp ~= 5 );
+                        %Note: No safeguard for interrupted stim/rest block/etc
+                    numFullBlocks = floor( size(imStimTerpPure ,2) / blockLength ); %How many full stimulus blocks were presented in the imaging time
+
+                    %Back-calculate inter-stimulus period
+                    temp = imStimTerp;
+                    temp(temp ~= 5) = 0; %Make labellable version of inter-stimulus periods
+                    temp = bwlabel( temp ); %Label
+                    disp(['There were ',num2str(nanmax(temp)),' inter-stimulus periods']) %Note: May be truncated at end
+                    temp2 = repmat( [1:nanmax(temp)]' , 1 , size(temp,2) ); %Assemble comparative list of labels
+                    temp3 = temp == temp2; %Query presence of labels in labelled sequence
+                        %Note: No (current) guarantee of full imaging frame (Could be truncated)
+                    interStimPeriods = nansum( temp3,2 );
+                    disp([ 'Period lengths: ', num2str(unique(interStimPeriods)') ]) %More than 1 element means variable inter-stimulus periods
+                    disp(['(',num2str(( nansum(interStimPeriods == unique(interStimPeriods)') / numel(interStimPeriods) )*100),' % of all periods, respectively)'])
+
+                    %Find inter-stimulus periods and collect minimum 'normal' number of frames
+                    interUn = unique(interStimPeriods)';
+                    interUn( [nansum(interStimPeriods == interUn) < 0.05*numel(interStimPeriods)] ) = []; %Remove inter-stim periods accounting for only a small fraction of events (Likely to be last element/etc)
+                    nomInter = min( interUn ); %Nominal minimal inter-stim period
+                        %Note: This can still only be like, 25% or less of all inter-stimulus periods
+                    disp(['Selected inter-stim period to collect: ', num2str(nomInter),' (',num2str(( nansum(interStimPeriods == nomInter) / numel(interStimPeriods) )*100),'% of original periods)'])
+
+                    %Find indices of inter-stimulus periods
+                    [~,intInds] = max(temp3,[],2); %First element of each respective inter-stim period
+                    [~,outInds] = max(fliplr(temp3),[],2); %End of each inter-stim period, flipped reference frame
+                    outInds = size(temp3,2) - outInds + 1; %Fix reference frame
+
+                    %Assemble inds for collection
+                    collInds = intInds + repmat( [1:nomInter], size(intInds,1), 1 ) - 1; %Note: Original phase of inter-stimulus obviously obliterated here
+                    disp([ 'Last frame of imaging to be collected: ', num2str(collInds(end)) ])
+                    disp([ 'Total imaging size: ', num2str( size(dataStimTrim,3) ) ])
+                    %Make sure last element of collection not outside data
+                    if collInds(end) > size(dataStimTrim,3)
+                        collInds(end,:) = []; %Remove one imaging period
+                        disp(['Terminal collection period removed; New end: ', num2str(collInds(end)) ])
+                    end
+
+                    %melting
+
+                    %Assemble stimulus periods for collection
+                        %Note: This relies on the assumption that there were no huge issues in theoretical->actual stimulus presentation
+                    stimInds = collInds(:,1) - repmat( fliplr([1:blockLength]), size(collInds,1), 1 ); %Identify stimulated frame periods (Not for collection, but to derive sequence)
+                        %Use collInds, not intInds, because cleaned
+                        %Note: Due to frame attribution inaccuracies/phase differences between imaging and display, there will be variability in number of 'stimulus' frames preceding an inter-stimulus period
+                    %stimSeq = randomSeqCorr( medBTSeqInterpZ( stimInds(:,:) ) ); %Pulls duplicates
+                    %stimSeq = randomSeqCorr( [-blockLength+1:0] +  medBTSeqInterpZ( stimInds(:,end) ) );
+                    stimSeq = nan( size(stimInds) );
+                    stimSeqCorrInds = nan( size(stimInds) );
+                    for row = 1:size( stimInds,1 )
+                        stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  medBTSeqInterpZ( stimInds(row,end) ); %Which elements of randomSeqCorr were pulled
+                            %pull medBTSeqInterpZ values at stimInds, go 5 back, pull those elements of randomSeqCorr
+                        stimSeq( row, : ) = randomSeqCorr( stimSeqCorrInds( row, : ) ); %Stimuli
+                    end
+                    %QA
+                    if any( stimSeq == 5 )
+                        ['## Alert: Blanks collected in stimSequence; Probable phase failure ##'] %phailure
+                        crash = yes
+                    end
+
+                    %Reshape derived stimulus sequence
+                    deRandomSeq = reshape(stimSeq', 1, size(stimSeq,1)*blockLength); %Transposition v important here for correct rowwise-ness
+                     
+                    %Now to collect frames
+                    deImInds = reshape( collInds', 1, size(collInds,1)*nomInter ); %A run-on list of what volumes relate to stimulation
+                        %Note that collInds holds the original, segmented version of volume positions
+                    postStimData = dataStimTrim( :,:, deImInds ); %Only valid as long as dataStimTrim timing synchronous with other matrices
+                        
+
+                    send this data to BLOCKS
+
+              end
+
+          end
+
+
           %Overwrite data (if function source)
           if dataSource == -1
               thisBlock.greenChannel = dataStimTrim; %Mostly unnecessary
@@ -465,8 +679,17 @@ for thisBlock = [BLOCKS]
               %BLOCKS(thisFlyRowInd,:) = thisBlock;
               BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
               BLOCKS( thisFlyRowInd ).randomSequence = imStimTerp;
-              BLOCKS( thisFlyRowInd ).syncModified = 1;
               disp(['Modified data and randomSequence inserted into BLOCKS'])
+              if hasSiphoned == 1
+                  BLOCKS( thisFlyRowInd ).blankImageStack = blankStack; %Note: Architecture ostensibly should be repeating, 'nVol' sized groups of frames                  
+                  BLOCKS( thisFlyRowInd ).blankImageInds = blankInds;
+                  disp(['Modified blank data (and inds) inserted into BLOCKS'])
+              end
+              if stillRollable == 0
+                  BLOCKS( thisFlyRowInd ).isRolling = 0;                
+                  disp(['Rolling status revoked'])
+              end
+              BLOCKS( thisFlyRowInd ).syncModified = 1;
           end
 
     end
@@ -508,5 +731,5 @@ for thisBlock = [BLOCKS]
     end
 end
 
-end
+%%end
      
