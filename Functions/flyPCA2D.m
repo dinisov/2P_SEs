@@ -50,7 +50,7 @@ for fly = 1:length(R)
     
         % if blank blocks were collected use as pedestal, otherwise use mean
         % transient
-        if isfield(results,'meanBlankTransient')
+        if isfield(results,'meanBlankTransient') && ~isempty( results.meanBlankTransient )
             sizeAux = size(results.meanBlankTransient); sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];
     
             % normalise each sequence transient by the mean blank transient (i.e. make dF/F)
@@ -102,7 +102,7 @@ for fly = 1:length(R)
                 else
                     imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - [trim(1)+trim(3),trim(2)+trim(4)]; %"Top, Bottom, Right, Left
                 end
-                if isfield(results,'meanBlankTransient')
+                if isfield(results,'meanBlankTransient') && ~isempty( results.meanBlankTransient )
                     sizeAux = size(results.meanBlankTransient); sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];
                     % normalise each sequence transient by the mean blank transient (i.e. make dF/F)
                     results.dataSeqBehav(statInd).meanDataSeqReduced = results.dataSeqBehav(statInd).meanDataSeqReduced./repmat(reshape(permute(results.meanBlankTransient,[3 1 2]),sizeAux),[1 16 1 1]);
