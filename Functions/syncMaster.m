@@ -1,4 +1,4 @@
-%%function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
+function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
 
 
@@ -6,11 +6,11 @@
     %Specifically:
         %   - Bendy block design has some by-necessity inaccuracies with regards to stimulus aliasing (see stimCollInds/temp4)
 
+    %Also, support for a bendy panel block design with blank periods (Currently all blanks are assumed to be inter-stim periods)
 
-%Note: Current state of analysis turns block design bendy panels data into pseudo-block design data that can't actually really be analysed
-%   It is necessary to develop a system that properly mimics original LED block design data structures
 
-%{
+
+
 arguments
     BLOCKS struct
     flyRecord table
@@ -21,6 +21,7 @@ arguments
     options.dataSource double = -1 %Whether to use data from function call (-1) or to look external for registered data (1)
 end
 %}
+%{
 BLOCKS = FLIES(fly).BLOCKS;
 flyRecord = flyRecord;
 options.dataDirectory = dataDirectory;
@@ -28,7 +29,6 @@ options.doPlot = 0
 options.doVid = 0
 options.rollingAnalysis = -1
 options.dataSource = -1 %Whether to use data from function call (-1) or to look external for registered data (1)
-
 %}
 
 
@@ -565,8 +565,6 @@ for thisBlock = [BLOCKS]
                     %Note: imStimTerp duplication due to aliasing not addressed for this condition yet
 
               else %"Blanks are intended recording period" (a la LED block design)
-                    disp(['Analysing for bendy block design'])
-                    stillRollable = 0; %Get this out of the way initially
 
                     %Section readme:
                     %{
@@ -588,6 +586,9 @@ for thisBlock = [BLOCKS]
                     which is also used to make
                     stimInds (imaging reference, values indicate imaging frame #)
                     %}
+
+                    disp(['Analysing for bendy block design'])
+                    stillRollable = 0; %Get this out of the way initially
 
                     %Find inter-stimulus (i.e. Blank) periods
                     [inds] = find( imStimTerp == 5 );
@@ -663,9 +664,17 @@ for thisBlock = [BLOCKS]
                     deImInds = reshape( collInds', 1, size(collInds,1)*nomInter ); %A run-on list of what volumes relate to stimulation
                         %Note that collInds holds the original, segmented version of volume positions
                     postStimData = dataStimTrim( :,:, deImInds ); %Only valid as long as dataStimTrim timing synchronous with other matrices
-                        
+                        %Note: Unless imaging was 1:1 framerate with display, this will not necessarily match deRandomSeq in size
+                    %QA for correct phase-size
+                    if mod( size( postStimData, 3), nomInter ) ~= 0 || mod( size( deRandomSeq, 2), blockLength ) ~= 0
+                        ['## Alert: Potential phase loss in post-stim data and/or derived random sequence ##']
+                        ['Imaging size: ',num2str(size( postStimData ))]
+                        ['Random seq size: ',num2str( size(deRandomSeq,2) )]
+                    end
 
-                    send this data to BLOCKS
+                    %Report
+                    disp(['Final number of imaging events: ',num2str(size( postStimData,3 )/nomInter)]) %Add potential max # imaging events here
+                    disp(['Final number of stimulus events: ',num2str(size( deRandomSeq,2 )/blockLength)]) %Add potential total (btData) here
 
               end
 
@@ -674,13 +683,24 @@ for thisBlock = [BLOCKS]
 
           %Overwrite data (if function source)
           if dataSource == -1
-              thisBlock.greenChannel = dataStimTrim; %Mostly unnecessary
-              thisBlock.randomSequence = imStimTerp; %Mostly unnecessary
+              %thisBlock.greenChannel = dataStimTrim; %Mostly unnecessary
+              %thisBlock.randomSequence = imStimTerp; %Mostly unnecessary
               %BLOCKS(thisFlyRowInd,:) = thisBlock;
-              BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
-              BLOCKS( thisFlyRowInd ).randomSequence = imStimTerp;
+              if bendyBlockDesign == 0 %Rolling
+                  BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
+                  BLOCKS( thisFlyRowInd ).randomSequence = imStimTerp;
+                  clear dataStimTrim imStimTerp %Just in case
+              else %Block
+                  BLOCKS( thisFlyRowInd ).greenChannel = postStimData;
+                  BLOCKS( thisFlyRowInd ).randomSequence = deRandomSeq;
+                  BLOCKS( thisFlyRowInd ).nVol = nomInter;
+                  BLOCKS( thisFlyRowInd ).blankBlocks = 0; %Need to add support later for blank blocks
+                  BLOCKS( thisFlyRowInd ).fauxBlockDesign = 1; %Just to keep track
+                  disp(['Faux-block design created'])
+                  clear postStimData deRandomSeq nomInter
+              end
               disp(['Modified data and randomSequence inserted into BLOCKS'])
-              if hasSiphoned == 1
+              if hasSiphoned == 1 && bendyBlockDesign == 0
                   BLOCKS( thisFlyRowInd ).blankImageStack = blankStack; %Note: Architecture ostensibly should be repeating, 'nVol' sized groups of frames                  
                   BLOCKS( thisFlyRowInd ).blankImageInds = blankInds;
                   disp(['Modified blank data (and inds) inserted into BLOCKS'])
@@ -731,5 +751,7 @@ for thisBlock = [BLOCKS]
     end
 end
 
-%%end
+disp(['-- Newtype data synchronised --'])
+
+end
      
