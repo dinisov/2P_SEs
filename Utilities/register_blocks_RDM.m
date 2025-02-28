@@ -8,7 +8,7 @@ mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\
 
 % scratchDirectory = '../../2P Data';
 
-blocks = readtable("D:\group_vanswinderen\Dinis\2P Record\2P_record");
+blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 
 %get rid of excluded flies
 % blocks = blocks(~logical(blocks.Exclude),:);
@@ -16,7 +16,7 @@ blocks = readtable("D:\group_vanswinderen\Dinis\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-chosenFlies = [196:199];
+chosenFlies = [999];
 
 % leave empty if aligning all blocks for one fly
 chosenBlocks = [];
@@ -59,6 +59,9 @@ function alignBlock(block, imageSize, mainDirectory)
     
     % number of volumes recorded after each train of stimuli
     nVol = nVolTotal/(block.BlockLength + block.BlankBlocks);
+    if nVol < 0
+        disp(['-# Probable rolling nature detected in nVol #-'])
+    end
 
     currentDate = char(datetime(block.Date,'Format','dMMMyy'));
     currentBlockDirectory = ['fly' num2str(block.FlyOnDay) '_exp' num2str(block.Block) '_' currentDate];
@@ -99,7 +102,13 @@ function alignBlock(block, imageSize, mainDirectory)
             green_channel_aligned = zeros(size(green_channel));
 
             %make a reference image for registering (mean of first recording of nVol)
-            refImage = mean(avg_z_green(:,:,1:nVol),3);
+            if nVol > 0
+                refImage = mean(avg_z_green(:,:,1:nVol),3); %Old block calcs
+            else
+                disp(['Using ', num2str(ceil(size(avg_z_green,3)*0.001)),' frames as reference'])
+                refImage = mean(avg_z_green(:,:, 1:ceil(size(avg_z_green,3)*0.001) ),3); %Use first 1% of total frames as reference
+                    %Note: Might have issues with very short recordings, etc
+            end
 
             [opt,metric]=imregconfig('multimodal');
 
