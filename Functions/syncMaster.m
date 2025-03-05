@@ -474,10 +474,12 @@ for thisBlock = [BLOCKS]
         btSeqPosInterpZ( imStimStart: imStimEnd) = interp1([1:size(btData,1)], btData(:,5) , linspace(1,size(btData,1), imStimEnd-imStimStart+1 ), 'previous' )'; %Interpolate and transplant randomSequence into 'frame' list
         btSeqPosInterpZ = btSeqPosInterpZ( : , adjImStimStartVol:adjImStimEndVol );
 
-        medBTSeqInterpZ = nanmedian( btSeqPosInterpZ , 1 ); %Time-matched (Imaging reference) list of stimulus present during that frame
+        %medBTSeqInterpZ = nanmedian( btSeqPosInterpZ , 1 ); %Time-matched (Imaging reference) list of stimulus present during that frame
+        modeBTSeqInterpZ = mode( btSeqPosInterpZ , 1 ); %Switch to mode, so that can never be non-integer
             %E.g. pos 360 being 2 means frame 360 was being presented with stimulus #2
         %QA for critical aliasing issues
-        if numel(unique(medBTSeqInterpZ)) < numel( [medBTSeqInterpZ(1):medBTSeqInterpZ(end)] )
+        %if numel(unique(medBTSeqInterpZ)) < numel( [medBTSeqInterpZ(1):medBTSeqInterpZ(end)] )
+        if numel(unique(modeBTSeqInterpZ)) < numel( [modeBTSeqInterpZ(1):modeBTSeqInterpZ(end)] )
                 %In theory detects if more elements likely existed than present in imaging frames
             ['-# Warning: Sequence elements apparently lost due to aliasing/imaging framerate #-']
         end
@@ -495,7 +497,8 @@ for thisBlock = [BLOCKS]
              crash = yes
          end
 
-         imStimTerp = randomSeqCorr( medBTSeqInterpZ );
+         %imStimTerp = randomSeqCorr( medBTSeqInterpZ );
+         imStimTerp = randomSeqCorr( modeBTSeqInterpZ );
             %Note: Due to volume/timing inefficiencies this may skip the first actual presented element/etc
                 %Also, number of imaging frames/volumes per element/block may be inconsistent
 
@@ -520,7 +523,8 @@ for thisBlock = [BLOCKS]
               imStimTerp( baseInds ) = [];
 
               btSeqPosInterpZ( :, baseInds ) = []; %Trim also two relevant matrices
-              medBTSeqInterpZ( baseInds ) = [];
+              %medBTSeqInterpZ( baseInds ) = [];
+              modeBTSeqInterpZ( baseInds ) = [];
 
               disp(['Blank pre-experiment baseline of ',num2str(numel(baseInds)),' elements collected; Data/sequence trimmed'])
           end
@@ -647,7 +651,8 @@ for thisBlock = [BLOCKS]
                     stimSeq = nan( size(stimInds) );
                     stimSeqCorrInds = nan( size(stimInds) );
                     for row = 1:size( stimInds,1 )
-                        stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  medBTSeqInterpZ( stimInds(row,end) ); %Which elements of randomSeqCorr were pulled
+                        %stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  medBTSeqInterpZ( stimInds(row,end) ); %Which elements of randomSeqCorr were pulled
+                        stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  modeBTSeqInterpZ( stimInds(row,end) );
                             %pull medBTSeqInterpZ values at stimInds, go 5 back, pull those elements of randomSeqCorr
                         stimSeq( row, : ) = randomSeqCorr( stimSeqCorrInds( row, : ) ); %Stimuli
                     end
@@ -700,11 +705,14 @@ for thisBlock = [BLOCKS]
                   clear postStimData deRandomSeq nomInter
               end
               disp(['Modified data and randomSequence inserted into BLOCKS'])
+              %{
+                %Blank data not currently valid for insertion into BLOCKS
               if hasSiphoned == 1 && bendyBlockDesign == 0
                   BLOCKS( thisFlyRowInd ).blankImageStack = blankStack; %Note: Architecture ostensibly should be repeating, 'nVol' sized groups of frames                  
                   BLOCKS( thisFlyRowInd ).blankImageInds = blankInds;
                   disp(['Modified blank data (and inds) inserted into BLOCKS'])
               end
+              %}
               if stillRollable == 0
                   BLOCKS( thisFlyRowInd ).isRolling = 0;                
                   disp(['Rolling status revoked'])
