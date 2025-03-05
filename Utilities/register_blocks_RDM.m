@@ -16,7 +16,7 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 imageSize = [128 128];
 
-chosenFlies = [999];
+chosenFlies = [278];
 
 % leave empty if aligning all blocks for one fly
 chosenBlocks = [];
@@ -39,7 +39,15 @@ for fly = 1:length(chosenFlies)
     
     %align inside each block
     for b = 1:height(thisFlyBlocks)
-        alignBlock(thisFlyBlocks(b,:), imageSize, mainDirectory);
+        currentBlock = thisFlyBlocks(b,:);
+        if imageSize(1) > currentBlock.pixelY || imageSize(2) > currentBlock.pixelX
+            disp(['-# One or more dimensions of image smaller than requested final size; Using initial size #-'])
+            imageSizeActual = [currentBlock.pixelY, currentBlock.pixelX]
+        else
+            imageSizeActual = imageSize;
+        end
+        %alignBlock(thisFlyBlocks(b,:), imageSize, mainDirectory);
+        alignBlock(currentBlock, imageSizeActual, mainDirectory);
     end
 
     %no need to align across blocks if only one block
@@ -75,11 +83,15 @@ function alignBlock(block, imageSize, mainDirectory)
 %     end
 %     toc;
 
-    if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file') && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
+    thisFile = dir( [fullfile(currentDirectory,'green_channel_*x*.mat')] );
+
+    %if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file') && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
+    if ~isempty( thisFile ) && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
     
         % load red and green channels
         disp('Loading green channel');
-        tic; green_channel = load(fullfile(currentDirectory,'green_channel_128x128')); toc;
+        %tic; green_channel = load(fullfile(currentDirectory,'green_channel_128x128')); toc;
+        tic; green_channel = load([ thisFile.folder,filesep,thisFile.name ]); toc; %Will probs crash if >1 file
 
     %     disp('Loading red channel');
     %     tic; red_channel = load(fullfile(currentDirectory,'red_channel_128x128')); toc;
@@ -155,7 +167,9 @@ function alignBlock(block, imageSize, mainDirectory)
     %         delete(fullfile(currentDirectory,'green_channel_128x128.mat'));
     %     end
     %     toc;
-
+    
+    else
+        disp(['-# Either no data found, or registered data already existing #-'])
     end
     
 end

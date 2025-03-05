@@ -17,8 +17,8 @@ finalSize = [128 128];
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
-chosenFlies = [273];
-chosenBlocks = {[2]}; % leave empty if reducing all blocks for one fly
+chosenFlies = [278];
+chosenBlocks = {[6]}; % leave empty if reducing all blocks for one fly
     %MUST BE IN FORMAT {[blocks]}
 
 flagParamSaveList = who;
@@ -41,9 +41,29 @@ for fly = 1:length(chosenFlies)
     currentDate = char(datetime(thisFlyBlocks.Date(1),'Format','dMMMyy'));
     
     %currentFlyDirectory = ['fly' num2str(currentFly.FlyOnDay) '_exp' num2str(currentFly.Block) '_' currentDate];
-    for b = 1:nBlocks
+    %for b = 1:nBlocks
+    for b = chosenBlocks{fly}
         %currentBlock = thisFlyBlocks(b,:);
         currentBlock = thisFlyBlocks( find( thisFlyBlocks.Block == b ) ,:); %New
+        
+        %currentBlock
+        
+        %QA
+        if isempty( currentBlock )
+            ['## No blocks found for fly #', num2str(chosenFlies(fly)),' block ', num2str(b)]
+            crash = yes
+        end
+        if finalSize(1) > currentBlock.pixelY || finalSize(2) > currentBlock.pixelX
+            disp(['-# One or more dimensions of image smaller than requested final size; Using initial size #-'])
+            finalSizeActual = [currentBlock.pixelY, currentBlock.pixelX]
+        else
+            finalSizeActual = finalSize;
+        end
+        if currentBlock.pixelY ~= currentBlock.pixelX
+            ['-# reduction of files not tested on non-square data #-']
+            crash = yes
+            %Need to confirm order of dims
+        end
         
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate]; %Borrowed from pre_process
 
@@ -53,8 +73,9 @@ for fly = 1:length(chosenFlies)
         disp(['Fly: ',flyID]);
         
         codeStartTime = posixtime(datetime('now'));
-        loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize, 1); %currentBlock corresponds to currentFly
-
+        %loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize, 1); %currentBlock corresponds to currentFly
+        loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSizeActual, 1); %currentBlock corresponds to currentFly
+        
         codeEndTime = posixtime(datetime('now'));
         MET = codeEndTime - codeStartTime;
         disp(['-- Total time to process: ',num2str(MET),'s --']) 
