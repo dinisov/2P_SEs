@@ -17,8 +17,8 @@ finalSize = [128 128];
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
-chosenFlies = [264];
-chosenBlocks = {[1]}; % leave empty if reducing all blocks for one fly
+chosenFlies = [273];
+chosenBlocks = {[2]}; % leave empty if reducing all blocks for one fly
     %MUST BE IN FORMAT {[blocks]}
 
 flagParamSaveList = who;
@@ -42,7 +42,9 @@ for fly = 1:length(chosenFlies)
     
     %currentFlyDirectory = ['fly' num2str(currentFly.FlyOnDay) '_exp' num2str(currentFly.Block) '_' currentDate];
     for b = 1:nBlocks
-        currentBlock = thisFlyBlocks(b,:);
+        %currentBlock = thisFlyBlocks(b,:);
+        currentBlock = thisFlyBlocks( find( thisFlyBlocks.Block == b ) ,:); %New
+        
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate]; %Borrowed from pre_process
 
         currentRDMDirectory = fullfile(rdmDirectory,currentDate,flyID);

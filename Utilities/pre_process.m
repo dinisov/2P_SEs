@@ -6,6 +6,8 @@ if ~exist('IJM','var')
     ImageJ;
 end
 
+maxFrames = 600000; %Used by fiji
+
 mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
 blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record.xlsx");
@@ -14,9 +16,9 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record.xlsx");
 % blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
-chosenFlies = [263,264];
+chosenFlies = [275,276,277,278];
 
-chosenBlocks = {[1],[1]};
+chosenBlocks = {[1,2,3],[1,2,3],[1,2],[1,2,5,6]};
 
 for fly = 1:length(chosenFlies)
     
@@ -33,7 +35,9 @@ for fly = 1:length(chosenFlies)
 
         for b = chosenBlocks{fly}
 
-            currentBlock = thisFlyBlocks(b,:);
+            %currentBlock = thisFlyBlocks(b,:); %Old
+            currentBlock = thisFlyBlocks( find( thisFlyBlocks.Block == b ) ,:); %New
+            
             flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
             currentDirectory = fullfile(mainDirectory,currentDate,flyID);
 
@@ -42,6 +46,12 @@ for fly = 1:length(chosenFlies)
             trials = totalFrames/nSlices;
 
 %             disp(currentDirectory);
+
+           %QA
+           if totalFrames > maxFrames
+            ['## Alert: Frames to load < apparent total # of frames ##']
+            crash = yes
+           end
     
            if ~exist([currentDirectory '/green_channel.raw'],'file')
 
@@ -50,8 +60,9 @@ for fly = 1:length(chosenFlies)
                imageFile = dir([currentDirectory '/Image*']);
 
                %ij.IJ.run('Raw...',['open=' currentDirectory '/' imageFile.name '  width=512 height=512 little-endian number=200000']);
-               ij.IJ.run('Raw...',['open=' currentDirectory '/' imageFile.name '  width=' num2str(currentBlock.pixelX) ' height=' num2str(currentBlock.pixelY) ' little-endian number=300000']);
-
+               %ij.IJ.run('Raw...',['open=' currentDirectory '/' imageFile.name '  width=' num2str(currentBlock.pixelX) ' height=' num2str(currentBlock.pixelY) ' little-endian number=500000']);
+               ij.IJ.run('Raw...',['open=' currentDirectory '/' imageFile.name '  width=' num2str(currentBlock.pixelX) ' height=' num2str(currentBlock.pixelY) ' little-endian number=' num2str(maxFrames)]);
+               
                if currentBlock.nChannels == 2
                    
                    %de-interleave channels

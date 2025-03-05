@@ -14,8 +14,8 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 finalSize = [128 128];
 
-chosenFlies = [224];
-chosenBlocks = {[1,2,3,4]}; % leave empty if reducing all blocks for one fly
+chosenFlies = [267];
+chosenBlocks = {[1,2]}; % leave empty if reducing all blocks for one fly
     %MUST BE IN FORMAT {[blocks]}
     
 %%
@@ -35,7 +35,9 @@ for fly = 1:length(chosenFlies)
     currentDate = char(datetime(thisFlyBlocks.Date(1),'Format','dMMMyy'));
     
     parfor b = 1:nBlocks
-        currentBlock = thisFlyBlocks(b,:);
+        %currentBlock = thisFlyBlocks(b,:);
+        currentBlock = thisFlyBlocks( find( thisFlyBlocks.Block == b ) ,:); %New
+        
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate]; %Borrowed from pre_process
         currentRDMDirectory = fullfile(rdmDirectory,currentDate,flyID);
         try
