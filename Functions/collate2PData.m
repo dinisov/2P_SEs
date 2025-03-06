@@ -171,6 +171,14 @@ for fly = 1:length(chosenFlies)
         end
             
     end
+
+    %Retroactively remove any empty blocks (e.g. discontinous block numbers)
+    for b = size(BLOCKS,2):-1:1
+        if isempty( BLOCKS(b).flyNum )
+            BLOCKS(b) = [];
+            disp(['-# Block ',num2str(b),' retroactively removed from analysis due to emptiness #-'])
+        end
+    end
     
     FLIES(fly).BLOCKS = BLOCKS;
     
