@@ -1,12 +1,15 @@
 function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
 
+%To do: Check support for follow-on analysis of true bendy rolling data
 
 %To improve: Absolute best frame specificity for im/stim calcs
     %Specifically:
         %   - Bendy block design has some by-necessity inaccuracies with regards to stimulus aliasing (see stimCollInds/temp4)
 
     %Also, support for a bendy panel block design with blank periods (Currently all blanks are assumed to be inter-stim periods)
+
+    %Also, ability to analyse LED data as if rolling?
 
 
 
@@ -19,6 +22,8 @@ arguments
     options.doVid double = 0
     options.rollingAnalysis double = -1
     options.dataSource double = -1 %Whether to use data from function call (-1) or to look external for registered data (1)
+    options.allowRandomSequenceEmpty double = 0 %Whether to allow randomSequence to end up empty
+    options.disregardRollingDesign double = 0 %Whether to discard bendy rolling design blocks (e.g. When comparing LEDs to bendy block design)
 end
 %}
 %{
@@ -29,8 +34,9 @@ options.doPlot = 0
 options.doVid = 0
 options.rollingAnalysis = -1
 options.dataSource = -1 %Whether to use data from function call (-1) or to look external for registered data (1)
+options.allowRandomSequenceEmpty = 0
+options.disregardRollingDesign = 1
 %}
-
 
 %{
 clear %Will go away once functionised
@@ -53,9 +59,12 @@ doPlot = options.doPlot;
 doVid = options.doVid;
 rollingAnalysis = -1; %Make dynamic?
 dataSource = options.dataSource;
+allowRandomSequenceEmpty = options.allowRandomSequenceEmpty;
+disregardRollingDesign = options.disregardRollingDesign;
 
 for thisBlock = [BLOCKS]
-    thisFlyRowInd = find( flyRecord.Fly == thisBlock.flyNum & flyRecord.Block == thisBlock.blockNum ); %Will also be used later to overwrite data
+    %thisFlyRowInd = find( flyRecord.Fly == thisBlock.flyNum & flyRecord.Block == thisBlock.blockNum ); %Wrong; Only valid with N=1 fly, due to flyRecord size
+    thisFlyRowInd = find( [BLOCKS.flyNum] == thisBlock.flyNum & [BLOCKS.blockNum] == thisBlock.blockNum ); %Fixed; Will also be used later to overwrite data
     thisFlyRecord = flyRecord( thisFlyRowInd ,:)
     %QA
     if isempty(thisFlyRecord) || size(thisFlyRecord,1) > 1
@@ -66,6 +75,14 @@ for thisBlock = [BLOCKS]
     %flyID = ['fly' num2str(thisFlyBlock.FlyOnDay) '_exp' num2str(thisFlyBlock.Block) '_' currentDate];
         
     flyID = thisBlock.flyID;
+
+    %Check to see if rolling analysis needs to actually be done
+    if isfield(thisBlock,'isRolling') && ~isempty(thisBlock.isRolling) && thisBlock.isRolling == 1
+        disp(['-- Proceeding with rolling analysis for ',flyID,' --'])
+    else
+        disp(['-# Rolling analysis not applicable for ',flyID,' #-'])
+        continue
+    end
 
     %Identify folder to look for ThorSync (h5) data in
     %dataFolder = "I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\30Jan25"
@@ -704,6 +721,9 @@ for thisBlock = [BLOCKS]
                   disp(['Faux-block design created'])
                   clear postStimData deRandomSeq nomInter
               end
+              if isfield( matParamStruct.matSave, 'blockDesign' )
+                 BLOCKS( thisFlyRowInd ).bendyBlockDesign =  matParamStruct.matSave.blockDesign;
+              end
               disp(['Modified data and randomSequence inserted into BLOCKS'])
               %{
                 %Blank data not currently valid for insertion into BLOCKS
@@ -718,6 +738,13 @@ for thisBlock = [BLOCKS]
                   disp(['Rolling status revoked'])
               end
               BLOCKS( thisFlyRowInd ).syncModified = 1;
+          end
+
+          %QA for empty randomSequence data
+            %In theory there might be reasons for this to be the case, but none are good for following analysis
+          if isempty( BLOCKS( thisFlyRowInd ).randomSequence ) && allowRandomSequenceEmpty == 0
+              ['## Alert: Failure to acquire/generate randomSequence data for block ',num2str( BLOCKS(thisFlyRowInd).blockNum ),' ##']
+              crash = yes
           end
 
     end
@@ -756,6 +783,17 @@ for thisBlock = [BLOCKS]
         close(vidOutObj)
         clear imCopy vidFrames2
         disp(['Written in ',num2str(toc),'s'])
+    end
+end
+
+%Remove certain blocks, if requested
+    %A little slower to do this here, rather than skipping analysis, but preserves order of blocks till end
+if disregardRollingDesign == 1
+    for b = size( BLOCKS ,2 ):-1:1
+        if isfield( BLOCKS, 'bendyBlockDesign' ) && ~isempty(  BLOCKS( b ).bendyBlockDesign  ) && BLOCKS( b ).bendyBlockDesign == 0
+            disp([ '-# Block ', num2str( BLOCKS( b ).blockNum ), ' removed from analysis due to disregardation of rolling design #-' ])
+            BLOCKS( b ) = [];
+        end
     end
 end
 
