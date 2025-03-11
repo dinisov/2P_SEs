@@ -13,7 +13,7 @@ function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 
 
 
-
+%
 arguments
     BLOCKS struct
     flyRecord table
@@ -24,6 +24,7 @@ arguments
     options.dataSource double = -1 %Whether to use data from function call (-1) or to look external for registered data (1)
     options.allowRandomSequenceEmpty double = 0 %Whether to allow randomSequence to end up empty
     options.disregardRollingDesign double = 0 %Whether to discard bendy rolling design blocks (e.g. When comparing LEDs to bendy block design)
+    options.btInterpolationMethod string = 'intelligent' %Whether to use mode, median, last, or an intelligent means to identify stimuli preceding stimulation for block design
 end
 %}
 %{
@@ -33,9 +34,10 @@ options.dataDirectory = dataDirectory;
 options.doPlot = 0
 options.doVid = 0
 options.rollingAnalysis = -1
-options.dataSource = -1 %Whether to use data from function call (-1) or to look external for registered data (1)
+options.dataSource = -1
 options.allowRandomSequenceEmpty = 0
 options.disregardRollingDesign = 1
+options.btInterpolationMethod = 'intelligent' 
 %}
 
 %{
@@ -61,6 +63,8 @@ rollingAnalysis = -1; %Make dynamic?
 dataSource = options.dataSource;
 allowRandomSequenceEmpty = options.allowRandomSequenceEmpty;
 disregardRollingDesign = options.disregardRollingDesign;
+btInterpolationMethod = options.btInterpolationMethod;
+    %Note: Only last is the one to guarantee <block length> number of preceding stimuli will be grabbed
 
 for thisBlock = [BLOCKS]
     %thisFlyRowInd = find( flyRecord.Fly == thisBlock.flyNum & flyRecord.Block == thisBlock.blockNum ); %Wrong; Only valid with N=1 fly, due to flyRecord size
@@ -491,13 +495,35 @@ for thisBlock = [BLOCKS]
         btSeqPosInterpZ( imStimStart: imStimEnd) = interp1([1:size(btData,1)], btData(:,5) , linspace(1,size(btData,1), imStimEnd-imStimStart+1 ), 'previous' )'; %Interpolate and transplant randomSequence into 'frame' list
         btSeqPosInterpZ = btSeqPosInterpZ( : , adjImStimStartVol:adjImStimEndVol );
 
-        %medBTSeqInterpZ = nanmedian( btSeqPosInterpZ , 1 ); %Time-matched (Imaging reference) list of stimulus present during that frame
-        modeBTSeqInterpZ = mode( btSeqPosInterpZ , 1 ); %Switch to mode, so that can never be non-integer
-            %E.g. pos 360 being 2 means frame 360 was being presented with stimulus #2
+        %Pick a method to identify preceding stimuli by
+        disp(['Interpolating bt sequence'])
+        switch btInterpolationMethod
+            case 'median'
+                %medBTSeqInterpZ = nanmedian( btSeqPosInterpZ , 1 ); %Time-matched (Imaging reference) list of stimulus present during that frame
+                    %E.g. pos 360 being 2 means frame 360 was being presented with stimulus #2
+                methodBTSeqInterpZ = nanmedian( btSeqPosInterpZ , 1 );
+                disp(['Interpolated with median'])
+            case 'mode'
+                %modeBTSeqInterpZ = mode( btSeqPosInterpZ , 1 ); %Switch to mode, so that can never be non-integer
+                methodBTSeqInterpZ = mode( btSeqPosInterpZ , 1 );
+                disp(['Interpolated with mode'])
+            case {'last' , 'intelligent'} %"aka, yaoi"
+                methodBTSeqInterpZ = btSeqPosInterpZ( end , : );
+                if isnan( methodBTSeqInterpZ(end) )
+                    methodBTSeqInterpZ(end) = []; %May cause desync?
+                end
+                if any( isnan(methodBTSeqInterpZ) )
+                    ['## Alert: Excessive NaN presence in last-interpolated bt sequence ##']
+                    crash = yes
+                end
+                disp(['Interpolated with last OR intelligent'])
+        end
         %QA for critical aliasing issues
         %if numel(unique(medBTSeqInterpZ)) < numel( [medBTSeqInterpZ(1):medBTSeqInterpZ(end)] )
-        if numel(unique(modeBTSeqInterpZ)) < numel( [modeBTSeqInterpZ(1):modeBTSeqInterpZ(end)] )
+        %if numel(unique(modeBTSeqInterpZ)) < numel( [modeBTSeqInterpZ(1):modeBTSeqInterpZ(end)] )
+        if numel(unique(methodBTSeqInterpZ)) < numel( [methodBTSeqInterpZ(1):methodBTSeqInterpZ(end)] )
                 %In theory detects if more elements likely existed than present in imaging frames
+                    %The most common cause for this is imaging not being (much) faster than stimulation
             ['-# Warning: Sequence elements apparently lost due to aliasing/imaging framerate #-']
         end
 
@@ -515,7 +541,8 @@ for thisBlock = [BLOCKS]
          end
 
          %imStimTerp = randomSeqCorr( medBTSeqInterpZ );
-         imStimTerp = randomSeqCorr( modeBTSeqInterpZ );
+         %imStimTerp = randomSeqCorr( modeBTSeqInterpZ );
+         imStimTerp = randomSeqCorr( methodBTSeqInterpZ );
             %Note: Due to volume/timing inefficiencies this may skip the first actual presented element/etc
                 %Also, number of imaging frames/volumes per element/block may be inconsistent
 
@@ -541,7 +568,8 @@ for thisBlock = [BLOCKS]
 
               btSeqPosInterpZ( :, baseInds ) = []; %Trim also two relevant matrices
               %medBTSeqInterpZ( baseInds ) = [];
-              modeBTSeqInterpZ( baseInds ) = [];
+              %modeBTSeqInterpZ( baseInds ) = [];
+              methodBTSeqInterpZ( baseInds ) = [];
 
               disp(['Blank pre-experiment baseline of ',num2str(numel(baseInds)),' elements collected; Data/sequence trimmed'])
           end
@@ -656,6 +684,14 @@ for thisBlock = [BLOCKS]
                         disp(['Terminal collection period removed; New end: ', num2str(collInds(end)) ])
                     end
 
+                    %Prepare a labelled form of randomSeqCorr for intelligent stimuls collection, if applicable
+                    if isequal( btInterpolationMethod, 'intelligent' ) 
+                        temp = randomSeqCorr;
+                        temp( temp == 0 ) = 1;
+                        temp( temp == 5 ) = 0;
+                        randomSeqLabel = bwlabel( temp );
+                    end
+
                     %melting
 
                     %Assemble stimulus periods for collection
@@ -663,20 +699,56 @@ for thisBlock = [BLOCKS]
                     stimInds = collInds(:,1) - repmat( fliplr([1:blockLength]), size(collInds,1), 1 ); %Identify stimulated frame periods (Not for collection, but to derive sequence)
                         %Use collInds, not intInds, because cleaned
                         %Note: Due to frame attribution inaccuracies/phase differences between imaging and display, there will be variability in number of 'stimulus' frames preceding an inter-stimulus period
+                    %Quick QA
+                    if nanmax( nanmax( stimInds ) ) > methodBTSeqInterpZ(end)
+                            %Not 100% sure of correct reference frame here
+                        ['## Alert: Requested post-stimulus imaging frame beyond apparent imaging duration ##']
+                        crash = yes
+                            %This is marginally more likely with last due to lastNaN removal
+                    end
                     %stimSeq = randomSeqCorr( medBTSeqInterpZ( stimInds(:,:) ) ); %Pulls duplicates
                     %stimSeq = randomSeqCorr( [-blockLength+1:0] +  medBTSeqInterpZ( stimInds(:,end) ) );
                     stimSeq = nan( size(stimInds) );
                     stimSeqCorrInds = nan( size(stimInds) );
                     for row = 1:size( stimInds,1 )
-                        %stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  medBTSeqInterpZ( stimInds(row,end) ); %Which elements of randomSeqCorr were pulled
-                        stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  modeBTSeqInterpZ( stimInds(row,end) );
-                            %pull medBTSeqInterpZ values at stimInds, go 5 back, pull those elements of randomSeqCorr
-                        stimSeq( row, : ) = randomSeqCorr( stimSeqCorrInds( row, : ) ); %Stimuli
+                       % burnthem
+                       switch btInterpolationMethod
+                           case {'median' , 'mode', 'last'}
+                                %stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  medBTSeqInterpZ( stimInds(row,end) ); %Which elements of randomSeqCorr were pulled
+                                %stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  modeBTSeqInterpZ( stimInds(row,end) );
+                                stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  methodBTSeqInterpZ( stimInds(row,end) );
+                                    %pull medBTSeqInterpZ values at stimInds, go 5 back, pull those elements of randomSeqCorr
+                                stimSeq( row, : ) = randomSeqCorr( stimSeqCorrInds( row, : ) ); %Stimuli
+                           case 'intelligent'
+                               thisStimEnd =  methodBTSeqInterpZ( stimInds(row,end) );
+                               %Check for accidentally landing in inter-stimulus period
+                               if randomSeqLabel( thisStimEnd ) == 0
+                                   if randomSeqLabel( thisStimEnd-1 ) ~= 0
+                                       thisStimEnd = thisStimEnd - 1; %Adjust                                   
+                                   else
+                                        ['## Fatal failure to intelligently identify stimulus block identity ##']
+                                        crash = yes
+                                        %Being 1 stimulus before the end of the block = okay, being 1 after = acceptable, but any more probably indicates a large error has occurred
+                                        %Likely some grand loss of phase
+                                   end
+                               end
+                               randomSeqBlock = randomSeqLabel( thisStimEnd );
+                               thisStimInds = [ find( randomSeqLabel == randomSeqBlock,1, 'first' ) : find( randomSeqLabel == randomSeqBlock,1, 'last' ) ];
+                               %QA
+                               if numel(thisStimInds) ~= blockLength
+                                   ['## Fatal mismatch between identified stimulus block length and theoretical block length ##']
+                                   crash = yes
+                               end
+                               %If no issues, use labelled region to get stimuli
+                               stimSeq( row, : ) = randomSeqCorr( thisStimInds );
+                       end
                     end
                     %QA
-                    if any( stimSeq == 5 )
+                    if any( stimSeq == 5, 'all' )
                         ['## Alert: Blanks collected in stimSequence; Probable phase failure ##'] %phailure
                         crash = yes
+                            %If using interpolation other than last, this may be result of median/mode 'skipping' stimulus elements 
+                                %i.e. >1 stimuli occurred in the span of a single volume
                     end
 
                     %Reshape derived stimulus sequence
