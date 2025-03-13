@@ -25,6 +25,8 @@ arguments
     options.allowRandomSequenceEmpty double = 0 %Whether to allow randomSequence to end up empty
     options.disregardRollingDesign double = 0 %Whether to discard bendy rolling design blocks (e.g. When comparing LEDs to bendy block design)
     options.btInterpolationMethod string = 'intelligent' %Whether to use mode, median, last, or an intelligent means to identify stimuli preceding stimulation for block design
+        %Note: The 'intelligent' part of said interpolation only fully applies to bendy block design data; Rolling data just uses the stimulus-imaging interpolation method
+    options.nBack double = 5 %Functions same as elsewhere; Will override flyRecord nStimuli if it comes to it (e.g. bendy block design)
 end
 %}
 %{
@@ -36,8 +38,9 @@ options.doVid = 0
 options.rollingAnalysis = -1
 options.dataSource = -1
 options.allowRandomSequenceEmpty = 0
-options.disregardRollingDesign = 1
+options.disregardRollingDesign = 0
 options.btInterpolationMethod = 'intelligent' 
+options.nBack = 5
 %}
 
 %{
@@ -65,8 +68,15 @@ allowRandomSequenceEmpty = options.allowRandomSequenceEmpty;
 disregardRollingDesign = options.disregardRollingDesign;
 btInterpolationMethod = options.btInterpolationMethod;
     %Note: Only last is the one to guarantee <block length> number of preceding stimuli will be grabbed
+nBack = options.nBack;
+
+%Pre-loop preparation
+flagParamSaveList = who;
+flagParamSaveList = [flagParamSaveList;'flagParamSaveList'; 'thisBlock' ; 'BLOCKS'];
 
 for thisBlock = [BLOCKS]
+    clearvars('-except', flagParamSaveList{:}) %Clear variables from previous loop
+
     %thisFlyRowInd = find( flyRecord.Fly == thisBlock.flyNum & flyRecord.Block == thisBlock.blockNum ); %Wrong; Only valid with N=1 fly, due to flyRecord size
     thisFlyRowInd = find( [BLOCKS.flyNum] == thisBlock.flyNum & [BLOCKS.blockNum] == thisBlock.blockNum ); %Fixed; Will also be used later to overwrite data
     thisFlyRecord = flyRecord( thisFlyRowInd ,:)
@@ -222,6 +232,12 @@ for thisBlock = [BLOCKS]
     if hasPTB
         matParamStruct = load( [matParamFile.folder,filesep,matParamFile.name] );
 
+        %Quick check to guard against accidental unitary analysis
+        if isequal( matParamStruct.matSave.stimuli, 'unitary' )
+            ['-# Caution: Unitary stimulus identity present #-']
+            crash = yes %Technically forgivable, but probably want to not analyse for meaningless SEs
+        end
+
         %Read BT
         targetBTName = strcat( MATDate, '_', expNameMAT{1}, '_', expNameMAT{2},'_btData' );
         btFile =dir( strcat(dataFolder, filesep, '**/', targetBTName, '.csv') );
@@ -331,7 +347,7 @@ for thisBlock = [BLOCKS]
     disp(['Estimated imaging end time (',guessIndex{guessMode},' -> Last frame high): ', ...
         datestr( datetime( bestGuessCommenceTime + (inferTimes( frameEndInd )), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
 
-    disp([ 'Estimated arduino duration: ', num2str((inferTimes( bleachEndInd ))),'s' ])
+    disp([ 'Estimated arduino duration: ', num2str((inferTimes( bleachEndInd ))/60),'m' ])
     %disp(['Estimated arduino end time (Exp self report -> Last bleach high): ', ...
     %    datestr( datetime( imStartTime + (inferTimes( bleachEndInd )), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
     disp(['Estimated arduino end time (',guessIndex{guessMode},' -> Last bleach high): ', ...
@@ -449,6 +465,14 @@ for thisBlock = [BLOCKS]
             %Note: Both of these in TS reference frame
         imStimStart = find( frameOnsetIndices - firstImStimFrameInd > 0 , 1 , 'first' ); %Might theoretically be better to find min, rather than first after?
         imStimEnd = find( frameOnsetIndices - lastImStimFrameInd > 0 , 1 , 'first' );
+        %QA
+        if isempty( imStimStart ) || isempty( imStimEnd )
+            ['-# Alert: Failure to identify imaging start OR end #-']
+            ['Imaging started ', num2str( inferTimes( frameOnsetIndices(1) ) ),'s after TS start']
+            ['Imaging ended apparently after ', num2str( inferTimes( frameOnsetIndices(end) ) / 60 ),'m']
+            ['(TS ended after ', num2str( inferTimes( end ) / 60 ),'m)']
+            crash = yes
+        end
         disp([ 'Stimulation comprised ', num2str( (imStimEnd - imStimStart) / numel( frameOnsetIndices )*100 ), '% of imaging duration (',...
             num2str(imStimEnd - imStimStart),' of ',num2str(numel( frameOnsetIndices )),' imaging frames)' ])
 
@@ -573,14 +597,47 @@ for thisBlock = [BLOCKS]
 
               disp(['Blank pre-experiment baseline of ',num2str(numel(baseInds)),' elements collected; Data/sequence trimmed'])
           end
-            
+
+          %if thisBlock.blockNum == 3
+          %prequel
+          %end
+
+          %Perform bendy rolling specific processing
+          if bendyBlockDesign == 0
+              disp(['Processing for bendy rolling design'])
+              %Derive 'true' sequence delivered during rolling acquisition
+              randomSeqActual = randomSeqCorr( 1:methodBTSeqInterpZ(end) ); %Collect theoretical randomSequence from start to last element actually displayed
+                %Note: Heavily relies on assumption that imaging pre- and postcedes stimulus delivery
+              %Check if number of sent stimuli is a mod of nBack (unlikely)
+              if mod( length(randomSeqActual), nBack ) ~= 0
+                  disp(['Bendy rolling sequence (Length ',num2str(length(randomSeqActual)),') requires trimming to match requested nBack (',num2str(nBack),')'])
+                  %Trim
+                  newLength =  length(randomSeqActual) - mod( length(randomSeqActual), nBack );
+                  randomSeqActual = randomSeqActual( 1:newLength );
+
+                  btSeqPosInterpZ( btSeqPosInterpZ > newLength ) = NaN; %Mostly for posterity. Note that *values* larger than newLength are removed, not indices
+                  methodBTSeqInterpZ( methodBTSeqInterpZ > newLength ) = [];
+
+                  dataStimTrim = dataStimTrim( :,:, 1:length(methodBTSeqInterpZ) ); %Use length of interpolated Z, since we are using stim to define imaging region now
+                    %Should this actually be nVol frames after last stim? Or just ditch last few rolling stims?
+                  imStimTerp = imStimTerp( 1:length(methodBTSeqInterpZ) ); 
+                    %Reminder that imStimTerp technically relates to what was actually experienced by an imaging frame, not the true visible history                
+              end
+
+              %QA for stimulation amounts outnumbering imaging frames
+              if length(methodBTSeqInterpZ) < length( randomSeqActual )
+                  ['-# Caution: Imaging frames (',num2str(length(methodBTSeqInterpZ) ),') outnumbered by stimulus elements (',num2str( length( randomSeqActual )),') #-']
+              end
+
+          end
 
           hasSiphoned = 0; %Flag to indicate whether blanks siphoned off
           stillRollable = 1; %Flag to indicate whether data can still be analysed rolling-style after blank removal
-          if any( imStimTerp == 5 )
-              
+          if any( imStimTerp == 5 ) || bendyBlockDesign == 1
               if bendyBlockDesign == 0 %"Blanks indicate true blank periods, intended for alternative analysis/etc"
+                %Note: This isn't really main rolling analysis here, just blank removal, unlike below for block design bendy
                     disp(['Rolling design; Siphoning blanks for alternative analysis'])
+                    not coded for randomSeqActual yet
     
                     %blankStack = dataStimTrim( imStimTerp == 5 );
                     [inds] = find( imStimTerp == 5 );
@@ -644,6 +701,18 @@ for thisBlock = [BLOCKS]
 
                     %Acquire block length data
                     blockLength = matParamStruct.matSave.blockLength;
+                    %Compare against nBack
+                    if blockLength ~= nBack
+                        ['-# Caution: Derived blockLength (',num2str(blockLength),') differs from requested or default nBack (',num2str(nBack),')']
+                    end
+
+                    %Quick estimation of number of blocks
+                    if exist('matParamStruct') && exist('btData') && size( btData,2 ) >= 6
+                        temp = matParamStruct.matSave.randomSequence(1: btData(end,5) );
+                        disp(['Estimated number of blocks delivered: ', num2str(nansum( temp ~= -1 ) / blockLength) ])
+                        disp(['(~',num2str(1 / (nansum( temp ~= -1 ) / blockLength / btData(end,6))),' s/block)']) %Does not account for pre-baseline throwing off timing slightly
+                            %If inter-stim periods are set to equal duration, applies to those as well obvs
+                    end
 
                     %Find block-style random sequence
                     imStimTerpPure = imStimTerp( imStimTerp ~= 5 );
@@ -771,7 +840,6 @@ for thisBlock = [BLOCKS]
                     disp(['Final number of stimulus events: ',num2str(size( deRandomSeq,2 )/blockLength)]) %Add potential total (btData) here
 
               end
-
           end
 
 
@@ -782,8 +850,10 @@ for thisBlock = [BLOCKS]
               %BLOCKS(thisFlyRowInd,:) = thisBlock;
               if bendyBlockDesign == 0 %Rolling
                   BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
-                  BLOCKS( thisFlyRowInd ).randomSequence = imStimTerp;
-                  clear dataStimTrim imStimTerp %Just in case
+                  %BLOCKS( thisFlyRowInd ).randomSequence = imStimTerp;
+                  BLOCKS( thisFlyRowInd ).randomSequence = randomSeqActual; %New, not interpolated
+                    %Note: Using randomSequence not of exact same length as imaging may cause issues with rolling implementation in analyseBlock
+                  clear dataStimTrim imStimTerp randomSeqActual %Just in case
               else %Block
                   BLOCKS( thisFlyRowInd ).greenChannel = postStimData;
                   BLOCKS( thisFlyRowInd ).randomSequence = deRandomSeq;
