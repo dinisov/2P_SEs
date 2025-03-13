@@ -2,8 +2,12 @@ function globalTransients(R, chosenFlies, outputDirectory)
 
 for fly = 1:length(R)
     
-    for b = [R(fly).BLOCK.blockNum] 
-        thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Transients');
+    %for b = [R(fly).BLOCK.blockNum] 
+    for b = 1:size( R(fly).BLOCK,2 )
+        blockNum = R(fly).BLOCK(b).blockNum;
+
+        %thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Transients');
+        thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(blockNum)],'Transients');
         disp(thisFlyDirectory);
         if ~exist(thisFlyDirectory,'dir')
            mkdir(thisFlyDirectory); 
@@ -56,7 +60,8 @@ for fly = 1:length(R)
         %Behav separated data, if applicable
         if isfield( R(fly).BLOCK(b) , 'dataSeqBehav' )
             for statInd = 1:size( R(fly).BLOCK(b).dataSeqBehav,2 )
-                thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)],'Transients');
+                %thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)],'Transients');
+                thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(blockNum)],['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)],'Transients');
                 % if blank blocks were use as pedestal, otherwise use mean transient
                 if isfield(results,'meanBlankTransient')
                     sizeAux = size(results.meanBlankTransient); sizeAux = sizeAux([3 1 2]); sizeAux = [sizeAux(1) 1 sizeAux(2:3)];

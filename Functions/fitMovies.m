@@ -7,8 +7,12 @@ function fitMovies(R, outputDirectory, gridSize, chosenFlies)
     tic;
 
     for fly = 1:length(R)
-        for b = [R(fly).BLOCK.blockNum]
-            subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Movies');
+        %for b = [R(fly).BLOCK.blockNum]
+        for b = 1:size( R(fly).BLOCK,2 )
+            blockNum = R(fly).BLOCK(b).blockNum;
+
+            %subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Movies');
+            subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(blockNum)],'Movies');
             if ~exist(subDirectory,'dir')
                mkdir(subDirectory); 
             end

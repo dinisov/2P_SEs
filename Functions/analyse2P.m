@@ -10,14 +10,18 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
     for fly = 1:length(FLIES)
         disp(['Fly ' num2str(fly)]);
         thisFly = FLIES(fly);
-        for b = [thisFly.BLOCKS.blockNum]
-            disp(['Block ' num2str(b)]);
+        %for b = [thisFly.BLOCKS.blockNum]
+        for b = 1:size( thisFly.BLOCKS,2 )
+            %disp(['Block ' num2str(b)]);
+            blockNum = thisFly.BLOCKS(b).blockNum;
+            disp(['Block ' num2str(blockNum)])
             thisBlock = thisFly.BLOCKS(b);
             disp(thisBlock)
             %earthquke
             R(fly).BLOCK(b) = analyse2PBlock(thisBlock);
             
-            thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]);
+            %thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]);
+            thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(blockNum)]);
             if ~exist(thisBlockDirectory,'dir')
                 mkdir(thisBlockDirectory); 
             end
@@ -77,7 +81,8 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
         
         % add brain images to results structure
         %(need to do this separately to avoid dissimilar structures)
-        for b = [thisFly.BLOCKS.blockNum]
+        %for b = [thisFly.BLOCKS.blockNum]
+        for b = 1:size( thisFly.BLOCKS,2 )
             R(fly).BLOCK(b).brainImage = FLIES(fly).BLOCKS(b).brainImage;
         end
         

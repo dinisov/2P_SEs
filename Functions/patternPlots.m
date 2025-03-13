@@ -3,8 +3,11 @@ function patternPlots(R, chosenFlies, outputDirectory)
 %   Detailed explanation goes here
 
     for fly = 1:length(R)
-        for b = [R(fly).BLOCK.blockNum]  
-            subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Oddballs');
+        %for b = [R(fly).BLOCK.blockNum]  
+        for b = 1:size( R(fly).BLOCK,2 )
+            blockNum = R(fly).BLOCK(b).blockNum;
+            %subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'Oddballs');
+            subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(blockNum)],'Oddballs');
             if ~exist(subDirectory,'dir')
                mkdir(subDirectory); 
             end

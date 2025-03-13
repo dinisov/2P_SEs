@@ -6,9 +6,12 @@ disp('Calculating L vs R');
 tic;
 % for each block
 for fly = 1:length(R)
-    for b = [R(fly).BLOCK.blockNum]  
+    %for b = [R(fly).BLOCK.blockNum]  
+    for b = 1:size( R(fly).BLOCK,2 )
+        blockNum = R(fly).BLOCK(b).blockNum;
 
-        subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenR(fly))],['Block' num2str(b)],'LvsR');
+        %subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenR(fly))],['Block' num2str(b)],'LvsR');
+        subDirectory = fullfile(outputDirectory,['Fly' num2str(chosenR(fly))],['Block' num2str(blockNum)],'LvsR');
 
         if ~exist(subDirectory,'dir')
            mkdir(subDirectory); 

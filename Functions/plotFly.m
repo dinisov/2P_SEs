@@ -2,8 +2,11 @@
 function plotFly(R, groupedBlocks, outputDirectory, visibility)
 
 %% per block
-for b = [R.BLOCK.blockNum]
-    subDirectory = fullfile(outputDirectory,['Block' num2str(b)]);
+%for b = [R.BLOCK.blockNum]
+for b = 1:size( R.BLOCK,2 )
+    blockNum = R.BLOCK(b).blockNum;
+    %subDirectory = fullfile(outputDirectory,['Block' num2str(b)]);
+    subDirectory = fullfile(outputDirectory,['Block' num2str(blockNum)]);
     if ~exist(subDirectory,'dir')
        mkdir(subDirectory); 
     end

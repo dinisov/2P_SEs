@@ -4,6 +4,7 @@ arguments
     chosenFlies double
     outputDirectory
     options.showModel double = 1
+    options.pcaType string = {'sequence'}
 end
 
 if options.showModel
@@ -11,7 +12,8 @@ load('six_hertz.mat','six_hertz');
 end
 
 % choose from ['time','sequence']
-pcaType = {'sequence'};
+%pcaType = {'sequence'};
+pcaType = options.pcaType;
 
 % number of components to retain for time and sequence
 n_comp_seq = 5;
@@ -23,7 +25,9 @@ FLIES = struct;
 
 for fly = 1:length(R)
     
-    for b = [R(fly).BLOCK.blockNum]    
+    %for b = [R(fly).BLOCK.blockNum]    
+    for b = 1:size( R(fly).BLOCK,2 )
+        blockNum = R(fly).BLOCK(b).blockNum;
         
         results = R(fly).BLOCK(b);
         
@@ -139,7 +143,9 @@ end
 
 for fly = 1:length(R)
 
-    for b = [R(fly).BLOCK.blockNum]
+    %for b = [R(fly).BLOCK.blockNum]
+    for b = 1:size( R(fly).BLOCK,2 )
+        blockNum = R(fly).BLOCK(b).blockNum;
         
         %d_
         %trim = R(fly).BLOCK(b).Trim;
@@ -180,7 +186,8 @@ for fly = 1:length(R)
         data(c).XSeq = FLIES(fly).BLOCK(b).XSeq;
         %data(c).imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim; %Moved here to be in setup loop
         data(c).imageSize = imageSize; %Slight adjustment in case of asymmetrical trim
-        data(c).thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'PCA');
+        %data(c).thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],'PCA');
+        data(c).thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(blockNum)],'PCA');
         %disp(data(c).thisFlyDirectory);
         if ~exist(data(c).thisFlyDirectory,'dir')
            mkdir(data(c).thisFlyDirectory); 
@@ -218,7 +225,8 @@ for fly = 1:length(R)
                 data(c).XSeq = FLIES(fly).BLOCK(b).dataSeqBehav(statInd).XSeq;
                 %data(c).imageSize = size(R(fly).BLOCK(b).dataSeqBehav(statInd).meanDataSeqReduced,[3 4]) - 2 * trim;
                 data(c).imageSize = imageSize;
-                data(c).thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)],'PCA');
+                %data(c).thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)],['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)],'PCA');
+                data(c).thisFlyDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(blockNum)],['State_',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state)],'PCA');
                 %disp(data(c).thisFlyDirectory);
                 if ~exist(data(c).thisFlyDirectory,'dir')
                    mkdir(data(c).thisFlyDirectory); 
@@ -266,7 +274,8 @@ for fly = 1:length(R)
 
                 for i = 1:n_comp_seq
                    figure; imagesc(reshape(coeff(:,i),imageSize)); colorbar; colormap(jet(256));
-                   saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
+                   %saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
+                   saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(blockNum) '.png']));
                    close;
 
                    if options.showModel
@@ -280,12 +289,14 @@ for fly = 1:length(R)
                     %Matt version exists so that changes can be made outside of Global Functions folder
                    end
 
-                   saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
+                   %saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '.png']));
+                   saveas(gcf,fullfile(thisFlyDirectory,['c_seq' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(blockNum) '.png']));
                    close;
 
                    % overlay plot on brain
                    plotBrainPCA(reshape(-coeff(:,i),imageSize),trimmedBrainImg,'on');
-                   saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '_overlay.png']));
+                   %saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '_overlay.png']));
+                   saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(blockNum) '_overlay.png']));
                    close;
                 end
 

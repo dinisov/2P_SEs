@@ -18,7 +18,8 @@ end
 
 % for each block of each fly
 for fly = 1:length(R)
-    for b = [R(fly).BLOCK.blockNum]  
+    %for b = [R(fly).BLOCK.blockNum]  
+    for b = 1:size( R(fly).BLOCK,2 )
         for vol = 1:R(fly).BLOCK(b).nVol
             thisVolData = squeeze(R(fly).BLOCK(b).dataSeq(vol,:,:,:,:));
             [R(fly).BLOCK(b).AAAAvsAAARVol(vol), R(fly).BLOCK(b).RRRRvsRRRAVol(vol)]  = calculateTtests(thisVolData);
@@ -41,7 +42,8 @@ end
 
 % for each block
 for fly = 1:length(R)
-    for b = [R(fly).BLOCK.blockNum]  
+    %for b = [R(fly).BLOCK.blockNum]  
+    for b = 1:size( R(fly).BLOCK,2 )
         thisBlockData = squeeze(mean(R(fly).BLOCK(b).dataSeq,1));
         [R(fly).BLOCK(b).AAAAvsAAAR, R(fly).BLOCK(b).RRRRvsRRRA]  = calculateTtests(thisBlockData);
     end
