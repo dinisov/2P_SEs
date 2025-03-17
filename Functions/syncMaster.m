@@ -2,6 +2,9 @@ function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
 
 %To do: Check support for follow-on analysis of true bendy rolling data
+    % Make faster somehow (H5 replacement after initial run?)
+
+
 
 %To improve: Absolute best frame specificity for im/stim calcs
     %Specifically:
@@ -625,9 +628,51 @@ for thisBlock = [BLOCKS]
               end
 
               %QA for stimulation amounts outnumbering imaging frames
-              if length(methodBTSeqInterpZ) < length( randomSeqActual )
-                  ['-# Caution: Imaging frames (',num2str(length(methodBTSeqInterpZ) ),') outnumbered by stimulus elements (',num2str( length( randomSeqActual )),') #-']
+              if length(methodBTSeqInterpZ) < length( randomSeqActual )/nBack
+                  ['-# Caution: Imaging frames (',num2str(length(methodBTSeqInterpZ) ),') outnumbered by stimulus elements (',num2str( length( randomSeqActual )/nBack),') #-']
               end
+
+              %Calculate nVol, for later use
+              %nVol = floor( size(imageStack,3)/ ( length(randomSequence) / options.nBack ) ); %Stolen from sortSEs2P initial implementation
+              nStimuli = options.nBack;
+              disp(['Using nBack of ', num2str(options.nBack),' to calculate acceptable volume counts'])
+              nVol = floor( size(dataStimTrim,3)/ ( length(randomSeqActual) / nStimuli ) );
+              disp(['Calculated nVol: ',num2str(nVol)])
+              %QA
+              if nVol <= 0
+                  ['## Error in calculating nVol ##']
+                  crash = yes
+              end
+
+              %Make data be exactly nVol * sequence long
+              %  Are there situations where original size might want to be preserved?
+              stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) );
+
+              %Check if mod math can be correctly applied
+              if nStimuli ~= 5
+                  ['-# Alert: Mod calculations likely to be incorrect on account of non-standard nBack #-']
+                  crash = yes
+              end
+              samPoints = [ 0 : (length(randomSeqActual)/nStimuli-mod((nStimuli+4),8)) ]; %More or less just a list from 0 to sequenceLength/nStimuli
+
+              lastVolFrameInds = stimFrameInds( samPoints*nStimuli + options.nBack); %Indices of last volume corresponding to each block (Note actually decimal, therefore needs to be ceiled/etc to function as inds)
+              newFrameInds = nan( nVol, size(lastVolFrameInds,2) );
+              for vol = 1:nVol
+                  newFrameInds( vol, : ) = ceil( lastVolFrameInds ) - nVol + vol; %nVol rows, n of blocks cols
+              end
+              newFrameInds = reshape( newFrameInds, 1, nVol*size(newFrameInds,2));
+              %QA to ensure unique frames being grabbed
+              if numel( unique( newFrameInds ) ) ~= numel( newFrameInds )
+                  ['## Alert: Same frame/s grabbed multiple times for bendy rolling reindicisation ##']
+                  crash = yes
+                  %May happen naturally with large volume numbers
+              end
+
+              dataStimTrim = dataStimTrim( :,:, newFrameInds ); %If this crashes, NaNs were probably in newFrameInds for some error reason
+              disp( ['Bendy rolling data reindicised to length ',num2str( size(dataStimTrim,3) ),' (',num2str( size(dataStimTrim,3) / nVol ),' "blocks") for analysis (',...
+                  num2str( ( 1 - ( size(dataStimTrim,3) / max(newFrameInds) ) ) * 100 ),'% Loss)'] )
+              %Loss in this context is how much of the original imaging data could not be associated with 'blocks' 
+                %It is likely to be highest when imaging rates are low and stimulus frequencies are high (i.e. 1 in 3 is 33%, but 1 in 8 is only 12.5%)
 
           end
 
@@ -638,6 +683,7 @@ for thisBlock = [BLOCKS]
                 %Note: This isn't really main rolling analysis here, just blank removal, unlike below for block design bendy
                     disp(['Rolling design; Siphoning blanks for alternative analysis'])
                     not coded for randomSeqActual yet
+                    especially in context of reindicising
     
                     %blankStack = dataStimTrim( imStimTerp == 5 );
                     [inds] = find( imStimTerp == 5 );
@@ -853,7 +899,9 @@ for thisBlock = [BLOCKS]
                   %BLOCKS( thisFlyRowInd ).randomSequence = imStimTerp;
                   BLOCKS( thisFlyRowInd ).randomSequence = randomSeqActual; %New, not interpolated
                     %Note: Using randomSequence not of exact same length as imaging may cause issues with rolling implementation in analyseBlock
-                  clear dataStimTrim imStimTerp randomSeqActual %Just in case
+                  BLOCKS( thisFlyRowInd ).nVol = nVol;
+                  BLOCKS( thisFlyRowInd ).nStimuli = nStimuli;
+                  clear dataStimTrim imStimTerp randomSeqActual nVol nStimuli %Just in case
               else %Block
                   BLOCKS( thisFlyRowInd ).greenChannel = postStimData;
                   BLOCKS( thisFlyRowInd ).randomSequence = deRandomSeq;
@@ -942,4 +990,3 @@ end
 disp(['-- Newtype data synchronised --'])
 
 end
-     

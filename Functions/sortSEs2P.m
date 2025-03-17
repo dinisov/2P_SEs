@@ -7,7 +7,7 @@ arguments
     nStimuli double
     options.nBack (1,1) {mustBeNumeric} = 5
     options.behavSequence double = []
-    options.rolling (1,1) {mustBeNumeric} = 0 %Whether to additionally calculate a rolling version of dataSeq
+    options.doRolling (1,1) {mustBeNumeric} = 0 %Whether to additionally calculate a rolling version of dataSeq
 end
 
     %Reminder: This is the 2D version, so imageStack only has 3 effective dimensions (XYT), because Z is flattened
@@ -36,7 +36,7 @@ end
     
     %Whether to tack on rolling analysis
         %Might make an actual switch later (i.e. Block OR Rolling)
-    if isfield( options, 'rolling' ) && options.rolling == 1
+    if isfield( options, 'doRolling' ) && options.doRolling == 1
         doRolling = 1;
         rollStruct = struct;
         rollStruct.rollSeq = nan([nSeq/2 size(imageStack)]); %Excessive last dim probably warranted here, at least for assembly (Unlike for dataSeq)

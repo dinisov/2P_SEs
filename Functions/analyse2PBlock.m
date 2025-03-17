@@ -13,10 +13,10 @@ function R = analyse2PBlock(block)
     %[dataSeq, dataSeqIso] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
     if isfield( block, 'behavSequence' )
         %[dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence);
-        [dataSeq, dataSeqIso, dataSeqBehav, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence, 'rolling', block.rolling);
+        [dataSeq, dataSeqIso, dataSeqBehav, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence, 'doRolling', block.doRolling);
     else
         %[dataSeq, dataSeqIso, ~] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
-        [dataSeq, dataSeqIso, ~, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'rolling', block.rolling);
+        [dataSeq, dataSeqIso, ~, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'doRolling', block.doRolling);
     end
     
     % mean across fifth (trial) dimension (much faster than nan mean)
