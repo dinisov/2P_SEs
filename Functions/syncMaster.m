@@ -632,11 +632,18 @@ for thisBlock = [BLOCKS]
                   ['-# Caution: Imaging frames (',num2str(length(methodBTSeqInterpZ) ),') outnumbered by stimulus elements (',num2str( length( randomSeqActual )/nBack),') #-']
               end
 
+              %stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) );
+              stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) );
+
               %Calculate nVol, for later use
               %nVol = floor( size(imageStack,3)/ ( length(randomSequence) / options.nBack ) ); %Stolen from sortSEs2P initial implementation
               nStimuli = options.nBack;
               disp(['Using nBack of ', num2str(options.nBack),' to calculate acceptable volume counts'])
-              nVol = floor( size(dataStimTrim,3)/ ( length(randomSeqActual) / nStimuli ) );
+              nVol = floor( size(dataStimTrim,3)/ ( length(randomSeqActual) / nStimuli ) ); %Calculates theoretically optimal number of volumes in imaging time period
+              while ceil( stimFrameInds( nStimuli ) - nVol ) < 0
+                  disp(['-# Caution: Initially calculated nVol of ',num2str(nVol),' may be too large; Reducing #-'])   
+                  nVol = nVol - 1;
+              end
               disp(['Calculated nVol: ',num2str(nVol)])
               %QA
               if nVol <= 0
@@ -646,13 +653,14 @@ for thisBlock = [BLOCKS]
 
               %Make data be exactly nVol * sequence long
               %  Are there situations where original size might want to be preserved?
-              stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) );
+              %stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) ); %Moved above to be more useful
 
               %Check if mod math can be correctly applied
               if nStimuli ~= 5
                   ['-# Alert: Mod calculations likely to be incorrect on account of non-standard nBack #-']
                   crash = yes
               end
+              %samPoints = [ 0 : (length(randomSeqActual)/nStimuli-mod((nStimuli+4),8)) ]; %More or less just a list from 0 to sequenceLength/nStimuli
               samPoints = [ 0 : (length(randomSeqActual)/nStimuli-mod((nStimuli+4),8)) ]; %More or less just a list from 0 to sequenceLength/nStimuli
 
               lastVolFrameInds = stimFrameInds( samPoints*nStimuli + options.nBack); %Indices of last volume corresponding to each block (Note actually decimal, therefore needs to be ceiled/etc to function as inds)
