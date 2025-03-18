@@ -65,7 +65,7 @@ chosenBlock = 2;
 %}
 doPlot = options.doPlot;
 doVid = options.doVid;
-rollingAnalysis = -1; %Make dynamic?
+rollingAnalysis = options.rollingAnalysis;
 dataSource = options.dataSource;
 allowRandomSequenceEmpty = options.allowRandomSequenceEmpty;
 disregardRollingDesign = options.disregardRollingDesign;
@@ -82,7 +82,9 @@ for thisBlock = [BLOCKS]
 
     %thisFlyRowInd = find( flyRecord.Fly == thisBlock.flyNum & flyRecord.Block == thisBlock.blockNum ); %Wrong; Only valid with N=1 fly, due to flyRecord size
     thisFlyRowInd = find( [BLOCKS.flyNum] == thisBlock.flyNum & [BLOCKS.blockNum] == thisBlock.blockNum ); %Fixed; Will also be used later to overwrite data
-    thisFlyRecord = flyRecord( thisFlyRowInd ,:)
+        %Note: Only relates to position within BLOCKS (i.e. This fly)
+    %thisFlyRecord = flyRecord( thisFlyRowInd ,:) %Only correct if running on one fly at a time
+    thisFlyRecord = flyRecord( find( flyRecord.Fly == thisBlock.flyNum & flyRecord.Block == thisBlock.blockNum ) ,: )
     %QA
     if isempty(thisFlyRecord) || size(thisFlyRecord,1) > 1
         ['## Alert: Desynchronisation between block and flyRecord information ##']
