@@ -30,6 +30,8 @@ arguments
     options.btInterpolationMethod string = 'intelligent' %Whether to use mode, median, last, or an intelligent means to identify stimuli preceding stimulation for block design
         %Note: The 'intelligent' part of said interpolation only fully applies to bendy block design data; Rolling data just uses the stimulus-imaging interpolation method
     options.nBack double = 5 %Functions same as elsewhere; Will override flyRecord nStimuli if it comes to it (e.g. bendy block design)
+    options.saveShortcut double = 1 %Whether to save a faster structure than original h5 files to the ThorSync folder
+    options.useShortcut double = 1 %Whether to actually use said shortcut
 end
 %}
 %{
@@ -44,6 +46,8 @@ options.allowRandomSequenceEmpty = 0
 options.disregardRollingDesign = 0
 options.btInterpolationMethod = 'intelligent' 
 options.nBack = 5
+options.saveShortcut = 1
+options.useShortcut = 1
 %}
 
 %{
@@ -72,6 +76,8 @@ disregardRollingDesign = options.disregardRollingDesign;
 btInterpolationMethod = options.btInterpolationMethod;
     %Note: Only last is the one to guarantee <block length> number of preceding stimuli will be grabbed
 nBack = options.nBack;
+saveShortcut = options.saveShortcut;
+useShortcut = options.useShortcut;
 
 %Pre-loop preparation
 flagParamSaveList = who;
@@ -119,6 +125,7 @@ for thisBlock = [BLOCKS]
     for i = 1:size(hFiles,1) 
         if contains( hFiles(i).folder, expName ) == 1
             hTarget = strcat( hFiles(i).folder, filesep, hFiles(i).name );
+            hFolder = hFiles(i).folder;
             disp(['Appropriate h5 file found in ',char(10),hFiles(i).folder])
             hFolder = hFiles(i).folder; %Necessary for also acquiring settings
             k = k + 1;
@@ -133,6 +140,19 @@ for thisBlock = [BLOCKS]
 
     %% Load
 
+    isShortcutting = 0;
+    if useShortcut == 1
+        shortFile = dir( [hFolder,filesep,'h5Shortcut.mat'] );
+        
+        if ~isempty( shortFile )
+            load([shortFile.folder,filesep,shortFile.name])
+            canShortcut = 1;
+            isShortcutting = 1
+            disp(['-- Shortcut file successfully loaded --'])
+        end
+    end
+
+    if useShortcut == 0 || isShortcutting == 0
     %Read ThorSync
     %fileName = "I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\30Jan25\TS\fly1_30Jan25_exp2\Episode001.h5"
     fileName = hTarget;
@@ -182,6 +202,7 @@ for thisBlock = [BLOCKS]
     inferTimes = linspace( 0, size( syncStruct.CI.frameData , 2 ) / sampRate, size( syncStruct.CI.frameData , 2 ) );
         %Linearly space time from 1st to last element of frameData
         %The division of total frame count by sampling rate is weak to (TS) framedrops/etc, but no better option present
+    end
 
     %Read experiment information file from ThorImage
     %Note: Requires >=MATLAB 2020b
@@ -283,7 +304,11 @@ for thisBlock = [BLOCKS]
                     %i.e. There is a ~0.4s difference between the last non-repetitious and the 'end' of the data
                 %Secondary note: Relies heavily on the assumption that arduino low -> bt repetitiveness instantly
 
+         if ~isShortcutting        
          estimatedPTBEndTime = imStartTime + inferTimes( bleachEndInd ); 
+         else
+         estimatedPTBEndTime = shortStruct.estimatedPTBEndTime;
+         end
             %This is a time guessed from the self-reported imaging start time
             %It is intended to be used to QA ptbEndTime in case of not ending because repetitive, not a true comparison
           %QA
@@ -310,17 +335,62 @@ for thisBlock = [BLOCKS]
     guessIndex = [{'PTB'},{'Exp*.xml'}]; %List of ways to guess the start time
     guessMode = 0;
     if hasPTB
+        if ~isShortcutting
         bestGuessCommenceTime = ptbEndTime - inferTimes( bleachEndInd ); %Use PTB end as a known point in posix, match with inferred relative TS time
+        else
+        bestGuessCommenceTime = shortStruct.bestGuessCommenceTime;
+        end
         guessMode = 1;
         %disp(['Best guess commencement time (from PTB): ',datestr(datetime( bestGuessCommenceTime , 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10'))])
     else
         bestGuessCommenceTime = imStartTime; %Use self-reported start time blindly
-        guessMode = 1;
+        guessMode = 2;
         %disp(['Best guess commencement time (from Exp*.xml): ',datestr(datetime( bestGuessCommenceTime , 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10'))])
     end
     disp(['Best guess commencement time (from ',guessIndex{guessMode},'): ',datestr(datetime( bestGuessCommenceTime , 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10'))])
 
-    inferTimesPosix = inferTimes + bestGuessCommenceTime; %Posix form of inferTimes, for simplicity
+    if ~isShortcutting %Only calculate if actually loaded h5 data
+        inferTimesPosix = inferTimes + bestGuessCommenceTime; %Posix form of inferTimes, for simplicity
+    
+        %Do these here so shortcutting can happen
+        tsLastFrameTime = inferTimes( frameEndInd );
+        tsLastArduinoTime = inferTimes( bleachEndInd );
+        tsLastTime = inferTimes( end );
+        if hasPTB %&& hasData 
+            lastImStimFrameInd = find( inferTimesPosix - ptbEndTime >= 0 , 1, 'first' ) - 1; %The last frame to receive a full stimulation; PTB posix inference
+            firstImStimFrameInd = find( inferTimesPosix - ptbStartTime >= 0 , 1, 'first' ); %The first imaging frame to receive stimulation
+        end
+    end
+
+    %here
+
+    %% Save data, to increase speed for subsequent runs
+    if saveShortcut == 1 && isShortcutting ~= 1
+        shortStruct = struct;
+
+        temp = strsplit( hFolder, filesep );
+        shortStruct.h5Name = temp{end}; %A little more safe than just assuming expName is correct 
+        
+        shortStruct.sampRate = sampRate;
+
+        %shortStruct.inferTimes = inferTimes;
+        %shortStruct.inferTimesPosix = inferTimesPosix;
+
+        shortStruct.estimatedPTBEndTime = estimatedPTBEndTime;
+        shortStruct.bestGuessCommenceTime = bestGuessCommenceTime;
+
+        shortStruct.tsLastFrameTime =tsLastFrameTime;
+        shortStruct.tsLastArduinoTime = tsLastArduinoTime;
+        shortStruct.tsLastTime = tsLastTime;
+
+        if hasPTB %&& hasData 
+            shortStruct.lastImStimFrameInd = lastImStimFrameInd;
+            shortStruct.firstImStimFrameInd = firstImStimFrameInd;
+        end
+
+        save( [hFolder,filesep,'h5Shortcut.mat'], 'shortStruct' )
+
+    end
 
     %% Report
 
@@ -345,21 +415,21 @@ for thisBlock = [BLOCKS]
     end
 
     disp( ['ThorSync-calculated imaging duration: ',...
-    num2str( (inferTimes( frameEndInd )/60) ),' mins (',...
-    num2str( (inferTimes( frameEndInd )) ),' s)'] )  
+    num2str( (tsLastFrameTime/60) ),' mins (',...
+    num2str( (tsLastFrameTime) ),' s)'] )  
     %disp(['Estimated imaging end time (Exp self report -> Last frame high): ', ...
     %    datestr( datetime( imStartTime + (inferTimes( frameEndInd )), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
     disp(['Estimated imaging end time (',guessIndex{guessMode},' -> Last frame high): ', ...
-        datestr( datetime( bestGuessCommenceTime + (inferTimes( frameEndInd )), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
+        datestr( datetime( bestGuessCommenceTime + tsLastFrameTime, 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
 
-    disp([ 'Estimated arduino duration: ', num2str((inferTimes( bleachEndInd ))/60),'m' ])
+    disp([ 'Estimated arduino duration: ', num2str((tsLastArduinoTime)/60),'m' ])
     %disp(['Estimated arduino end time (Exp self report -> Last bleach high): ', ...
     %    datestr( datetime( imStartTime + (inferTimes( bleachEndInd )), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
     disp(['Estimated arduino end time (',guessIndex{guessMode},' -> Last bleach high): ', ...
-        datestr( datetime( bestGuessCommenceTime + (inferTimes( bleachEndInd )), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
+        datestr( datetime( bestGuessCommenceTime + tsLastArduinoTime, 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
 
     disp(['Estimated TS end time: ',...
-        datestr( datetime( bestGuessCommenceTime + (inferTimes( end )), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
+        datestr( datetime( bestGuessCommenceTime + tsLastTime, 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
 
     %% Plot
 
@@ -463,9 +533,9 @@ for thisBlock = [BLOCKS]
         %Probably not a huge issue, but likely to be useful
     if hasData && hasPTB
         %lastImStimFrameInd = find( frameOnsetIndices - bleachEndInd >= 0 , 1, 'first' ) - 1; %The last frame to receive a full stimulation; Arduino low inference
-        lastImStimFrameInd = find( inferTimesPosix - ptbEndTime >= 0 , 1, 'first' ) - 1; %The last frame to receive a full stimulation; PTB posix inference
+        %%lastImStimFrameInd = find( inferTimesPosix - ptbEndTime >= 0 , 1, 'first' ) - 1; %The last frame to receive a full stimulation; PTB posix inference; Moved above
             %Note: May be at any point in a volume
-        firstImStimFrameInd = find( inferTimesPosix - ptbStartTime >= 0 , 1, 'first' ); %The first imaging frame to receive stimulation
+        %%firstImStimFrameInd = find( inferTimesPosix - ptbStartTime >= 0 , 1, 'first' ); %The first imaging frame to receive stimulation; Moved above
             %Again, can be any point
             %Note: Both of these in TS reference frame
         imStimStart = find( frameOnsetIndices - firstImStimFrameInd > 0 , 1 , 'first' ); %Might theoretically be better to find min, rather than first after?
@@ -473,9 +543,11 @@ for thisBlock = [BLOCKS]
         %QA
         if isempty( imStimStart ) || isempty( imStimEnd )
             ['-# Alert: Failure to identify imaging start OR end #-']
+            if isShortcutting ~= 1
             ['Imaging started ', num2str( inferTimes( frameOnsetIndices(1) ) ),'s after TS start']
             ['Imaging ended apparently after ', num2str( inferTimes( frameOnsetIndices(end) ) / 60 ),'m']
             ['(TS ended after ', num2str( inferTimes( end ) / 60 ),'m)']
+            end
             crash = yes
         end
         disp([ 'Stimulation comprised ', num2str( (imStimEnd - imStimStart) / numel( frameOnsetIndices )*100 ), '% of imaging duration (',...
@@ -976,7 +1048,8 @@ for thisBlock = [BLOCKS]
         %vidOutObj = VideoWriter([strcat(dataFolder, filesep, expName, filesep, 'rollVid','.mp4')],'MPEG-4')
         vidOutObj = VideoWriter([strcat(dataFolder, filesep, expName, filesep, 'rollVid','.avi')], 'Motion JPEG AVI')
         %vidOutObj.FrameRate = size(avg_z_green_aligned,3) / inferTimes( frameEndInd ); %Estimate framerate
-        vidOutObj.FrameRate = size(thisImData,3) / inferTimes( frameEndInd ); %Estimate framerate
+        %vidOutObj.FrameRate = size(thisImData,3) / inferTimes( frameEndInd ); %Estimate framerate
+        vidOutObj.FrameRate = size(thisImData,3) / tsLastFrameTime; %Estimate framerate
         tic
         open(vidOutObj)
         writeVideo(vidOutObj,vidFrames2);
