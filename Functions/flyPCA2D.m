@@ -202,7 +202,8 @@ for fly = 1:length(R)
             else
                 %[data(c).thisFlyDirectory,filesep,'*.png']
                 %rmdir( data(c).thisFlyDirectory ,'s' ) %Unsafe
-                delete( [data(c).thisFlyDirectory,filesep,'*.png'], [data(c).thisFlyDirectory,filesep,'*.mat'] )
+                %delete( [data(c).thisFlyDirectory,filesep,'*.png'], [data(c).thisFlyDirectory,filesep,'*.mat'] )
+                delete( [data(c).thisFlyDirectory,filesep,'*.png'], [data(c).thisFlyDirectory,filesep,'*.mat'], [data(c).thisFlyDirectory,filesep,'*.fig']  )
                 rmdir( data(c).thisFlyDirectory ) %Will only succeed if empty
                     %If not empty, this may have acted on a folder it wasn't meant to
                 mkdir(data(c).thisFlyDirectory); 
@@ -308,6 +309,35 @@ for fly = 1:length(R)
                 save(fullfile(thisFlyDirectory,'pca_results_normalised'),'coeff','score','explained','numInstances');
                 disp(['Processed PCA for ',data(datInd).name,' in ',num2str(toc),'s'])
                 disp(thisFlyDirectory);
+
+                %Make/save plot of components in space
+                if n_comp_seq >= 3
+                    colMap = jet(16);
+                    %Purely components
+                    figure
+                    %scatter3( score(:,1), score(:,2) , score(:,3) )
+                    scatter3( score(:,1), score(:,2) , score(:,3), [], colMap, 'filled')
+                    xlabel(['PC1 (',num2str( explained(1) ),'%)'])
+                    ylabel(['PC2 (',num2str( explained(2) ),'%)'])
+                    zlabel(['PC3 (',num2str( explained(3) ),'%)'])
+                    title(['PC1 x PC2 x PC3'])
+                    saveas(gcf,fullfile(thisFlyDirectory,'PC1x2x3.png')); 
+                    saveas(gcf,fullfile(thisFlyDirectory,'PC1x2x3_figure'),'fig'); 
+
+                    %First two PCs and seq.
+                    figure
+                    %scatter3( score(:,1), score(:,2) , score(:,3) )
+                    scatter3( score(:,1), score(:,2) , [1:size(score,1)], [], colMap, 'filled')
+                    zlim([0,size(score,1)+1])
+                    zticks([1:size(score,1)])
+                    xlabel(['PC1 (',num2str( explained(1) ),'%)'])
+                    ylabel(['PC2 (',num2str( explained(2) ),'%)'])
+                    zlabel(['Seq.'])
+                    title(['PC1 x PC2 x Seq.'])
+                    saveas(gcf,fullfile(thisFlyDirectory,'PC1x2xSeq.png')); 
+                    saveas(gcf,fullfile(thisFlyDirectory,'PC1x2xSeq_figure'),'fig'); 
+
+                end
 
             end
 
