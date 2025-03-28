@@ -39,7 +39,7 @@ BLOCKS = FLIES(fly).BLOCKS;
 flyRecord = flyRecord;
 options.dataDirectory = dataDirectory;
 options.doPlot = 0
-options.doVid = 0
+options.doVid = 1
 options.rollingAnalysis = -1
 options.dataSource = -1
 options.allowRandomSequenceEmpty = 0
@@ -47,7 +47,7 @@ options.disregardRollingDesign = 0
 options.btInterpolationMethod = 'intelligent' 
 options.nBack = 5
 options.saveShortcut = 1
-options.useShortcut = 1
+options.useShortcut = 0
 %}
 
 %{
@@ -113,7 +113,8 @@ for thisBlock = [BLOCKS]
     %dataFolder = "I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\30Jan25"
     %expName = "fly1_exp2_30Jan25"
     %dataFolder = [strcat("I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\", currentDate)];
-    dataFolder = [strcat(options.dataDirectory, currentDate)];
+    %dataFolder = [strcat(options.dataDirectory, currentDate)];
+    dataFolder = char( [strcat(options.dataDirectory, currentDate)] );
     expName = flyID;
 
     %Try find h5 data
@@ -142,10 +143,20 @@ for thisBlock = [BLOCKS]
 
     isShortcutting = 0;
     if useShortcut == 1
-        shortFile = dir( [hFolder,filesep,'h5Shortcut.mat'] );
+        %shortFile = dir( [hFolder,filesep,'h5Shortcut.mat'] );
+        shortFileList = dir( strcat(dataFolder,filesep,'SHORT',filesep,'*h5Shortcut.mat') );
+        shortFile = [];
+        for i = 1:size(shortFileList,1)
+            if contains( shortFileList(i).name, expName) && contains( shortFileList(i).name, ['_exp',num2str(thisBlock.blockNum),'_'])
+                    %Second portion of boolean required to disambiguate "exp1" vs "exp12" etc
+                    %Note: This section hardcodes assumptions about naming structure, obviously
+                shortFile = [shortFile; shortFileList(i).name];
+            end
+        end
         
         if ~isempty( shortFile )
-            load([shortFile.folder,filesep,shortFile.name])
+            %load([shortFile.folder,filesep,shortFile.name])
+            load([dataFolder,filesep,'SHORT',filesep,shortFile])
             canShortcut = 1;
             isShortcutting = 1
             disp(['-- Shortcut file successfully loaded --'])
@@ -178,7 +189,13 @@ for thisBlock = [BLOCKS]
     toc
 
     %Also attempt to acquire TS settings
-    h5SetFile = dir([ hFiles(i).folder, filesep, 'ThorRealTimeDataSettings.xml' ]);
+    %h5SetFile = dir([ hFiles(i).folder, filesep, 'ThorRealTimeDataSettings.xml' ]) %Relies on i not being used between this and H5 finding
+    h5SetFile = dir([ hFolder, filesep, 'ThorRealTimeDataSettings.xml' ]); %Relies on i not being used between this and H5 finding
+    %QA
+    if isempty(h5SetFile)
+        ['## Error in finding H5 settings file ##']
+        crash = yes
+    end
     h5Sets = readstruct( [h5SetFile.folder,filesep,h5SetFile.name] );
     sampRate = [];
     for daqInd = 1:size( h5Sets.DaqDevices.AcquireBoard,2 )
@@ -218,6 +235,7 @@ for thisBlock = [BLOCKS]
         %Note: This is confirmed to be when Start button was pressed, not when imaging commenced
             %i.e. Disparity of 1 - 30s
 
+    if useShortcut == 0 || isShortcutting == 0        
     %ThorImage (apparently)
     frameStates = unique( syncStruct.DI.frameOutData );
     %QA
@@ -233,6 +251,7 @@ for thisBlock = [BLOCKS]
         ['-# Caution: Potentially aberrant number of unique bleachOut states found #-']
     end
     bleachEndInd = find( syncStruct.DI.bleachOutData == nanmax(bleachStates), 1, 'last' );
+    end
 
     %Read MATLAB params and BT data
     %Find MATLAB params
@@ -360,37 +379,17 @@ for thisBlock = [BLOCKS]
             lastImStimFrameInd = find( inferTimesPosix - ptbEndTime >= 0 , 1, 'first' ) - 1; %The last frame to receive a full stimulation; PTB posix inference
             firstImStimFrameInd = find( inferTimesPosix - ptbStartTime >= 0 , 1, 'first' ); %The first imaging frame to receive stimulation
         end
+    else
+        tsLastFrameTime = shortStruct.tsLastFrameTime;
+        tsLastArduinoTime = shortStruct.tsLastArduinoTime;
+        tsLastTime = shortStruct.tsLastTime;
+        if hasPTB %&& hasData 
+            lastImStimFrameInd = shortStruct.lastImStimFrameInd;
+            firstImStimFrameInd = shortStruct.firstImStimFrameInd;
+        end
     end
 
     %here
-
-    %% Save data, to increase speed for subsequent runs
-    if saveShortcut == 1 && isShortcutting ~= 1
-        shortStruct = struct;
-
-        temp = strsplit( hFolder, filesep );
-        shortStruct.h5Name = temp{end}; %A little more safe than just assuming expName is correct 
-        
-        shortStruct.sampRate = sampRate;
-
-        %shortStruct.inferTimes = inferTimes;
-        %shortStruct.inferTimesPosix = inferTimesPosix;
-
-        shortStruct.estimatedPTBEndTime = estimatedPTBEndTime;
-        shortStruct.bestGuessCommenceTime = bestGuessCommenceTime;
-
-        shortStruct.tsLastFrameTime =tsLastFrameTime;
-        shortStruct.tsLastArduinoTime = tsLastArduinoTime;
-        shortStruct.tsLastTime = tsLastTime;
-
-        if hasPTB %&& hasData 
-            shortStruct.lastImStimFrameInd = lastImStimFrameInd;
-            shortStruct.firstImStimFrameInd = firstImStimFrameInd;
-        end
-
-        save( [hFolder,filesep,'h5Shortcut.mat'], 'shortStruct' )
-
-    end
 
     %% Report
 
@@ -501,14 +500,19 @@ for thisBlock = [BLOCKS]
 
     if hasData
         %Imaging frames
-        bwFrameOut = bwlabel( syncStruct.DI.frameOutData );
-        [~,frameOnsetIndices] = ismember( [1:nanmax(bwFrameOut)], bwFrameOut );
-        tsImFrameCount = numel(frameOnsetIndices);
+        if ~isShortcutting
+            bwFrameOut = bwlabel( syncStruct.DI.frameOutData );
+            [~,frameOnsetIndices] = ismember( [1:nanmax(bwFrameOut)], bwFrameOut );
+            tsImFrameCount = numel(frameOnsetIndices);
+        else
+            frameOnsetIndices = shortStruct.frameOnsetIndices;
+            tsImFrameCount = shortStruct.tsImFrameCount;
+        end
         disp(['ThorSync calculated number of imaging frames: ', num2str(tsImFrameCount)])
         %disp(['Expected number of frames: ',num2str(size( avg_z_green_aligned , 3 ) * (thisFlyRecord.Steps + thisFlyRecord.FlybackFrames))])
         disp(['Expected number of frames: ',num2str(size( thisImData , 3 ) * (thisFlyRecord.Steps + thisFlyRecord.FlybackFrames))])
         %QA
-        if numel(frameOnsetIndices) ~= size( thisImData , 3 ) * (thisFlyRecord.Steps + thisFlyRecord.FlybackFrames) %Note: All of these vars need to be manually imported/defined
+        if  tsImFrameCount ~= size( thisImData , 3 ) * (thisFlyRecord.Steps + thisFlyRecord.FlybackFrames) %Note: All of these vars need to be manually imported/defined
             ['-# Alert: TS framecount and imaging framecount differ #-']
             crash = yes %Eventually will probably have systems to handle this case
         end
@@ -516,7 +520,7 @@ for thisBlock = [BLOCKS]
 
     %% Some more plots
 
-    if hasData && doPlot
+    if hasData && doPlot% && ~isShortcutting
         %Imaging frame timing instability (courtesy of TS)
             %If there are many unique values (i.e. >2) on this graph, timing was unstable 
         figure
@@ -524,6 +528,45 @@ for thisBlock = [BLOCKS]
         title(['Inter-frame interval hist'])
         xlabel(['Time (s)'])
         ylabel(['Count'])
+    end
+
+        %% Save data, to increase speed for subsequent runs
+    if saveShortcut == 1 && isShortcutting ~= 1
+        shortStruct = struct;
+
+        temp = strsplit( hFolder, filesep );
+        shortStruct.h5Name = temp{end}; %A little more safe than just assuming expName is correct 
+        
+        shortStruct.sampRate = sampRate;
+
+        %shortStruct.inferTimes = inferTimes;
+        %shortStruct.inferTimesPosix = inferTimesPosix;
+
+        shortStruct.estimatedPTBEndTime = estimatedPTBEndTime;
+        shortStruct.bestGuessCommenceTime = bestGuessCommenceTime;
+
+        shortStruct.tsImFrameCount = tsImFrameCount;
+        shortStruct.frameOnsetIndices = frameOnsetIndices;
+
+        shortStruct.tsLastFrameTime =tsLastFrameTime;
+        shortStruct.tsLastArduinoTime = tsLastArduinoTime;
+        shortStruct.tsLastTime = tsLastTime;
+
+        if hasPTB %&& hasData 
+            shortStruct.lastImStimFrameInd = lastImStimFrameInd;
+            shortStruct.firstImStimFrameInd = firstImStimFrameInd;
+        end
+
+        %save( [hFolder,filesep,'h5Shortcut.mat'], 'shortStruct' )
+        %Check/Make folder to put shortcut files into
+        shortFolder = strcat( dataFolder,filesep,'SHORT' );
+        if exist(shortFolder) ~= 7
+            mkdir( shortFolder )
+            disp(['Shortcut folder made at ',shortFolder])
+        end
+        save( [shortFolder,filesep,shortStruct.h5Name,'_h5Shortcut.mat'], 'shortStruct' )
+        %sword
+
     end
 
 
@@ -983,7 +1026,7 @@ for thisBlock = [BLOCKS]
                     %Note: Using randomSequence not of exact same length as imaging may cause issues with rolling implementation in analyseBlock
                   BLOCKS( thisFlyRowInd ).nVol = nVol;
                   BLOCKS( thisFlyRowInd ).nStimuli = nStimuli;
-                  clear dataStimTrim imStimTerp randomSeqActual nVol nStimuli %Just in case
+                  %clear dataStimTrim imStimTerp randomSeqActual nVol nStimuli %Just in case
               else %Block
                   BLOCKS( thisFlyRowInd ).greenChannel = postStimData;
                   BLOCKS( thisFlyRowInd ).randomSequence = deRandomSeq;
@@ -991,7 +1034,7 @@ for thisBlock = [BLOCKS]
                   BLOCKS( thisFlyRowInd ).blankBlocks = 0; %Need to add support later for blank blocks
                   BLOCKS( thisFlyRowInd ).fauxBlockDesign = 1; %Just to keep track
                   disp(['Faux-block design created'])
-                  clear postStimData deRandomSeq nomInter
+                  %clear postStimData deRandomSeq nomInter
               end
               if isfield( matParamStruct.matSave, 'blockDesign' )
                  BLOCKS( thisFlyRowInd ).bendyBlockDesign =  matParamStruct.matSave.blockDesign;
@@ -1024,19 +1067,32 @@ for thisBlock = [BLOCKS]
     %% Save a video
     if doVid && hasData
         %Make a bootleg 'full' form of the sequence across imaging (accounting for pre/post periods)
-        %fullStimTerp = nan( 1, size(avg_z_green_aligned,3) );
-        fullStimTerp = nan( 1, size(thisImData,3) );
-        fullStimTerp( adjImStimStartVol:adjImStimEndVol  ) = imStimTerp;
-
+        
+        %Old
+        %fullStimTerp = nan( 1, size(thisImData,3) );
+        %fullStimTerp( adjImStimStartVol:adjImStimEndVol  ) = imStimTerp;
         %Make a copy of the frames
         %imCopy = avg_z_green_aligned;
-        imCopy = thisImData;
+        %imCopy = thisImData;
+
+        %New
+        if bendyBlockDesign == 0
+            imCopy = dataStimTrim;
+            stimSeq = randomSeqActual;
+        else
+            imCopy = postStimData;
+            stimSeq = deRandomSeq;
+        end        
+
         %Use the sequence data to burn in some sequence representors
         %for unI = unique(medBTSeqInterpZ) %Old
-        for unI = unique(imStimTerp) %New
+        %for unI = unique(imStimTerp) %New
+        for unI = unique(stimSeq) %Newer
             %thisSeqFrameCoords = find( medBTSeqInterpZ == unI ); %Old, assumption of stim==im
-            thisSeqFrameCoords = find( fullStimTerp == unI ); %New, accounts for pre/post non-stim time
-            imCopy( 1:12, 1 + (unI-1)*12:unI*12, thisSeqFrameCoords ) = 255*ones( 12,12, size( thisSeqFrameCoords,2 ) ); %Make little white boxes
+            %thisSeqFrameCoords = find( fullStimTerp == unI ); %New, accounts for pre/post non-stim time
+            thisSeqFrameCoords = find( stimSeq == unI ); %New, accounts for pre/post non-stim time
+            %imCopy( 1:12, 1 + (unI-1)*12:unI*12, thisSeqFrameCoords ) = 255*ones( 12,12, size( thisSeqFrameCoords,2 ) ); %Make little white boxes
+            imCopy( 1:12, (unI + 1)*12:(unI+2)*12-1, thisSeqFrameCoords ) = 255*ones( 12,12, size( thisSeqFrameCoords,2 ) ); %Make little white boxes
         end
         imCopy = repmat( imCopy, 1, 1, 1, 3 ); %Add a fourth 'colour' dimension (Fake)
         imCopy = reshape( imCopy, size( imCopy,1 ), size( imCopy,2 ), size( imCopy,4 ), size( imCopy,3 ) ); %Reshape
@@ -1046,10 +1102,11 @@ for thisBlock = [BLOCKS]
         vidFrames2( 1:size(imCopy,1), 1:size(imCopy,2), 1:3, : ) = imCopy; %Paste in original vid data
         %Save
         %vidOutObj = VideoWriter([strcat(dataFolder, filesep, expName, filesep, 'rollVid','.mp4')],'MPEG-4')
-        vidOutObj = VideoWriter([strcat(dataFolder, filesep, expName, filesep, 'rollVid','.avi')], 'Motion JPEG AVI')
+        vidOutObj = VideoWriter([strcat(dataFolder, filesep, expName, filesep, 'rollVid','.avi')], 'Motion JPEG AVI');
         %vidOutObj.FrameRate = size(avg_z_green_aligned,3) / inferTimes( frameEndInd ); %Estimate framerate
         %vidOutObj.FrameRate = size(thisImData,3) / inferTimes( frameEndInd ); %Estimate framerate
         vidOutObj.FrameRate = size(thisImData,3) / tsLastFrameTime; %Estimate framerate
+        vidOutObj.Quality = 100 %Arbitrary
         tic
         open(vidOutObj)
         writeVideo(vidOutObj,vidFrames2);
@@ -1057,6 +1114,9 @@ for thisBlock = [BLOCKS]
         clear imCopy vidFrames2
         disp(['Written in ',num2str(toc),'s'])
     end
+
+    clear dataStimTrim imStimTerp randomSeqActual nVol nStimuli %Just in case, for rolling
+    clear postStimData deRandomSeq nomInter %For block
 end
 
 %Remove certain blocks, if requested
