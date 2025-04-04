@@ -14,12 +14,12 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % blocks = blocks(~logical(blocks.Exclude),:);
 
 % the numbers here should be the original size divided by some power of 2
-imageSize = [128 128];
+imageSize = [-1 -1]; % <value> -> Requested size, -1 -> Automatically derive size from loaded data 
 
-chosenFlies = [278];
+chosenFlies = [999];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = [];
+chosenBlocks = {[6]};
     %FORMAT MUST BE {[<block/s>]} 
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
@@ -40,14 +40,18 @@ for fly = 1:length(chosenFlies)
     %align inside each block
     for b = 1:height(thisFlyBlocks)
         currentBlock = thisFlyBlocks(b,:);
-        if imageSize(1) > currentBlock.pixelY || imageSize(2) > currentBlock.pixelX
+        if all( imageSize ~= -1 ) && imageSize(1) > currentBlock.pixelY || imageSize(2) > currentBlock.pixelX
             disp(['-# One or more dimensions of image smaller than requested final size; Using initial size #-'])
             imageSizeActual = [currentBlock.pixelY, currentBlock.pixelX]
         else
             imageSizeActual = imageSize;
         end
         %alignBlock(thisFlyBlocks(b,:), imageSize, mainDirectory);
-        alignBlock(currentBlock, imageSizeActual, mainDirectory);
+        %alignBlock(currentBlock, imageSizeActual, mainDirectory);
+        alignBlock(currentBlock, imageSizeActual, mainDirectory, 'green');
+        if currentBlock.nChannels == 2
+            alignBlock(currentBlock, imageSizeActual, mainDirectory, 'red'); %No check for existence
+        end
     end
 
     %no need to align across blocks if only one block
@@ -57,7 +61,11 @@ for fly = 1:length(chosenFlies)
 
 end
     
-function alignBlock(block, imageSize, mainDirectory)
+function alignBlock(block, imageSize, mainDirectory, colour)
+
+    if ~exist('colour', 'var') || ( isempty(colour) )
+        colour = 'green'; %Default
+    end
 
     % slices within each volume including flyback 
     nSlices = block.Steps + block.FlybackFrames;
@@ -83,42 +91,52 @@ function alignBlock(block, imageSize, mainDirectory)
 %     end
 %     toc;
 
-    thisFile = dir( [fullfile(currentDirectory,'green_channel_*x*.mat')] );
+    %thisFile = dir( [fullfile(currentDirectory,'green_channel_*x*.mat')] );
+    thisFile = dir( [fullfile(currentDirectory,[colour,'_channel_*x*.mat'])] );
 
     %if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file') && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
-    if ~isempty( thisFile ) && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
+    %if ~isempty( thisFile ) && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
+    if ~isempty( thisFile ) && ~exist(fullfile(currentDirectory,['avg_z_',colour,'_aligned.mat']),'file')
     
         % load red and green channels
-        disp('Loading green channel');
+        %disp('Loading green channel');
+        disp(['Loading ',colour,' channel']);
         %tic; green_channel = load(fullfile(currentDirectory,'green_channel_128x128')); toc;
-        tic; green_channel = load([ thisFile.folder,filesep,thisFile.name ]); toc; %Will probs crash if >1 file
+        tic; colour_channel = load([ thisFile.folder,filesep,thisFile.name ]); toc; %Will probs crash if >1 file; Replaces "green_channel"
 
     %     disp('Loading red channel');
     %     tic; red_channel = load(fullfile(currentDirectory,'red_channel_128x128')); toc;
+    
+        %Automatically derive image size if requested
+        if any( imageSize == -1 )
+            disp(['Automatically deriving image size'])
+            imageSize = size( colour_channel.rData, [1,2] )
+        end
 
         %hyperstack the green and red channels (pixelX,pixelY,nSlices,time)
-        green_channel = reshape(green_channel.rData,[imageSize nSlices nVolTotal]);
+        %[imageSize nSlices nVolTotal]
+        colour_channel = reshape(colour_channel.rData,[imageSize nSlices nVolTotal]);
     %     rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
 
         % average over the volume
-        avg_z_green = squeeze(mean(green_channel,3));
+        avg_z_colour = squeeze(mean(colour_channel,3)); %Replaces "avg_z_green"
     %     avg_z_red = squeeze(sum(rc_hstack,3));
 
         if block.Align
 
             % z-average aligned
-            avg_z_green_aligned = zeros(size(avg_z_green));
+            avg_z_colour_aligned = zeros(size(avg_z_colour)); %Replaces "avg_z_green_aligned"
         %     avg_z_red_aligned = zeros(size(avg_z_red));
 
             % full stack aligned
-            green_channel_aligned = zeros(size(green_channel));
+            colour_channel_aligned = zeros(size(colour_channel)); %Replaces "green_channel_aligned"
 
             %make a reference image for registering (mean of first recording of nVol)
             if nVol > 0
-                refImage = mean(avg_z_green(:,:,1:nVol),3); %Old block calcs
+                refImage = mean(avg_z_colour(:,:,1:nVol),3); %Old block calcs
             else
-                disp(['Using ', num2str(ceil(size(avg_z_green,3)*0.001)),' frames as reference'])
-                refImage = mean(avg_z_green(:,:, 1:ceil(size(avg_z_green,3)*0.001) ),3); %Use first 1% of total frames as reference
+                disp(['Using ', num2str(ceil(size(avg_z_colour,3)*0.001)),' frames as reference'])
+                refImage = mean(avg_z_colour(:,:, 1:ceil(size(avg_z_colour,3)*0.001) ),3); %Use first 1% of total frames as reference
                     %Note: Might have issues with very short recordings, etc
             end
 
@@ -132,25 +150,33 @@ function alignBlock(block, imageSize, mainDirectory)
             tic;
             parfor vol = 1:nVolTotal
 
-                im_trans = imregtform(avg_z_green(:,:,vol),refImage,'translation',opt,metric);
+                im_trans = imregtform(avg_z_colour(:,:,vol),refImage,'translation',opt,metric);
                 R = imref2d(size(refImage));
 
                 % apply transformation to avg image
-                avg_z_green_aligned(:,:,vol) = imwarp(avg_z_green(:,:,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+                avg_z_colour_aligned(:,:,vol) = imwarp(avg_z_colour(:,:,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
         %         avg_z_red_aligned(:,:,i) = imwarp(avg_z_red(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
 
                 % apply transformation to each slice in z direction (can this be done all at once for a volume?)
                 for z = 1:nSlices
-                    green_channel_aligned(:,:,z,vol) = imwarp(green_channel(:,:,z,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+                    colour_channel_aligned(:,:,z,vol) = imwarp(colour_channel(:,:,z,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
                 end
 
             end
             toc;
 
-            disp('Saving AVG green channel aligned');
-            tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned','-v7.3','-nocompression'); toc;
-            disp('Saving full green channel aligned');
-            tic; save(fullfile(currentDirectory,'green_channel_aligned'),'green_channel_aligned','-v7.3','-nocompression'); toc;
+            %disp('Saving AVG green channel aligned');
+            disp(['Saving AVG ',colour,' channel aligned']);
+            %tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned','-v7.3','-nocompression'); toc;
+            temp = struct;
+            temp.(['avg_z_',colour,'_aligned']) = avg_z_colour_aligned; %'Rename'
+            tic; save(fullfile(currentDirectory,['avg_z_',colour,'_aligned']),'-struct','temp','-v7.3','-nocompression'); toc;
+            %disp('Saving full green channel aligned');
+            disp(['Saving full ',colour,' channel aligned']);
+            %tic; save(fullfile(currentDirectory,'green_channel_aligned'),'green_channel_aligned','-v7.3','-nocompression'); toc;
+            temp = struct;
+            temp.([colour,'_channel_aligned']) = colour_channel_aligned; %'Rename'
+            tic; save(fullfile(currentDirectory,[colour,'_channel_aligned']),'-struct', 'temp','-v7.3','-nocompression'); toc;
 
         end
 

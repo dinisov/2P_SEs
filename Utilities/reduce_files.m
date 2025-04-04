@@ -3,8 +3,10 @@
 close all; clear;
 
 rdmDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
-
 blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
+%rdmDirectory = 'I:\RFDG2021-Q4413\Andre\2p_Data\';
+%blocks = readtable("I:\RFDG2021-Q4413\Andre\2p_Record\Andre_2P_record.xlsx");
+%['Andre data']
 
 %get rid of excluded flies
 % blocks = blocks(~logical(blocks.Exclude),:);
@@ -17,7 +19,7 @@ finalSize = [128 128];
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
-chosenFlies = [278];
+chosenFlies = [999];
 chosenBlocks = {[6]}; % leave empty if reducing all blocks for one fly
     %MUST BE IN FORMAT {[blocks]}
 
@@ -74,7 +76,17 @@ for fly = 1:length(chosenFlies)
         
         codeStartTime = posixtime(datetime('now'));
         %loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize, 1); %currentBlock corresponds to currentFly
-        loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSizeActual, 1); %currentBlock corresponds to currentFly
+        loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSizeActual, 1, 'green'); %currentBlock corresponds to currentFly
+        if currentBlock.nChannels == 2
+            temp = dir( [currentRDMDirectory,filesep,'red_channel.raw'] );
+            if ~isempty( temp )
+                disp(['Reducing and saving red channel data as well'])
+                loadReduceSave(currentRDMDirectory, 'red_channel.raw', currentBlock, finalSizeActual, 1, 'red');      
+            else
+                ['-# Alert: Two channels specified, but red channel data not found #-']
+            end
+        end
+        
         
         codeEndTime = posixtime(datetime('now'));
         MET = codeEndTime - codeStartTime;
@@ -82,7 +94,11 @@ for fly = 1:length(chosenFlies)
     end
 end
 
-function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
+function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments, colour)
+    if ~exist('colour', 'var') || ( isempty(colour) )
+        colour = 'green'; %Default
+    end
+        
     %memUsed = nan(7,1);
      if ~isunix
         [memStruct,~] = memory;
@@ -115,7 +131,8 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
             disp(['Stage 2 (Mem. info unavailable)'])
         end
         toc
-        
+        %[imageSize nFrames]
+        %size(data)
         %rearrange
         data = permute(reshape(data, [imageSize nFrames]),[2 1 3]);
         if ~isunix
@@ -231,7 +248,8 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments)
         fclose(fid);
     end
     
-    reducedFileRDM = fullfile(RDMDirectory, ['green_channel_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat']);
+    %reducedFileRDM = fullfile(RDMDirectory, ['green_channel_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat']);
+    reducedFileRDM = fullfile(RDMDirectory, [colour,'_channel_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat']);
     
     tic
     disp('Saving');
