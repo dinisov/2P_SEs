@@ -2,6 +2,7 @@ function reduceFilesFunc( currentRDMDirectory,currentBlock, flyID, finalSize )
 %   Functionalised version of reduce_files, designed to eliminate exponential processing time increase problems
 %   Unlike its source, it is designed to run on one fly-block at a time
 
+%{
 %close all; clear;
 %
 %rdmDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
@@ -16,9 +17,10 @@ function reduceFilesFunc( currentRDMDirectory,currentBlock, flyID, finalSize )
 % the numbers here should be the original size divided by some power of 2
 %finalSize = [128 128];
 %finalSize = finalSize;
+%}
 
 %%
-
+%{
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
@@ -51,13 +53,17 @@ function reduceFilesFunc( currentRDMDirectory,currentBlock, flyID, finalSize )
 %        flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate]; %Borrowed from pre_process
 %
 %        currentRDMDirectory = fullfile(rdmDirectory,currentDate,flyID);
-
+%}
         %disp(currentFlyDirectory);
         disp(['Fly: ',flyID]);
         
         codeStartTime = posixtime(datetime('now'));
         loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize); %currentBlock corresponds to currentFly
-
+        if currentBlock.nChannels == 2
+            loadReduceSave(currentRDMDirectory, 'red_channel.raw', currentBlock, finalSize);
+        end
+        
+        
         codeEndTime = posixtime(datetime('now'));
         MET = codeEndTime - codeStartTime;
         disp(['-- Total time to process: ',num2str(MET),'s --']) 
@@ -99,17 +105,19 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize)
     clear data
     toc
     
-    reducedFileRDM = fullfile(RDMDirectory, ['green_channel_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat']);
+    %reducedFileRDM = fullfile(RDMDirectory, ['green_channel_' num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat']);
+    reducedFileRDM = fullfile(RDMDirectory, [strrep(file,'.raw','_') num2str(finalSize(1)) 'x' num2str(finalSize(2)) '.mat']);
     
     tic
     disp('Saving');
     % save green channel; do not compress we care about speed not size
     save(reducedFileRDM, 'rData','-v7.3','-nocompression');
+    clear rData
     toc
     
     % free up the memory 
     %clear;
-    clearvars('-except', 'codeStartTime', 'codeEndTime');
+    %clearvars('-except', 'codeStartTime', 'codeEndTime');
     
 end
 end
