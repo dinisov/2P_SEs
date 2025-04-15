@@ -8,7 +8,19 @@ arguments
     options.nBack (1,1) {mustBeNumeric} = 5
     options.behavSequence double = []
     options.doRolling (1,1) {mustBeNumeric} = 0 %Whether to additionally calculate a rolling version of dataSeq
+    options.skipIso (1,1) {mustBeNumeric} = 0 %Whether to not calculate isomer array (Return empty)
 end
+
+%for non-function running
+%{
+imageStack = block.greenChannel;
+randomSequence = block.randomSequence;
+nVol = block.nVol;
+nStimuli = block.nStimuli;
+options.doRolling = block.doRolling;
+options.skipIso = 1; %Forced default
+options.nBack = 5; %Forced default
+%}
 
     %Reminder: This is the 2D version, so imageStack only has 3 effective dimensions (XYT), because Z is flattened
 
@@ -16,11 +28,21 @@ end
     %nSeq = 2^nBack;
     nSeq = 2^options.nBack;
 
+    skipIso = options.skipIso;
+
     sequenceLength = length(randomSequence);
 
     % better to pre-allocate but 5th dim will be too long
-    dataSeq = zeros([nVol nSeq/2 size(imageStack)]);
-    dataSeqIso = zeros([nVol nSeq size(imageStack)]);
+    %dataSeq = zeros([nVol nSeq/2 size(imageStack)]);
+    maxN = (sequenceLength/nStimuli-mod((nStimuli+4),8)) + 1; %Theoretical maximum position a volume of data will ever be assigned to (5th axis)
+    dataSeq = zeros([nVol nSeq/2 size(imageStack, [1,2]) maxN ]); %Use maximum n (See below) rather than image frames as last (5th) axis length
+        %Note: May cause issues if anything later assumes dataSeq 5th axis size == nFrames etc
+    if ~skipIso
+        %dataSeqIso = zeros([nVol nSeq size(imageStack)]);
+        dataSeqIso = zeros([nVol nSeq size(imageStack, [1,2]) maxN]); %Even more crucial for this to be as small as possible...
+    else
+        dataSeqIso = [];
+    end
     if isfield( options, 'behavSequence' ) && ~isempty(options.behavSequence)
         hasBehav = 1;
         %behavSeq = zeros([nVol nSeq/2 size(imageStack)]); %Parallel data array to dataSeq
@@ -39,8 +61,9 @@ end
     if isfield( options, 'doRolling' ) && options.doRolling == 1
         doRolling = 1;
         rollStruct = struct;
-        rollStruct.rollSeq = nan([nSeq/2 size(imageStack)]); %Excessive last dim probably warranted here, at least for assembly (Unlike for dataSeq)
+        %%rollStruct.rollSeq = nan([nSeq/2 size(imageStack)]); %Excessive last dim probably warranted here, at least for assembly (Unlike for dataSeq)
             %SXYT
+            %Disabled, for memory reasons (Particularly with fast/long recordings)
         rollStruct.rollSeqReduced = nan([nSeq/2 size(imageStack)]);
     else
         doRolling = 0;
@@ -71,14 +94,25 @@ end
             end
             
             % stack images for each vol and seq along 5th dimension (separated by pattern)
-            dataSeq(vol, auxSeq(seq),:, :, n+1) = imageStack(:,:,n*nVol + vol);
+            %Quick new QA to make sure new elements aren't being added
+            if n+1 > size( dataSeq, 5 )
+                ['## Alert: dataSeq 5th axis insertion position (',num2str(n+1),') larger than pre-allocated size (',num2str(size( dataSeq, 5 )),') ##']
+                crash = yes %Not crucial to crash here, but probably means new/better code needs to be written
+            end
+            dataSeq(vol, auxSeq(seq),:, :, n+1) = imageStack(:,:,n*nVol + vol); %Unmodified
             
             % for the isomers (consumes a lot of memory)
-            dataSeqIso(vol,seq,:, :, n+1) = imageStack(:,:,n*nVol + vol);
+            if ~skipIso
+                dataSeqIso(vol,seq,:, :, n+1) = imageStack(:,:,n*nVol + vol);
+            end
         end
         %['vol:',num2str(vol),', max n:',num2str(n), 'last frame: ',num2str(n*nVol + vol)]
     end
-    disp([num2str(toc),'s to assemble dataSeq/dataSeqIso'])
+    if ~skipIso
+        disp([num2str(toc),'s to assemble dataSeq'])
+    else
+        disp([num2str(toc),'s to assemble dataSeq (and dataSeqIso)'])
+    end
     %size(behavSeq)
     
     %Rolling, if applicable
@@ -145,7 +179,8 @@ end
             %disp( ['Stim event #',num2str(i),char(10),'start/stop: ', num2str( startEnd )] )
             %disp( ['Selected frames: ', num2str( framesToUse )] )
 
-            rollStruct.rollSeq(auxSeq(seq),:, :, [framesToUse]) = imageStack(:,:, [framesToUse] ); %Place at any random location
+            %%rollStruct.rollSeq(auxSeq(seq),:, :, [framesToUse]) = imageStack(:,:, [framesToUse] ); %Place at any random location
+                %Disabled this, on account of inefficient memory use
             smartPos = [rollStruct.indTracker( auxSeq(seq) ) : rollStruct.indTracker( auxSeq(seq) )+minFrameCount-1 ]; %Note: Hardcoded always be min frame count 
             %smartPos
             rollStruct.indTracker( auxSeq(seq) ) = rollStruct.indTracker( auxSeq(seq) ) + minFrameCount;
@@ -163,8 +198,10 @@ end
         disp(['rollSeq reduced'])
         
         %end 
-        disp([num2str(toc),'s to assemble rollSeq'])
-        disp( ['size rollSeq: ',num2str(size(rollStruct.rollSeq)),' /reduced: ',num2str(size(rollStruct.rollSeqReduced))] )
+        %disp([num2str(toc),'s to assemble rollSeq'])
+        disp([num2str(toc),'s to assemble rollSeqReduced'])
+        %disp( ['size rollSeq: ',num2str(size(rollStruct.rollSeq)),' /reduced: ',num2str(size(rollStruct.rollSeqReduced))] )
+        disp( ['size reduced: ',num2str(size(rollStruct.rollSeqReduced))] )
         %k
         disp( ['last seq #:',num2str(seq),', startEnd: ',num2str(startEnd),', and framesToUse: ',num2str(framesToUse)] )
         disp( ['collected ', num2str(k-1),' events'] )

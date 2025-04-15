@@ -2,6 +2,11 @@ function R = analyse2PBlock(block)
 
     %% sort data according to previous sequence
 
+    %For non-function running
+    %{
+    block = thisBlock; %Presupposes that analyse2P was run non-function too
+    %}
+
 %     n_back = 5; 
 
     %disp( ['block.randomSequence - ', class(block.randomSequence)] )
@@ -9,14 +14,21 @@ function R = analyse2PBlock(block)
     %load('I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\3Jun24\fly1_exp1_3Jun24\behavSequence.mat')
     %behavSequence = savStruct.acInac.thisInacBinaryInterp;
 
+    skipIso = 1; %Whether to skip doing isomer data (Useful for very large/fast data)
+    if skipIso
+        disp(['-# Isomer data not being calculated, per request #-'])
+    end
+
     % yields 5D matrix with (vol,seq,pixelX,pixelY,trial)
     %[dataSeq, dataSeqIso] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
     if isfield( block, 'behavSequence' )
         %[dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence);
-        [dataSeq, dataSeqIso, dataSeqBehav, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence, 'doRolling', block.doRolling);
+        [dataSeq, dataSeqIso, dataSeqBehav, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
+            'behavSequence', block.behavSequence, 'doRolling', block.doRolling, 'skipIso',skipIso);
     else
         %[dataSeq, dataSeqIso, ~] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
-        [dataSeq, dataSeqIso, ~, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'doRolling', block.doRolling);
+        [dataSeq, dataSeqIso, ~, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
+            'doRolling', block.doRolling,'skipIso',skipIso);
     end
     
     % mean across fifth (trial) dimension (much faster than nan mean)

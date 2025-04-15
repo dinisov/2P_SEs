@@ -16,10 +16,10 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 imageSize = [-1 -1]; % <value> -> Requested size, -1 -> Automatically derive size from loaded data 
 
-chosenFlies = [999];
+chosenFlies = [294,295];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = {[6]};
+chosenBlocks = {[2],[1,2,3]};
     %FORMAT MUST BE {[<block/s>]} 
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
@@ -164,6 +164,7 @@ function alignBlock(block, imageSize, mainDirectory, colour)
 
             end
             toc;
+            disp(['(',num2str(nVolTotal/toc),' vol/s)'])
 
             %disp('Saving AVG green channel aligned');
             disp(['Saving AVG ',colour,' channel aligned']);
