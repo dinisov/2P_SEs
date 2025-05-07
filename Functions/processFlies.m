@@ -8,13 +8,15 @@ disp([char(10),'-------------------------------------'])
 FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling);
 
 %% Interrupt flow for rolling datasets
-for fly = 1:length(FLIES)
-    if any([FLIES(fly).BLOCKS.isRolling]) || doRolling
-            %Note that doRolling on non-rolling data may behave weirdly and isn't tested (yet)
-        [FLIES(fly).BLOCKS] = syncMaster( FLIES(fly).BLOCKS , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1 );
-            %BLOCKS in, (modified) BLOCKS out
-    end
-end
+%for fly = 1:length(FLIES)
+%    if any([FLIES(fly).BLOCKS.isRolling]) || doRolling
+%            %Note that doRolling on non-rolling data may behave weirdly and isn't tested (yet)
+%        [FLIES(fly).BLOCKS] = syncMaster( FLIES(fly).BLOCKS , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1, 'disregardRollingDesign', 0 );
+%            %BLOCKS in, (modified) BLOCKS out (Old version)
+%    end
+%end
+[FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1, 'disregardRollingDesign', 0 );
+    %New version, receives FLIES, similar to other scripts
 
 %% analyse SEs
 % separates images according to preceding sequence of stimuli and
