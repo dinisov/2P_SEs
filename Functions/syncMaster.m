@@ -1,4 +1,8 @@
 function FLIES = syncMaster(FLIES, flyRecord, options)
+
+%Mk ???
+%Mk 6 - Support for battery, and blanks during bendy block design
+
 %function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
 
@@ -7,6 +11,7 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
 %           - Support for blanks
 
 %           - Support for battery
+%                   - Check battery phase correctness wrt nSpikes/etc
 
 
 %To improve: Absolute best frame specificity for im/stim calcs
@@ -16,7 +21,6 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
     %Also, support for a bendy panel block design with blank periods (Currently all blanks are assumed to be inter-stim periods)
 
     %Also, ability to analyse LED data as if rolling?
-
 
 
 %{{
@@ -36,7 +40,9 @@ arguments
     options.nBack double = 5 %Functions same as elsewhere; Will override flyRecord nStimuli if it comes to it (e.g. bendy block design)
     options.saveShortcut double = 1 %Whether to save a faster structure than original h5 files to the ThorSync folder
     options.useShortcut double = 1 %Whether to actually use said shortcut
-    options.daqFramespikeVoltage double = 1 %Approximate voltage for the FrameSpike voltage in DAQ/TS 
+    options.daqFramespikeVoltage double = 1 %Approximate voltage for the FrameSpike voltage in DAQ/TS
+    options.blankHandleMode double = 2 %How to deal with blanks when includeBlanks used (1 - Siphon blanks separately, 2 - Treat as normal and siphon at end [Safer])
+    options.disregardBattery double = 1 %Whether to discard battery blocks at end, on account of SEs analysis incompatibility
 end
 %}
 %{
@@ -52,28 +58,16 @@ options.allowRandomSequenceEmpty = 0
 options.disregardRollingDesign = 0
 options.btInterpolationMethod = 'intelligent' 
 options.nBack = 5
-options.saveShortcut = 1
-options.useShortcut = 0
+options.saveShortcut = 0
+options.useShortcut = 1
 options.daqFramespikeVoltage = 1
+options.blankHandleMode = 2
+options.disregardBattery = 1
 %}
 
-%{
-clear %Will go away once functionised
-close all %Will go away once functionised
 
 %% Prepare
 
-doPlot = 1;
-doVid = 0;
-rollingAnalysis = -1; %Whether to force rolling analysis (1) or not (0), or go with detection from PTB files if available (default to no)
-
-%Load block data (Unnecessary if functionised)
-blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
-blocks = blocks(~logical(blocks.Exclude),:);
-
-chosenFly = 260;
-chosenBlock = 2;
-%}
 doPlot = options.doPlot;
 doVid = options.doVid;
 rollingAnalysis = options.rollingAnalysis;
@@ -86,6 +80,9 @@ nBack = options.nBack;
 saveShortcut = options.saveShortcut;
 useShortcut = options.useShortcut;
 daqFramespikeVoltage = options.daqFramespikeVoltage; %Called into being even if not applicable
+blankHandleMode = options.blankHandleMode;
+disregardBattery = options.disregardBattery;
+
 
 %Pre-loop preparation
 flagParamSaveList = who;
@@ -300,16 +297,26 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         %Read params
         targetMATName = strcat( 'MAT_', MATDate, '_', expNameMAT{1}, '_', expNameMAT{2} );
         matParamFile =dir( strcat(dataFolder, filesep, '**/', targetMATName, '.mat') );
+        altTargetMATName = strcat( MATDate, '_', expNameMAT{1}, '_', expNameMAT{2},'_MAT' );
+        altMatParamFile =dir( strcat(dataFolder, filesep, '**/', altTargetMATName, '.mat') );
         %QA
-        if isempty( matParamFile )
+        if isempty( matParamFile ) && isempty(altMatParamFile)
             ['## PTB MATLAB parameters not found! ##']
             %crash = yes
             hasPTB = 0;
         else
             hasPTB = 1;
+            disp(['PTB MATLAB parameters found'])
         end
         if hasPTB
-            matParamStruct = load( [matParamFile.folder,filesep,matParamFile.name] );
+            %matParamStruct = load( [matParamFile.folder,filesep,matParamFile.name] );
+            if ~isempty( matParamFile )
+                disp(['(Legacy name)'])
+                matParamStruct = load( [matParamFile.folder,filesep,matParamFile.name] );
+            else
+                disp(['(Newtype name)'])
+                matParamStruct = load( [altMatParamFile.folder,filesep,altMatParamFile.name] );
+            end
     
             %Quick check to guard against accidental unitary analysis
             if isequal( matParamStruct.matSave.stimuli, 'unitary' )
@@ -351,6 +358,28 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 bendyBlockDesign = 0; %Rolling
                 disp(['Bendy panel rolling design (presumably) detected'])
             end
+
+            %Check if battery
+            batteryDesign = 0; %Default no
+            if isequal( matParamStruct.matSave.stimuli , "battery")
+                batteryDesign = 1;
+                disp(['~ Battery design detected ~'])
+            end
+
+            %Get script version
+            if isfield( matParamStruct.matSave, 'progIdent' )
+                progIdent = matParamStruct.matSave.progIdent;
+            else
+                ['-# Could not detect script version #-']
+                progIdent = [];
+            end
+
+            %Check if blanks
+            if isfield( matParamStruct.matSave, 'includeBlanks' )
+                includesBlanks = matParamStruct.matSave.includeBlanks;
+            else
+                includesBlanks = 0; %Default no
+            end
     
             ptbStartTime = btData(1,2)/1000; %Divide by 1000 because PTB stores down to millisecond unix time
             %ptbEndTime = btData( find( ~isnan( btData(:,2) ) , 1, 'last'  ) ,2)/1000; %Find necessary because NaN last element
@@ -361,20 +390,24 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     %Secondary note: Relies heavily on the assumption that arduino low -> bt repetitiveness instantly
     
              if ~isShortcutting        
-             estimatedPTBEndTime = imStartTime + inferTimes( bleachEndInd ); 
+                 if ~batteryDesign
+                     estimatedPTBEndTime = imStartTime + inferTimes( bleachEndInd ); %Use arduino low to estimate PTB end time in TS reference
+                 else
+                     estimatedPTBEndTime = ptbEndTime; %Use PTB, because arduino likely not applicable
+                 end
              else
-             estimatedPTBEndTime = shortStruct.estimatedPTBEndTime;
+                estimatedPTBEndTime = shortStruct.estimatedPTBEndTime;
              end
                 %This is a time guessed from the self-reported imaging start time
                 %It is intended to be used to QA ptbEndTime in case of not ending because repetitive, not a true comparison
               %QA
-              if abs( ptbEndTime - estimatedPTBEndTime ) > 0.05 * ( estimatedPTBEndTime - imStartTime ) %"Did PTB end more than 5% +- Arduino time?"
+              if abs( ptbEndTime - estimatedPTBEndTime ) > 0.05 * ( estimatedPTBEndTime - imStartTime )  %"Did PTB end more than 5% +- Arduino time?"
                   ['## Alert: PTB self-reported end time differs significantly from Arduino estimated end time ##']
                   crash = yes %Not technically critical, but probably worrying
               end
     
-              %Find out if rolling experiment
-              if rollingAnalysis == -1 && isfield( matParamStruct.matSave, 'blockDesign' )
+              %Find out if rolling experiment (unless battery)
+              if rollingAnalysis == -1 && isfield( matParamStruct.matSave, 'blockDesign' ) && ~batteryDesign
                   if matParamStruct.matSave.blockDesign == 1
                       rollingAnalysis = 0; %Override
                       disp(['Block design detected in PTB params; Using block analysis'])
@@ -388,6 +421,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
         %------------------------------
 
+        %Little follow-on
+        if isShortcutting
+            hasDaqData = shortStruct.hasDaqData;
+        end
         %DAQ
         if hasDaqData && ~isShortcutting
             %freak
@@ -410,24 +447,63 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             end
 
             %Match framespikes to btData
-            if nSpikes == btData(end,5)-1 %-1 based on exactly N=1 testing
-                disp(['Perfect match between number of detected framespikes (',num2str(nSpikes),') and reported last valid i value (',num2str(btData(end,5)-1),')'])
+            if (batteryDesign == 0 && nSpikes == btData(end,5)-1 ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
+                    %Note: As of v8.2, it may be the norm for btData at end to match nSpikes without - 1
+                if nSpikes == btData(end,5)-1
+                    disp(['Perfect match between number of detected framespikes (',num2str(nSpikes),') and reported last valid i value (',num2str(btData(end,5)-1),')'])
+                else
+                    disp(['Number of detected framespikes: ',num2str(nSpikes),'; Reported last valid i value: ',num2str(btData(end,5)-1)])
+                end
             
-                temp = bwlabel( btData(:,9) == 2 ); %Assumption of having btData, but is this analysis possible without it?
-                [~,flipOnsetIndices] = ismember( [1:nanmax(temp)], temp ); %First position of state switch in onOff
-                    %Necessary to find first position in case of different duty cycles?
-                %QA
-                if length( flipOnsetIndices ) ~= nSpikes
-                    ['## Alert: Disparity between detected framespikes and detected flip positions ##']
-                    crash = yes
+                %Standard calcs
+                if ~batteryDesign
+                    %temp = bwlabel( btData(:,9) == 2 ); %Use onOff == 2 to find flips; Assumption of having btData, but is this analysis possible without it?
+                    temp = bwlabel( [0; diff( btData(:,5) )] ); %Use changes in i to find 'flips'
+                        %Note: This value may technically be always 1 less than actual stimuli presented, since current DAQ writing is only done at a change, not at initialisation
+                    [~,flipOnsetIndices] = ismember( [1:nanmax(temp)], temp ); %First position of state switch in onOff
+                        %Necessary to find first position in case of different duty cycles?
+                    %QA
+                    %if ( batteryDesign ~= 1 && length( flipOnsetIndices ) ~= nSpikes ) || ( batteryDesign == 1 && length( flipOnsetIndices ) ~= nSpikes-1 ) %HIGHLY EMPIRICAL
+                    if length( flipOnsetIndices ) ~= nSpikes
+                        ['## Alert: Disparity between detected framespikes and detected flip positions ##']
+                        crash = yes
+                    end
+
+                    estPTBInferTimeStart = inferTimes( frameLOCS(1) ) - btData( flipOnsetIndices(1), 6); %Theoretical time (inferTimes reference) PTB started at
+                        %Use framespike to find first flip position in inferTimes, then subtract known duration since PTB start from that
+                    estPTBInferTimeEnd = inferTimes( frameLOCS(end) ) + ( btData(end,6) - btData( flipOnsetIndices(end), 6) ); 
+                        %Similarly, find inferTime[s] where last framespike happened, then add time distance (btData self-report) between that and last btData element
+                else
+
+                    preTemp =  [0; diff( btData(:,5) )];
+                    temp =  zeros( size(btData,1), 1 );
+                    temp( find(btData(:,5) == 1, 1, 'first') ) = 1;
+                    temp( preTemp == 1 ) = btData( find(preTemp == 1), 5 ); %Don't use bwlabel, because bwlabel doesn't quite work if there are no repetitions of elements (i.e. Speedy optomotor)
+                        %Related: This may encounter issues if stimuli switching faster than BT data being saved
+                    [~,flipOnsetIndices] = ismember( [1:nanmax(temp)], temp );
+
+                    if exist( 'progIdent' ) && ( ~isequal( progIdent, 'FLY_SEQUENTIAL_DEPENDENCIES_v8dot3_XM' ) && ~isequal( progIdent, 'FLY_SEQUENTIAL_DEPENDENCIES_v8dot4_XM' ) ) 
+                        estPTBInferTimeStart = inferTimes( frameLOCS(1) ) - btData( 1 , 6); %Assume that first framespike occurred immediately prior to first BT element
+                            %Note that this is only valid as long as first element of frameLOCS is referring to that spike
+                        disp(['Using legacy assumptions for battery first framespike position'])
+                    else
+                        estPTBInferTimeStart = inferTimes( frameLOCS(1) ) - btData( flipOnsetIndices( matParamStruct.matSave.optoElements+1 ), 6); %For older (battery) data, assume that first framespike occurs immediately after optomotor
+                    end
+                    estPTBInferTimeEnd = inferTimes( frameLOCS(end) ) + ( btData(end,6) - btData( flipOnsetIndices(end), 6) );  %This is generally a safe assumption, regardless of framespike position
+                    %QA
+                    if estPTBInferTimeStart > 10
+                        ['## Alert: PTB estimated to have started >10s after TS initiation; Error? ##'] %Likely to either be a very lagged PTB start or an error in framespike/frameLOCS attribution
+                        crash = yes
+                    end
+
                 end
 
-                estPTBInferTimeStart = inferTimes( frameLOCS(1) ) - btData( flipOnsetIndices(1), 6); %Theoretical time (inferTimes reference) PTB started at
+                %estPTBInferTimeStart = inferTimes( frameLOCS(1) ) - btData( flipOnsetIndices(1), 6); %Theoretical time (inferTimes reference) PTB started at; Moved above for separation
                     %Use framespike to find first flip position in inferTimes, then subtract known duration since PTB start from that
                 [inferPTBStartDisp, inferPTBStartInd] = min( abs(inferTimes - estPTBInferTimeStart) );  %Find closest match in inferTimes for estimated PTB start time based on framespike
                     %Returns respectively the time error between the inferTimes point and PTB start, as well as the index of inferTimes (/TS) where PTB started (But not necessarily first stim)
                  
-                estPTBInferTimeEnd = inferTimes( frameLOCS(end) ) + ( btData(end,6) - btData( flipOnsetIndices(end), 6) ); 
+                %estPTBInferTimeEnd = inferTimes( frameLOCS(end) ) + ( btData(end,6) - btData( flipOnsetIndices(end), 6) ); 
                     %Similarly, find inferTime[s] where last framespike happened, then add time distance (btData self-report) between that and last btData element
                 [inferPTBEndDisp, inferPTBEndInd] = min( abs(inferTimes - estPTBInferTimeEnd) );
 
@@ -438,17 +514,12 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 end
 
             else %Note: Not tested with v8.2 new position of Data_Array saving
-                ['I M P E R F E C T I O N']
+                ['I M P E R F E C T I O N (But maybe v8.2 [Or v8.4+]?)']
                 crash = yes
 
                 %If this actually happens, add code to allow for (hopefully) minor disparities
             end
             
-
-        end
-        %Little follow-on
-        if isShortcutting
-            hasDaqData = shortStruct.hasDaqData;
         end
 
         %------------------------------
@@ -798,36 +869,53 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             end
     
              %Find actual stimuli delivered (via randomSequence)   
-             randomSeqOrig = matParamStruct.matSave.randomSequence; %Note that PTB script saves randomSequence as -1 (Blank), 1, (Stim 1), and 2 (Stim 2), rather than 5, 0, and 1, respectively
-             if isequal( unique( randomSeqOrig ), [-1, 1, 2] ) || isequal( unique( randomSeqOrig ), [1, 2] )
-                 randomSeqCorr = randomSeqOrig;
-                 randomSeqCorr( randomSeqCorr == -1 ) = 5;
-                 randomSeqCorr( randomSeqCorr == 1 ) = 0;
-                 randomSeqCorr( randomSeqCorr == 2 ) = 1; %Note order as critical, lest all 2 -> 1 -> 0
-             else
-                 ['## Alert: Unrecognised elements present in randomSequence! ##']
-                 unique( randomSeqOrig )
-                 crash = yes
-             end
-    
-             %imStimTerp = randomSeqCorr( medBTSeqInterpZ );
-             %imStimTerp = randomSeqCorr( modeBTSeqInterpZ );
-             imStimTerp = randomSeqCorr( methodBTSeqInterpZ );
-                %Note: Due to volume/timing inefficiencies this may skip the first actual presented element/etc
-                    %Also, number of imaging frames/volumes per element/block may be inconsistent
+             if ~batteryDesign %Not battery (Rolling, Block, etc)
+                 randomSeqOrig = matParamStruct.matSave.randomSequence; %Note that PTB script saves randomSequence as -1 (Blank), 1, (Stim 1), and 2 (Stim 2), rather than 5, 0, and 1, respectively
+                 if ( includesBlanks == 0 && ( isequal( unique( randomSeqOrig ), [-1, 1, 2] ) ) || isequal( unique( randomSeqOrig ), [1, 2] ) ) ||...
+                         ( includesBlanks == 1 && ( isequal( unique( randomSeqOrig ), [-2, -1, 1, 2] ) ) || isequal( unique( randomSeqOrig ), [-2, 1, 2] ) )
+                     randomSeqCorr = randomSeqOrig;
+                     randomSeqCorr( randomSeqCorr == -1 ) = 5;
+                     randomSeqCorr( randomSeqCorr == 1 ) = 0;
+                     randomSeqCorr( randomSeqCorr == 2 ) = 1; %Note order as critical, lest all 2 -> 1 -> 0
+
+                     %imStimTerp = randomSeqCorr( medBTSeqInterpZ );
+                     %imStimTerp = randomSeqCorr( modeBTSeqInterpZ );
+                     imStimTerp = randomSeqCorr( methodBTSeqInterpZ );
+                        %Note: Due to volume/timing inefficiencies this may skip the first actual presented element/etc
+                            %Also, number of imaging frames/volumes per element/block may be inconsistent
+                 else
+                     ['## Alert: Unrecognised elements present (or absent) in randomSequence! ##']
+                     unique( randomSeqOrig )
+                     crash = yes
+                 end
+             else %Battery
+                 %gorilla
+                 iSeq = [1:matParamStruct.matSave.sequenceLength]; %Note: No guarantee that all elements will have been displayed, even for battery (But this will be QA'd later)
+                 iSeqTerp = iSeq( methodBTSeqInterpZ ); %Theoretically represents which elements of i are associated with each (trimmed) volume of the recording
+             
+                 imStimTerp = matParamStruct.matSave.randomSequence( methodBTSeqInterpZ ); %Calculate this as well, for blank removal purposes
+
+             end  
     
               %Trim data to relevant (i.e. Stimulated) portion
               %dataStimTrim = avg_z_green_aligned( :,:, adjImStimStartVol:adjImStimEndVol );
               dataStimTrim = thisImData( :,:, adjImStimStartVol:adjImStimEndVol );
+                %Should we be concerned this doesn't exactly match imStimTerp for size?
               disp(['Data trimmed to stimulated portion only'])
+              disp([size(dataStimTrim)])
     
               %Siphon out blanks
                     %Start by extracting pre-experiment blank baseline (If existing)
-              if find( imStimTerp ~= 5, 1, 'first' ) ~= 1 && imStimTerp(1) == 5
+              if find( imStimTerp ~= 5, 1, 'first' ) ~= 1 && imStimTerp(1) == 5 
+
+                  if batteryDesign
+                    ['not coded for battery yet']
+                    crash = yes
+                  end
                   blankBaseline = [];
                   baseInds = [ 1:find( imStimTerp ~= 5, 1, 'first' )-1 ]; %Note: Assumption that there is no pre-baseline of stimuli/etc
                   blankBaseline = dataStimTrim( :,:,baseInds );
-                  blankSeq = imStimTerp( baseInds );
+                  blankSeq = imStimTerp( baseInds ); %Not to be confused with blankSequence
                   %QA
                   if numel( unique( blankSeq ) ) > 1
                       ['## Alert: Critical overfind in blank baseline collection ##']
@@ -843,13 +931,54 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
     
                   disp(['Blank pre-experiment baseline of ',num2str(numel(baseInds)),' elements collected; Data/sequence trimmed'])
               end
+              %Follow up by collecting during-sequence blanks (if existing)
+                    %(Only for inline blank handling though)
+              if includesBlanks && blankHandleMode == 1
+                  disp(['Blank trials will be removed inline (Mode 1)'])
+                  %blankInds = [find(imStimTerp == -2)]; 
+                  %blankStack = dataStimTrim( :,:, blankInds );
+                  %kdrew
+
+                  temp = bwlabel( imStimTerp == -2 ); %Label for all instances where stim was blank
+                  invTemp = bwlabel( imStimTerp == 5 ); %Label for all other instances
+                    %Note: Might be fragile based on imStimTerp processing/etc
+
+                  disp([num2str(nanmax(temp)),' blank trial periods identified; Siphoning inline'])
+
+                  preBlankStack = []; %Will hold all blank trial data
+                  preBlankInds = []; %Ditto, for collection indices
+                  preBlankIDs = []; %Will store the associated blank trial index (Used later for subspecification)
+                  for row = 1:nanmax( temp )
+                      thisBlankCollID = invTemp( find( temp == row, 1, 'last' )+1 ); %Find the ID of the stimulus collection period after this blank block
+                        %Note: This ID will typically far exceed row, on account of blank trials being far lower rate than stimulated
+                      %QA
+                      if thisBlankCollID == 0
+                          ['## Error: Fatal desync between labelling for blank collection ##']
+                          crash = yes %Honestly not really possible, unless something weird happens with bwlabel
+                      end
+                      theseBlankCollInds = find( invTemp == thisBlankCollID );
+                      preBlankStack = cat(3, preBlankStack, dataStimTrim( :,:, theseBlankCollInds ) ); %Append blank data along 3rd dim
+                      preBlankInds = cat(3, preBlankInds, reshape( theseBlankCollInds, 1, 1, size(theseBlankCollInds,2) ) ); %Reshape inds and do same
+                      preBlankIDs = cat(3, preBlankIDs, repmat( row, 1, 1, size(theseBlankCollInds,2) ) ); %Similar
+                  end
+
+                  blankInds = [find(imStimTerp == -2)]; %Still calculate this, for removal
+                  dataStimTrim( :,:, blankInds ) = [];
+                  imStimTerp( blankInds ) = [];
+              end
     
               %if thisBlock.blockNum == 3
               %prequel
               %end
+
+              %Battery-specific processing
+              if batteryDesign
+                    %ichiban
+                    clear imStimTerp %Prevent potential bleed
+              end 
     
               %Perform bendy rolling specific processing
-              if bendyBlockDesign == 0
+              if bendyBlockDesign == 0 && batteryDesign == 0
                   disp(['Processing for bendy rolling design'])
                   %Derive 'true' sequence delivered during rolling acquisition
                   randomSeqActual = randomSeqCorr( 1:methodBTSeqInterpZ(end) ); %Collect theoretical randomSequence from start to last element actually displayed
@@ -925,11 +1054,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   %Loss in this context is how much of the original imaging data could not be associated with 'blocks' 
                     %It is likely to be highest when imaging rates are low and stimulus frequencies are high (i.e. 1 in 3 is 33%, but 1 in 8 is only 12.5%)
     
-              end
-    
+              end                
+
               hasSiphoned = 0; %Flag to indicate whether blanks siphoned off
               stillRollable = 1; %Flag to indicate whether data can still be analysed rolling-style after blank removal
-              if any( imStimTerp == 5 ) || bendyBlockDesign == 1
+              if batteryDesign ~= 1 && ( any( imStimTerp == 5 ) || bendyBlockDesign == 1 )
                   if bendyBlockDesign == 0 %"Blanks indicate true blank periods, intended for alternative analysis/etc"
                     %Note: This isn't really main rolling analysis here, just blank removal, unlike below for block design bendy
                         disp(['Rolling design; Siphoning blanks for alternative analysis'])
@@ -940,8 +1069,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         [inds] = find( imStimTerp == 5 );
                             %Note: For rolling bendy design, this can be thought of as an actual 'blank' period
                             %          For bendy block design, blanks are actually the analagous recording period
-                        blankStack = dataStimTrim( :,:, inds );
-                        blankInds = inds;
+                        %blankStack = dataStimTrim( :,:, inds );
+                        baselineBlankStack = dataStimTrim( :,:, inds );
+                        %blankInds = inds;
+                        baselineBlankInds = inds;
             
                         %Find if blanks occurred anywhere other than start
                             %Deprecated on account of baseline extraction now
@@ -1050,11 +1181,31 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             disp(['Terminal collection period removed; New end: ', num2str(collInds(end)) ])
                         end
     
-                        %Prepare a labelled form of randomSeqCorr for intelligent stimuls collection, if applicable
+                        %Prepare a labelled form of randomSeqCorr for intelligent stimulus collection, if applicable
                         if isequal( btInterpolationMethod, 'intelligent' ) 
-                            temp = randomSeqCorr;
+                            if ~includesBlanks %No blanks
+                                %temp = randomSeqCorr;
+                                randomSeqForLabel = randomSeqCorr;
+                            else %Blanks
+                                %temp = randomSeqCorr( randomSeqCorr ~= -2 );
+                                %kairi
+                                if blankHandleMode == 1 %Treat differently
+                                    disp(['Blanks will be removed at end (Mode 2)'])
+                                    randomSeqForLabel = randomSeqCorr( randomSeqCorr ~= -2 );                                    
+                                else %Treat 'same'
+                                    randomSeqForLabel = randomSeqCorr;
+                                end
+                            end
+                            temp = randomSeqForLabel;
+
                             temp( temp == 0 ) = 1;
+                            if includesBlanks && blankHandleMode == 2
+                                temp( temp == -2 ) = 1;                                
+                            end
                             temp( temp == 5 ) = 0;
+                            %if includesBlanks
+                            %    temp( temp == -2 ) = 0; %Incorrect; To match with imStimTerp, these elements must be *removed*
+                            %end
                             randomSeqLabel = bwlabel( temp );
                         end
     
@@ -1076,6 +1227,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         %stimSeq = randomSeqCorr( [-blockLength+1:0] +  medBTSeqInterpZ( stimInds(:,end) ) );
                         stimSeq = nan( size(stimInds) );
                         stimSeqCorrInds = nan( size(stimInds) );
+                        randomSeqBlock = NaN; %Predefine
                         for row = 1:size( stimInds,1 )
                            % burnthem
                            switch btInterpolationMethod
@@ -1084,13 +1236,21 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                     %stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  modeBTSeqInterpZ( stimInds(row,end) );
                                     stimSeqCorrInds( row, : ) =  [-blockLength+1:0] +  methodBTSeqInterpZ( stimInds(row,end) );
                                         %pull medBTSeqInterpZ values at stimInds, go 5 back, pull those elements of randomSeqCorr
-                                    stimSeq( row, : ) = randomSeqCorr( stimSeqCorrInds( row, : ) ); %Stimuli
+                                    %stimSeq( row, : ) = randomSeqCorr( stimSeqCorrInds( row, : ) ); %Stimuli
+                                    stimSeq( row, : ) = randomSeqForLabel( stimSeqCorrInds( row, : ) ); %Stimuli
                                case 'intelligent'
                                    thisStimEnd =  methodBTSeqInterpZ( stimInds(row,end) );
                                    %Check for accidentally landing in inter-stimulus period
+                                        %Note: A rolling phase adjustment might be useful, but would have to be justified from first principles (Why would phase become unaligned over time?)
                                    if randomSeqLabel( thisStimEnd ) == 0
                                        if randomSeqLabel( thisStimEnd-1 ) ~= 0
-                                           thisStimEnd = thisStimEnd - 1; %Adjust                                   
+                                           thisStimEnd = thisStimEnd - 1; %Adjust        
+                                       elseif randomSeqLabel( thisStimEnd-2 ) ~= 0
+                                           thisStimEnd = thisStimEnd - 2; %Same, but more
+                                           disp(['Caution: Trial/Row #',num2str(row),' adjusted by -2 to keep phase'])
+                                       elseif randomSeqLabel( thisStimEnd-3 ) ~= 0
+                                           thisStimEnd = thisStimEnd - 3; %SAME, BUT EVEN MORE
+                                           disp(['CAUTION: TRIAL/ROW #',num2str(row),' ADJUSTED BY -3 TO KEEP PHASE'])
                                        else
                                             ['## Fatal failure to intelligently identify stimulus block identity ##']
                                             crash = yes
@@ -1098,7 +1258,17 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                             %Likely some grand loss of phase
                                        end
                                    end
+                                   %QA, to make sure same block isn't used twice (Phase check, basically)
+                                   if randomSeqLabel( thisStimEnd ) == randomSeqBlock || randomSeqLabel( thisStimEnd ) == 0
+                                       ['## Alert: Stimulus period captured twice OR failure to identify trial # at end of stimulus period ##']
+                                       ['Row: ',num2str(row),', prev. period #: ',num2str(randomSeqBlock),', this period #: ',num2str(randomSeqLabel( thisStimEnd ) )]
+                                   end
                                    randomSeqBlock = randomSeqLabel( thisStimEnd );
+                                   %Potentially incorrect QA
+                                   if randomSeqBlock ~= row
+                                       ['-# Potential phase loss? #-'] %This may be an incorrect assumption for different bendy designs/etc
+                                       crash = yes
+                                   end
                                    thisStimInds = [ find( randomSeqLabel == randomSeqBlock,1, 'first' ) : find( randomSeqLabel == randomSeqBlock,1, 'last' ) ];
                                    %QA
                                    if numel(thisStimInds) ~= blockLength
@@ -1106,7 +1276,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                        crash = yes
                                    end
                                    %If no issues, use labelled region to get stimuli
-                                   stimSeq( row, : ) = randomSeqCorr( thisStimInds );
+                                   %stimSeq( row, : ) = randomSeqCorr( thisStimInds );
+                                   stimSeq( row, : ) = randomSeqForLabel( thisStimInds );
                            end
                         end
                         %QA
@@ -1115,6 +1286,30 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             crash = yes
                                 %If using interpolation other than last, this may be result of median/mode 'skipping' stimulus elements 
                                     %i.e. >1 stimuli occurred in the span of a single volume
+                        end
+
+                        %Interruption to siphon blanks if applicable and moded
+                        if includesBlanks && blankHandleMode == 2
+                            blankTrialIDs = find( nansum( stimSeq == -2, 2 ) == blockLength ); %Identify which trials were blank
+                                %Note: No explicit check for sequences that were mixed or aberrant blanks/ISI/etc
+                            disp([num2str(length(blankTrialIDs)),' blank trials found in final sequence; Siphoning outline'])
+
+                            deImBlankInds = reshape( collInds( blankTrialIDs, : )', 1, size(collInds( blankTrialIDs, : ),1)*nomInter ); %Based on deImInds as done below, obviously
+                            %postBlankData = dataStimTrim( :,:, deImBlankInds );
+                            blankStack = dataStimTrim( :,:, deImBlankInds );
+                            blankInds = deImBlankInds;
+                            blankSequence = reshape(stimSeq( blankTrialIDs, : )', 1, size(stimSeq( blankTrialIDs, : )',1)*blockLength);
+
+                            %QA
+                            if mod( size( blankStack, 3), nomInter ) ~= 0
+                                ['## Alert: Potential phase loss in post-stim blank data ##']
+                                crash = yes
+                            end
+
+                            %Remove blanks from 'real' data
+                            stimSeq( blankTrialIDs , : ) = [];
+                            collInds( blankTrialIDs , : ) = [];
+
                         end
     
                         %Reshape derived stimulus sequence
@@ -1130,11 +1325,42 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             ['## Alert: Potential phase loss in post-stim data and/or derived random sequence ##']
                             ['Imaging size: ',num2str(size( postStimData ))]
                             ['Random seq size: ',num2str( size(deRandomSeq,2) )]
+                            crash = yes
                         end
     
                         %Report
                         disp(['Final number of imaging events: ',num2str(size( postStimData,3 )/nomInter)]) %Add potential max # imaging events here
                         disp(['Final number of stimulus events: ',num2str(size( deRandomSeq,2 )/blockLength)]) %Add potential total (btData) here
+                        if includesBlanks && blankHandleMode == 2
+                            disp(['(And ',num2str(length(blankTrialIDs)),' blank trials)'])
+                        end
+
+                        %Process blank data into something valid (if applicable)
+                        %crawl
+                        if includesBlanks && blankHandleMode == 1 && ~isempty(preBlankStack)
+                            %elysium
+                            disp(['Subselecting ',num2str(nanmax(preBlankIDs)),' blank trial periods to match data length of ',num2str(nomInter)])
+                            blankStack = [];
+                            blankInds = []; %Reuse (or rather, regenerate from ghost)
+                            for row = [1:nanmax(preBlankIDs)]
+                                thisData = nan( [size(preBlankStack,[1,2]), nomInter] ); %Preallocate as NaNs
+                                theseCoords = find(preBlankIDs == row);
+
+                                safeness = min(length(theseCoords) , nomInter);
+                                    %Note: If any one blank collection period shorter than safeness, NaNs will be inserted into blankStack
+                                thisData(:,:, [1:safeness] ) = preBlankStack( :,:, [theseCoords(1):theseCoords(safeness)] );
+
+                                blankStack = cat(3, blankStack,thisData ); %Append blank data along 3rd dim
+                                blankInds = cat(3, blankInds, reshape([theseCoords(1):theseCoords(safeness)],1,1, safeness) );
+                            end
+
+                            %QA
+                            if size( blankStack,3 ) ~= nanmax(preBlankIDs)*nomInter
+                                ['## Alert: Correct sizing failure in assembly of blank stack ##']
+                                crash = yes
+                            end
+                            
+                        end
     
                   end
               end
@@ -1145,45 +1371,57 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   %thisBlock.greenChannel = dataStimTrim; %Mostly unnecessary
                   %thisBlock.randomSequence = imStimTerp; %Mostly unnecessary
                   %BLOCKS(thisFlyRowInd,:) = thisBlock;
-                  if bendyBlockDesign == 0 %Rolling
+                  if ~batteryDesign %Rolling, Block, etc
+                      if bendyBlockDesign == 0 %Rolling
+                          BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
+                          %BLOCKS( thisFlyRowInd ).randomSequence = imStimTerp;
+                          BLOCKS( thisFlyRowInd ).randomSequence = randomSeqActual; %New, not interpolated
+                            %Note: Using randomSequence not of exact same length as imaging may cause issues with rolling implementation in analyseBlock
+                          BLOCKS( thisFlyRowInd ).nVol = nVol;
+                          BLOCKS( thisFlyRowInd ).nStimuli = nStimuli;
+                          BLOCKS( thisFlyRowInd ).stimulus = 'bendy_rolling';
+                          %clear dataStimTrim imStimTerp randomSeqActual nVol nStimuli %Just in case
+                      else %Block
+                          BLOCKS( thisFlyRowInd ).greenChannel = postStimData; %Data
+                          BLOCKS( thisFlyRowInd ).randomSequence = deRandomSeq; %Sequence
+                          BLOCKS( thisFlyRowInd ).imagingInds = deImInds; %Vol #s collected
+                          BLOCKS( thisFlyRowInd ).nVol = nomInter;
+                          BLOCKS( thisFlyRowInd ).stimulus = 'bendy_block';
+                          %BLOCKS( thisFlyRowInd ).blankBlocks = 0; %Need to add support later for blank blocks
+                          BLOCKS( thisFlyRowInd ).blankBlocks = includesBlanks; %Need to add support later for blank blocks
+                          BLOCKS( thisFlyRowInd ).fauxBlockDesign = 1; %Just to keep track
+                          disp(['Faux-block design created'])
+                          %clear postStimData deRandomSeq nomInter
+                      end
+                      if isfield( matParamStruct.matSave, 'blockDesign' )
+                         BLOCKS( thisFlyRowInd ).bendyBlockDesign =  matParamStruct.matSave.blockDesign;
+                      end
+                      disp(['Modified data and randomSequence inserted into BLOCKS'])
+                      %slyleaf
+                      if stillRollable == 0
+                          BLOCKS( thisFlyRowInd ).isRolling = 0;                
+                          disp(['Rolling status revoked'])
+                      end
+                      %Blanks (if applicable)
+                      if includesBlanks && ~isempty(blankStack)
+                          BLOCKS( thisFlyRowInd ).blankImageStack = blankStack; %Note: Architecture ostensibly should be repeating, 'nVol' sized groups of frames                  
+                          if blankHandleMode == 2 %blankSequence calcs too annoying to do for inline siphoning
+                            BLOCKS( thisFlyRowInd ).blankSequence = blankSequence;
+                          end
+                          BLOCKS( thisFlyRowInd ).blankImageInds = blankInds; %Note: blankInds nature may differ depending on blank handling mode
+                          disp(['Modified blank data (and inds) inserted into BLOCKS'])                          
+                      end
+                  else %Battery
                       BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
-                      %BLOCKS( thisFlyRowInd ).randomSequence = imStimTerp;
-                      BLOCKS( thisFlyRowInd ).randomSequence = randomSeqActual; %New, not interpolated
-                        %Note: Using randomSequence not of exact same length as imaging may cause issues with rolling implementation in analyseBlock
-                      BLOCKS( thisFlyRowInd ).nVol = nVol;
-                      BLOCKS( thisFlyRowInd ).nStimuli = nStimuli;
-                      %clear dataStimTrim imStimTerp randomSeqActual nVol nStimuli %Just in case
-                  else %Block
-                      BLOCKS( thisFlyRowInd ).greenChannel = postStimData;
-                      BLOCKS( thisFlyRowInd ).randomSequence = deRandomSeq;
-                      BLOCKS( thisFlyRowInd ).nVol = nomInter;
-                      BLOCKS( thisFlyRowInd ).blankBlocks = 0; %Need to add support later for blank blocks
-                      BLOCKS( thisFlyRowInd ).fauxBlockDesign = 1; %Just to keep track
-                      disp(['Faux-block design created'])
-                      %clear postStimData deRandomSeq nomInter
-                  end
-                  if isfield( matParamStruct.matSave, 'blockDesign' )
-                     BLOCKS( thisFlyRowInd ).bendyBlockDesign =  matParamStruct.matSave.blockDesign;
-                  end
-                  disp(['Modified data and randomSequence inserted into BLOCKS'])
-                  %{
-                    %Blank data not currently valid for insertion into BLOCKS
-                  if hasSiphoned == 1 && bendyBlockDesign == 0
-                      BLOCKS( thisFlyRowInd ).blankImageStack = blankStack; %Note: Architecture ostensibly should be repeating, 'nVol' sized groups of frames                  
-                      BLOCKS( thisFlyRowInd ).blankImageInds = blankInds;
-                      disp(['Modified blank data (and inds) inserted into BLOCKS'])
-                  end
-                  %}
-                  if stillRollable == 0
-                      BLOCKS( thisFlyRowInd ).isRolling = 0;                
-                      disp(['Rolling status revoked'])
+                      BLOCKS( thisFlyRowInd ).iSequence = iSeqTerp;
+                      BLOCKS( thisFlyRowInd ).stimulus = 'battery';
                   end
                   BLOCKS( thisFlyRowInd ).syncModified = 1;
               end
     
               %QA for empty randomSequence data
                 %In theory there might be reasons for this to be the case, but none are good for following analysis
-              if isempty( BLOCKS( thisFlyRowInd ).randomSequence ) && allowRandomSequenceEmpty == 0
+              if ~batteryDesign && isempty( BLOCKS( thisFlyRowInd ).randomSequence ) && allowRandomSequenceEmpty == 0
                   ['## Alert: Failure to acquire/generate randomSequence data for block ',num2str( BLOCKS(thisFlyRowInd).blockNum ),' ##']
                   crash = yes
               end
@@ -1249,10 +1487,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
     
     %Remove certain blocks, if requested
         %A little slower to do this here, rather than skipping analysis, but preserves order of blocks till end
-    if disregardRollingDesign == 1
+    if disregardRollingDesign || disregardBattery
         for b = size( BLOCKS ,2 ):-1:1
-            if isfield( BLOCKS, 'bendyBlockDesign' ) && ~isempty(  BLOCKS( b ).bendyBlockDesign  ) && BLOCKS( b ).bendyBlockDesign == 0
-                disp([ '-# Block ', num2str( BLOCKS( b ).blockNum ), ' removed from analysis due to disregardation of rolling design #-' ])
+            if ( disregardRollingDesign && (isfield( BLOCKS, 'bendyBlockDesign' ) && ~isempty(  BLOCKS( b ).bendyBlockDesign  ) && BLOCKS( b ).bendyBlockDesign == 0 )) || ...
+                    ( disregardBattery && (isfield( BLOCKS, 'stimulus' ) && ~isempty(  BLOCKS( b ).stimulus  ) && isequal(BLOCKS( b ).stimulus, 'battery' ) ))
+                disp([ '-# Block ', num2str( BLOCKS( b ).blockNum ), ' removed from analysis due to disregardation #-' ])
                 BLOCKS( b ) = [];
             end
         end
