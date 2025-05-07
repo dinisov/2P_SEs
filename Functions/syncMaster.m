@@ -1298,7 +1298,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             %postBlankData = dataStimTrim( :,:, deImBlankInds );
                             blankStack = dataStimTrim( :,:, deImBlankInds );
                             blankInds = deImBlankInds;
-                            blankSequence = reshape(stimSeq( blankTrialIDs, : )', 1, size(stimSeq( blankTrialIDs, : )',1)*blockLength);
+                            blankSequence = reshape(stimSeq( blankTrialIDs, : )', 1, size(stimSeq( blankTrialIDs, : ),1)*blockLength);
 
                             %QA
                             if mod( size( blankStack, 3), nomInter ) ~= 0
