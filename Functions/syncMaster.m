@@ -29,7 +29,7 @@ arguments
     FLIES struct
     flyRecord table
     options.dataDirectory string = "I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\"
-    options.doPlot double = 0
+    options.doPlot double = 1
     options.doVid double = 0
     options.rollingAnalysis double = -1
     options.dataSource double = -1 %Whether to use data from function call (-1) or to look external for registered data (1)
@@ -50,7 +50,7 @@ end
 FLIES = FLIES;
 flyRecord = flyRecord;
 options.dataDirectory = dataDirectory;
-options.doPlot = 0
+options.doPlot = 1
 options.doVid = 0
 options.rollingAnalysis = -1
 options.dataSource = -1
@@ -446,6 +446,15 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 disp(['(Expected fliprate: ',num2str(matParamStruct.matSave.frequency),'Hz)'])
             end
 
+            %Plot
+            if doPlot && isfield( syncStruct.AI, 'FrameSpike' )
+                figure
+                plot( inferTimes(1:frameLOCS(10)) , syncStruct.AI.FrameSpike(1:frameLOCS(10)) )
+                title([strrep(expName,'_',' '),' - First 10 framespike elements'])
+                xlabel('Times (s)')
+                ylabel('Voltage (V)')
+            end
+
             %Match framespikes to btData
             if (batteryDesign == 0 && nSpikes == btData(end,5)-1 ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
                     %Note: As of v8.2, it may be the norm for btData at end to match nSpikes without - 1
@@ -581,6 +590,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 lastImStimFrameInd = shortStruct.lastImStimFrameInd;
                 firstImStimFrameInd = shortStruct.firstImStimFrameInd;
             end
+            sampRate = shortStruct.sampRate;
         end
     
         %here
@@ -626,7 +636,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
     
         %% Plot
     
-        if doPlot
+        if doPlot && ~isShortcutting
             %Plot
             %datList = [{'AI'},{'CI'},{'DI'},{'Freq'},{'Global'}]; %Could probably be dynamicised
             datList = fieldnames( syncStruct )'; 
@@ -1217,9 +1227,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             %Use collInds, not intInds, because cleaned
                             %Note: Due to frame attribution inaccuracies/phase differences between imaging and display, there will be variability in number of 'stimulus' frames preceding an inter-stimulus period
                         %Quick QA
-                        if nanmax( nanmax( stimInds ) ) > methodBTSeqInterpZ(end)
-                                %Not 100% sure of correct reference frame here
-                            ['## Alert: Requested post-stimulus imaging frame beyond apparent imaging duration ##']
+                        if nanmax( nanmax( stimInds ) ) > size(methodBTSeqInterpZ,2)%methodBTSeqInterpZ(end)
+                                %stimInds max represents last imaging volume *during* stimulation, size of methodBTSeqInterpZ indicates how many valid frames collected (Values indicate associated i element)
+                            ['## Alert: Requested post-stimulus imaging frame (',num2str(nanmax( nanmax( stimInds ) )),') beyond apparent imaging duration (',num2str(methodBTSeqInterpZ(end)),') ##']
                             crash = yes
                                 %This is marginally more likely with last due to lastNaN removal
                         end
