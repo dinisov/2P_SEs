@@ -16,16 +16,20 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 imageSize = [-1 -1]; % <value> -> Requested size, -1 -> Automatically derive size from loaded data 
 
-chosenFlies = [294,295];
+chosenFlies = [299,300,301];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = {[2],[1,2,3]};
+chosenBlocks = {[2,3],[1,2,3],[1,2,3,4]};
     %FORMAT MUST BE {[<block/s>]} 
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % 
 % chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
+altnVolSelectionMode = 2; %(Only applies for bendy data [Indicated by negative nVol in flyRecord])
+    %Whether to 1 - Select the first 1% of total volume counts (e.g. 6500 volumes -> 7 volumes) or 2 - Select 1%/18 volumes (Min) equally spaced
+    %Parameter for how many max frames defined in function down below because CBF adding even more arguments
+    
 %%
 
 % this level is flies just in case we 
@@ -48,7 +52,7 @@ for fly = 1:length(chosenFlies)
         end
         %alignBlock(thisFlyBlocks(b,:), imageSize, mainDirectory);
         %alignBlock(currentBlock, imageSizeActual, mainDirectory);
-        alignBlock(currentBlock, imageSizeActual, mainDirectory, 'green');
+        alignBlock(currentBlock, imageSizeActual, mainDirectory, 'green', altnVolSelectionMode);
         if currentBlock.nChannels == 2
             alignBlock(currentBlock, imageSizeActual, mainDirectory, 'red'); %No check for existence
         end
@@ -61,10 +65,26 @@ for fly = 1:length(chosenFlies)
 
 end
     
-function alignBlock(block, imageSize, mainDirectory, colour)
+function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMode)
+
+    %For non-function operations
+    %{
+    block = currentBlock
+    imageSize = imageSizeActual
+    mainDirectory
+    colour = 'green'
+    %}
 
     if ~exist('colour', 'var') || ( isempty(colour) )
         colour = 'green'; %Default
+    end
+    if ~exist('altnVolSelectionMode', 'var') || ( isempty(altnVolSelectionMode) )
+        altnVolSelectionMode = 1; %Default
+    end
+    
+    if altnVolSelectionMode == 2
+        eqSpaceMaxAllowable = 128; %How many volumes max to allow for use
+            %Note: Time spent registering is more a factor of image size and number of volumes than how many frames go into the mean image
     end
 
     % slices within each volume including flyback 
@@ -135,9 +155,22 @@ function alignBlock(block, imageSize, mainDirectory, colour)
             if nVol > 0
                 refImage = mean(avg_z_colour(:,:,1:nVol),3); %Old block calcs
             else
-                disp(['Using ', num2str(ceil(size(avg_z_colour,3)*0.001)),' frames as reference'])
-                refImage = mean(avg_z_colour(:,:, 1:ceil(size(avg_z_colour,3)*0.001) ),3); %Use first 1% of total frames as reference
-                    %Note: Might have issues with very short recordings, etc
+                if altnVolSelectionMode == 1
+                    disp(['Using first 1%/ ', num2str(ceil(size(avg_z_colour,3)*0.001)),' averaged volumes as reference'])
+                    refImage = mean(avg_z_colour(:,:, 1:ceil(size(avg_z_colour,3)*0.001) ),3); %Use first 1% of total frames as reference
+                        %Note: Might have issues with very short recordings, etc
+                else
+                    minVolCount = min( [ceil(size(avg_z_colour,3)*0.001), eqSpaceMaxAllowable] );
+                    disp(['Using min of ',num2str([ceil(size(avg_z_colour,3)*0.001), eqSpaceMaxAllowable]),' (', num2str( minVolCount ),') equally spaced as ref'])
+                    refVolInds = floor( linspace( 1, size(avg_z_colour,3) , minVolCount ) );
+                    %QA
+                    if any( refVolInds < 1 ) || any( refVolInds > size(avg_z_colour,3) ) || numel( unique(refVolInds) ) ~= numel( refVolInds )
+                        ['## Alert: Either sub-zero vol, overmax vol, or non-unique vols requested for reference ##']
+                        crash = yes
+                    end
+                    refImage = mean(avg_z_colour(:,:, refVolInds ),3);
+                    
+                end
             end
 
             [opt,metric]=imregconfig('multimodal');
@@ -147,6 +180,7 @@ function alignBlock(block, imageSize, mainDirectory, colour)
 
             %register green channel
             disp('Aligning stacks');
+            volMarkers = floor(linspace(1,nVolTotal,100)); %Used for progress reports
             tic;
             parfor vol = 1:nVolTotal
 
@@ -160,6 +194,11 @@ function alignBlock(block, imageSize, mainDirectory, colour)
                 % apply transformation to each slice in z direction (can this be done all at once for a volume?)
                 for z = 1:nSlices
                     colour_channel_aligned(:,:,z,vol) = imwarp(colour_channel(:,:,z,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+                end
+                
+                %Report
+                if any( vol == volMarkers ) %Note: Given parfor nature, these may all hit at same time, depending on number of parallel workers
+                    disp([ num2str(find( vol == volMarkers, 1, 'first' )),'% marker reached' ])                    
                 end
 
             end
