@@ -18,8 +18,6 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
     %Specifically:
         %   - Bendy block design has some by-necessity inaccuracies with regards to stimulus aliasing (see stimCollInds/temp4)
 
-    %Also, support for a bendy panel block design with blank periods (Currently all blanks are assumed to be inter-stim periods)
-
     %Also, ability to analyse LED data as if rolling?
 
 
@@ -308,6 +306,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             hasPTB = 1;
             disp(['PTB MATLAB parameters found'])
         end
+        progVerNum = NaN; %Default, will be calculated later if possible
         if hasPTB
             %matParamStruct = load( [matParamFile.folder,filesep,matParamFile.name] );
             if ~isempty( matParamFile )
@@ -416,6 +415,25 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       disp(['Rolling design detected in PTB params; Using rolling analysis'])
                   end
               end
+
+              %Derive script version
+              progIdent = matParamStruct.matSave.progIdent;
+              progSplit = split( progIdent, '_');
+              progVerNum = NaN;
+              for i = 1:size( progSplit,1 )
+                  if isequal( progSplit{i}(1) , 'v' )
+                      %citadel
+                      temp =  progSplit{i};
+                      temp = strrep( temp, 'v', '' );
+                      temp = strrep( temp, 'dot', '.' );
+                      progVerNum = str2num( temp );
+                  end
+              end
+              if ~isempty(progVerNum) && ~isnan(progVerNum)
+                  disp(['Derived stimulus script version: ',num2str(progVerNum)])
+              else
+                  disp(['Failure to derive script version #'])
+              end
     
         end
 
@@ -446,22 +464,37 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 disp(['(Expected fliprate: ',num2str(matParamStruct.matSave.frequency),'Hz)'])
             end
 
+            %Report on instability in framespike locations
+            temp = diff( frameLOCS );
+            disp(['Mean inter-spike interval: ', num2str(nanmean(temp)), ', +- ', num2str(nanstd( temp )), '( ',num2str( (nanstd( temp ) / nanmean(temp))*100 ),'% variability)'])
+
             %Plot
             if doPlot && isfield( syncStruct.AI, 'FrameSpike' )
                 figure
                 plot( inferTimes(1:frameLOCS(10)) , syncStruct.AI.FrameSpike(1:frameLOCS(10)) )
-                title([strrep(expName,'_',' '),' - First 10 framespike elements'])
+                hold on
+                plot( inferTimes(1:frameLOCS(10)) , syncStruct.AI.Iterator(1:frameLOCS(10)), 'r' )
+                title([strrep(expName,'_',' '),' - First 10 framespike elements + Iterator'])
                 xlabel('Times (s)')
                 ylabel('Voltage (V)')
             end
 
+            %disp(['Number of detected framespikes: ',num2str(nSpikes),'; Reported last valid i value: ',num2str(btData(end,5)-1)])
             %Match framespikes to btData
-            if (batteryDesign == 0 && nSpikes == btData(end,5)-1 ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
+            if progVerNum < 8.45 %Legacy script, no framespike/iterator initialisation at while ~quit_now commencement
+                targetINum = btData(end,5)-1;
+            else %Newtype script, with initialisation framespike/etc
+                targetINum = btData(end,5); 
+            end
+            disp(['Number of detected framespikes: ',num2str(nSpikes),'; Target based on btData (Script ver ',num2str(progVerNum),'): ',num2str(targetINum)])
+            %if (batteryDesign == 0 && nSpikes == btData(end,5)-1 ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
+            if (batteryDesign == 0 && nSpikes == targetINum ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
                     %Note: As of v8.2, it may be the norm for btData at end to match nSpikes without - 1
-                if nSpikes == btData(end,5)-1
-                    disp(['Perfect match between number of detected framespikes (',num2str(nSpikes),') and reported last valid i value (',num2str(btData(end,5)-1),')'])
-                else
-                    disp(['Number of detected framespikes: ',num2str(nSpikes),'; Reported last valid i value: ',num2str(btData(end,5)-1)])
+                if nSpikes == targetINum%btData(end,5)-1
+                    %disp(['Perfect match between number of detected framespikes (',num2str(nSpikes),') and reported last valid i value (',num2str(btData(end,5)-1),')'])
+                    disp(['Perfect match between number of detected framespikes and reported last valid i value'])
+                %else
+                %    disp(['Number of detected framespikes: ',num2str(nSpikes),'; Reported last valid i value: ',num2str(btData(end,5)-1)])
                 end
             
                 %Standard calcs
@@ -471,6 +504,16 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         %Note: This value may technically be always 1 less than actual stimuli presented, since current DAQ writing is only done at a change, not at initialisation
                     [~,flipOnsetIndices] = ismember( [1:nanmax(temp)], temp ); %First position of state switch in onOff
                         %Necessary to find first position in case of different duty cycles?
+                    %Add first-frame initialisation if applicable
+                    if progVerNum >= 8.45
+                        flipOnsetIndices = [1,flipOnsetIndices];    
+                        %QA for disparity in first-element timing 
+                            %Note: QA infeasible due to extreme stability of inter-framespike interval rendering even difference of 1 significant
+                        %temp = diff( flipOnsetIndices );
+                        %if abs( temp(1) - nanmean(temp) ) > nanstd( temp )
+                        %
+                        %end
+                    end
                     %QA
                     %if ( batteryDesign ~= 1 && length( flipOnsetIndices ) ~= nSpikes ) || ( batteryDesign == 1 && length( flipOnsetIndices ) ~= nSpikes-1 ) %HIGHLY EMPIRICAL
                     if length( flipOnsetIndices ) ~= nSpikes
@@ -491,7 +534,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         %Related: This may encounter issues if stimuli switching faster than BT data being saved
                     [~,flipOnsetIndices] = ismember( [1:nanmax(temp)], temp );
 
-                    if exist( 'progIdent' ) && ( ~isequal( progIdent, 'FLY_SEQUENTIAL_DEPENDENCIES_v8dot3_XM' ) && ~isequal( progIdent, 'FLY_SEQUENTIAL_DEPENDENCIES_v8dot4_XM' ) ) 
+                    
+                    %if exist( 'progIdent' ) && ( ~isequal( progIdent, 'FLY_SEQUENTIAL_DEPENDENCIES_v8dot3_XM' ) && ~isequal( progIdent, 'FLY_SEQUENTIAL_DEPENDENCIES_v8dot4_XM' ) ) 
+                    if progVerNum >= 8.45
                         estPTBInferTimeStart = inferTimes( frameLOCS(1) ) - btData( 1 , 6); %Assume that first framespike occurred immediately prior to first BT element
                             %Note that this is only valid as long as first element of frameLOCS is referring to that spike
                         disp(['Using legacy assumptions for battery first framespike position'])
@@ -523,7 +568,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 end
 
             else %Note: Not tested with v8.2 new position of Data_Array saving
-                ['I M P E R F E C T I O N (But maybe v8.2 [Or v8.4+]?)']
+                ['I M P E R F E C T I O N']
                 crash = yes
 
                 %If this actually happens, add code to allow for (hopefully) minor disparities
