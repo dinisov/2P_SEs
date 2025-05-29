@@ -1,4 +1,4 @@
-%%function FLIES = syncMaster(FLIES, flyRecord, options)
+function FLIES = syncMaster(FLIES, flyRecord, options)
 
 %Mk ???
 %Mk 6 - Support for battery, and blanks during bendy block design
@@ -21,7 +21,7 @@
     %Also, ability to analyse LED data as if rolling?
 
 
-%{
+%{{
 arguments
     %BLOCKS struct
     FLIES struct
@@ -43,7 +43,7 @@ arguments
     options.disregardBattery double = 1 %Whether to discard battery blocks at end, on account of SEs analysis incompatibility
 end
 %}
-%{{
+%{
 %BLOCKS = FLIES(fly).BLOCKS;
 FLIES = FLIES;
 flyRecord = flyRecord;
@@ -480,7 +480,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             end
 
             %Omit first framespike if Mk 8.45+ (Because 8.45 added a preliminary framespike immediately prior to while loop commencement)
-            if progVerNum >= 8.45 
+            if progVerNum >= 8.45 && ~batteryDesign
                 frameLOCS(1) = [];
                 framePKS(1) = [];
                 disp(['-- First framespike omitted wrt v8.45+ --'])
@@ -823,23 +823,36 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     %chester
 
                     %Establish which framespike to match with last element of flipOnsetIndices
+                    %Pre QA
+                    if nanmin( [lastIt, length(flipOnsetIndices),  length(frameLOCS), length(itLOCS)] ) - nanmax( [lastIt, length(flipOnsetIndices),  length(frameLOCS), length(itLOCS)] ) > 2
+                        ['-# Alert: Non-insignificant disparity between smallest and largest iterator/frame/etc counts #-']
+                        crash = yes %Might be 'normal' cases where this occurs
+                    end
+                    lastUseful = [];
                     if lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) > itLOCS(end)
                             %" Ends with a full iterator block (inc. framespike) immediately followed by an iterator increase BUT NOT a change in btData "
                                 %Note that this is actually really only the case for a PTB end happening coincidentally right on an i change (Since btData saving occurs 1 loop cycle after iterator increase)
                         lastUseful = length(frameLOCS)-1;
                         disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
                         disp(['(Terminal pattern Beta 2 [frameSpike n - 1])']) %So named because it's how 14May F2 B2 ends
-                    elseif 
-
+                    elseif lastIt == length(flipOnsetIndices) && frameLOCS(end) > itLOCS(end)
+                            % "Ends midway through an iterator block, no framespike at very end, with a change in btData at last framespike"
+                            % Presumable common case?
+                        lastUseful = length(frameLOCS);
+                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                        disp(['(Terminal pattern Beta 3 [frameSpike n])']) %So named because it's how 14May F2 B3 ends
+                    else
+                        ['-# Uncommon ending case detected; Specification does not exist #-']
+                        todo = yes
                     end
+                    %mushroom
 
                     estPTBInferTimeStart = inferTimes( frameLOCS(1) ) - btData( flipOnsetIndices(1), 6); %Theoretical time (inferTimes reference) PTB started at
                         %Use framespike to find first flip position in inferTimes, then subtract known duration since PTB start from that
+                        %Note: Only valid as long as pre-loop framespike being dropped
                     %%estPTBInferTimeEnd = inferTimes( frameLOCS(end) ) + ( btData(end,6) - btData( flipOnsetIndices(end), 6) 
-                    estPTBInferTimeEnd = inferTimes( frameLOCS(lastMatch) ) + ( btData(end,6) - btData( flipOnsetIndices(end), 6) );  
+                    estPTBInferTimeEnd = inferTimes( frameLOCS(lastUseful) ) + ( btData(end,6) - btData( flipOnsetIndices(end), 6) );  
                         %Similarly, find inferTime[s] where last framespike happened, then add time distance (btData self-report) between that and last btData element
-
-
 
                     %Add more code
                     if progVerNum > 8.55
@@ -1897,4 +1910,4 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 end
 
 %function end
-%%end
+end
