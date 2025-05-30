@@ -57,7 +57,7 @@ options.disregardRollingDesign = 0
 options.btInterpolationMethod = 'intelligent' 
 options.nBack = 5
 options.saveShortcut = 0
-options.useShortcut = 1
+options.useShortcut = 0
 options.daqFramespikeVoltage = 1
 options.blankHandleMode = 2
 options.disregardBattery = 1
@@ -829,18 +829,25 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         crash = yes %Might be 'normal' cases where this occurs
                     end
                     lastUseful = [];
+                    %Empirical booleans
+                        %"The Empire Strikes Back"
                     if lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) > itLOCS(end)
                             %" Ends with a full iterator block (inc. framespike) immediately followed by an iterator increase BUT NOT a change in btData "
                                 %Note that this is actually really only the case for a PTB end happening coincidentally right on an i change (Since btData saving occurs 1 loop cycle after iterator increase)
                         lastUseful = length(frameLOCS)-1;
                         disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
-                        disp(['(Terminal pattern Beta 2 [frameSpike n - 1])']) %So named because it's how 14May F2 B2 ends
+                        disp(['(Terminal pattern Foxtrot 2 Beta 2 [frameSpike n - 1])']) %So named because it's how 14May F2 B2 ends
                     elseif lastIt == length(flipOnsetIndices) && frameLOCS(end) > itLOCS(end)
                             % "Ends midway through an iterator block, no framespike at very end, with a change in btData at last framespike"
                             % Presumable common case?
                         lastUseful = length(frameLOCS);
                         disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
-                        disp(['(Terminal pattern Beta 3 [frameSpike n])']) %So named because it's how 14May F2 B3 ends
+                        disp(['(Terminal pattern Foxtrot 2 Beta 3 [frameSpike n])']) %So named because it's how 14May F2 B3 ends
+                    elseif lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) < itLOCS(end)
+                            % Similar to F2B3, except iterator larger(?)
+                        lastUseful = length(frameLOCS);
+                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                        disp(['(Terminal pattern Foxtrot 1 Beta 1 [frameSpike n])']) %So named because it's how 14May F1 B1 ends
                     else
                         ['-# Uncommon ending case detected; Specification does not exist #-']
                         todo = yes
