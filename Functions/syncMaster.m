@@ -3,6 +3,7 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
 %Mk ???
 %Mk 6 - Support for battery, and blanks during bendy block design
 %Mk 7 - Better support for DAQ data, highspeed recording support
+%Mk 8 - Photodiode (initial) support
 
 %function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
@@ -62,7 +63,7 @@ options.saveShortcut = 0
 options.useShortcut = 0
 options.daqFramespikeVoltage = 1
 options.blankHandleMode = 2
-options.disregardBattery = 1
+options.disregardBattery = 0
 options.postHocCorrectInferTimes = 1
 %}
 
@@ -190,6 +191,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         fileName = hTarget;
     
         %h5disp(fileName)
+        %heaven
     
         syncStruct = struct;
     
@@ -210,9 +212,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             syncStruct.AI.FrameSpike = h5read(fileName, '/AI/FrameSpike');
             syncStruct.AI.Iterator = h5read(fileName, '/AI/Iterator');
             hasDaqData = 1;
+            disp(['-- TS DAQ data retrieved --'])
         catch
             ['-# Could not retrieve DAQ-related TS data #-']
             hasDaqData = 0;
+        end
+        try
+            syncStruct.AI.Photodiode = h5read(fileName, '/AI/Photodiode');
+            hasPhotData = 1;
+            disp(['-- TS Photodiode data retrieved --'])
+        catch
+            ['-# Could not retrieve photodiode data #-']
+            hasPhotData = 0;
         end
     
         toc
@@ -456,10 +467,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         %Little follow-on
         if isShortcutting
             hasDaqData = shortStruct.hasDaqData;
+            hasPhotData = shortStruct.hasPhotData; %If crashes, delete old shortcute files and regen
         end
         %DAQ
         if hasDaqData && ~isShortcutting
             %freak
+
+            %---------------------------------
+            %Notes on choreography:
+            %   - Iterator/FrameSpike: The framespike should always occur at the *end* of an iterator 'block' (i.e. Iterator sits at 135 [Most recent framespike was 134], then framespike #135 occurs and iterator changes to 136, and so on)
+            %   - Iterator terminal values: Often the last iterator change will be detected as an iteration, and this is mostly excluded
+            %   - Proximal framespikes: With 8.45, a framespike is sent at the start of the script, but since this causes confusion, it is typically removed. For battery, even more are removed (relating to opto)
+            %---------------------------------
 
             %Acquire post-hoc counts of framespike and iterator (Script >v8.55)
             daqFrameSpikeCount = NaN;
@@ -475,6 +494,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             else %Newtype script, with initialisation framespike/etc
                 targetINum = btData(end,5); 
             end
+            if batteryDesign
+                targetINum = targetINum - matParamStruct.matSave.optoElements; %Because opto no framespikes
+            end
 
             nonLinearityPresent = 0;
 
@@ -485,12 +507,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                    'MinPeakDistance', ( sampRate / matParamStruct.matSave.frequency )*0.66 ); %Look for peaks separated by at 66% of a flip
             else
                 [framePKS, frameLOCS] = findpeaks( syncStruct.AI.FrameSpike, 'MinPeakHeight', 0.5*daqFramespikeVoltage, ...
-                    'MinPeakWidth', 200); %Use an empirical spike width based on pilot data
+                    'MinPeakWidth', 200); %Use an empirical spike width based on pilot data (Probably good up to 60Hz framespikes)
+                        %Note: Theoretically could make this dynamic for battery by multiplying fastest freq element by sampRate, but cbf
             end
 
             %Omit first framespike if Mk 8.45+ (Because 8.45 added a preliminary framespike immediately prior to while loop commencement)
             omittedFrameLOCPK = [];
-            if progVerNum >= 8.45 && ~batteryDesign
+            if progVerNum >= 8.45 %&& ~batteryDesign %Adjusted to now apply to battery
                 omittedFrameLOCPK = [frameLOCS(1),framePKS(1)];
                 frameLOCS(1) = [];
                 framePKS(1) = [];
@@ -500,7 +523,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             if ~isnan( daqFrameSpikeCount ) && daqFrameSpikeCount ~= size(frameLOCS,2)+1
                     %Only 80% confident the initialisation framespike is counted as one...
                 ['## Alert: Disparity between post-hoc reported framespike count and detected framespike count ##']
+                if ~batteryDesign
                 crash = yes
+                end
             end
 
             %Plot
@@ -568,10 +593,17 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     [itPKS, itLOCS] = findpeaks( itValsDiff, 'MinPeakHeight', 0.25e-3,... %Empirical
                        'MinPeakDistance', ( sampRate / matParamStruct.matSave.frequency )*0.66 ); %Look for peaks separated by at 66% of a flip
                 else
-                    [itPKS, itLOCS] = findpeaks( itValsDiff, 'MinPeakHeight', 0.25e-3, ...
-                        'MinPeakWidth', 200); %Use an empirical spike width based on pilot data
+                   % [itPKS, itLOCS] = findpeaks( itValsDiff, 'MinPeakHeight', 0.25e-3, ...
+                   %     'MinPeakWidth', 200); %Use an empirical spike width based on pilot data
+                   [itPKS, itLOCS] = findpeaks( itValsDiff, 'MinPeakHeight', 0.25e-3, ...
+                        'MinPeakWidth', 25, 'MinPeakDistance',  (1/nanmax( matParamStruct.matSave.freqSequence ))*sampRate*0.5); %Use an empirical spike width based on pilot data together with a derived inter-interval change distance
                 end
                     %Note: Will be 1 element longer than true iteration value (See above)
+                %QA for emptiness
+                if isempty( itLOCS )
+                    ['## Alert: No discernible values found in itVals differences (-> itLOCS) ##']
+                    crash = yes
+                end
 
                  %Remove last itLOCS value, since extremely high likelihood script ended in this period
                  terminalItDropped = 0; %Will store whether last iterator value dropped (And thus, flipOnsetIndices will likely need trimming too)
@@ -579,6 +611,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                      itLOCS(end) = []; %Note: If PTB ended mid iterator block, it is possible that the last framespike could precede *2* (apparent) changes in iterator (1 true and 1 EOF)
                      disp(['Terminal itLOCS value dropped'])
                      terminalItDropped = 1; %Note: Must represent how many elements removed so that QA below works
+                 end
+
+                 %battery delete first 2(?) elements of itLOCS cos opto
+                    %Based on empirical of May 29th starting sequence
+                 if batteryDesign && progVerNum >= 8.45
+                    itLOCS(1:2) = []; %Empirical, under observation that Left-Right begins with a rapid 2x framespike/iteration combo
+                                                    %Iterator stable -> Iterator low -> Iterator 'real' -> Next iterator, in quick succession
+                    frameLOCS(1) = []; 
+                    disp(['Battery: Proximal 2 (for now) elements of itLOCS and 1 elements of frameLOCS deleted'])
+                 elseif batteryDesign && progVerNum < 8.45
+                     ['manual case curation needed wrt no initialisation framespike']
+                     todo = yes
                  end
 
                 %QA for sanity
@@ -600,6 +644,12 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     [~,itProcRangeInd(i)] = min( abs( repmat( itProc(i), 1, length(daqRange) ) - daqRange ) );
                     itProcIdealised(i) = daqRange( itProcRangeInd(i) );
                 end
+                %QA to see if discontinuity
+                if any( diff( itProcIdealised ) > 0.11 )
+                    ['-# Alert: Apparent discontinuity (Jump >0.11) in idealised itProc data #-']
+                    crash = yes
+                    %This is most likely to be because itLOCS failed to detect a change in itVals, or detected too many etc
+                end                
                 %itProc(i+1) = mode( round(itVals( itLOCS(end):itLOCS(end)+nanmedian( diff(itLOCS) ) ),3 ,'significant') ); %Note: V. high likelihood of this number being aberrant if itVals go low state immediate after; Round not good
                 %itProc(i+1) = mode( floor(itVals( itLOCS(end):itLOCS(end)+nanmedian( diff(itLOCS) ) )*10)/10 ); %Note: V. high likelihood of this number being aberrant if itVals go low state immediate after
                 %[~,itProcRangeInd(i+1)] = min( abs( repmat( itProc(i+1), 1, length(daqRange) ) - daqRange ) );
@@ -616,13 +666,21 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     end
                     itProcRangeIndUnwrapped(i) = itProcRangeInd(i) + roller;
                 end
+
+                %more battery stuff: subtract first element (then +1) due to non-zero ("0.5") starting point
+                if batteryDesign
+                    itProcRangeIndUnwrapped = itProcRangeIndUnwrapped - itProcRangeIndUnwrapped(1) + 1;
+                    %Note: May behave unpredictably if first iterator is a loop (4.5 -> 0.5)
+                    disp(['Battery: Iterator values reset to 1 at first non-opto position'])
+                end
+
                 %QA
                 if numel(unique(itProcRangeIndUnwrapped)) ~= numel(itProcRangeIndUnwrapped)
                     ['-# Alert: Discontinuity detected in unwrapped iterator values #-'] %Ideally shouldn't happen, but may
                         %Likely reasons are lag, etc
                     crash = yes
                 end
-                if exist('btAncillary') && isfield(btAncillary,'daqLoopCount') && rollCount ~= btAncillary.daqLoopCount %May need to allow disparity
+                if ~batteryDesign && exist('btAncillary') && isfield(btAncillary,'daqLoopCount') && rollCount ~= btAncillary.daqLoopCount %May need to allow disparity; Also, not applicable to battery (Due to opto silent rolling?)
                     ['-# Asynchrony between reported number of iterator loops and detected number of loops #-']
                     [num2str(btAncillary.daqLoopCount),' vs ', num2str(rollCount)]
                 end
@@ -668,6 +726,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 ['-# Cannot detect DAQ iterator step value! #-']
                 crash = yes %Maybe overkill
             end
+
+            %shadow
 
             %OMEGA PLOT
                 %DANGER - 12:30 (As in, it takes 12.5m to generate this plot or change the limits)
@@ -791,8 +851,12 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
             %disp(['Number of detected framespikes: ',num2str(nSpikes),'; Reported last valid i value: ',num2str(btData(end,5)-1)])
             %Match framespikes to btData
-            disp(['Number of detected framespikes: ',num2str(nSpikes),'; Target based on btData (Script ver ',num2str(progVerNum),'): ',num2str(targetINum),' or ',num2str(targetINum-1)])
-                %-1 possibility comes from situations where iterator halfway through an element when script ended, thus leaving iterator at +1 but framespike not having happened yet
+            if ~batteryDesign
+                disp(['Number of detected framespikes: ',num2str(nSpikes),'; Target based on btData (Script ver ',num2str(progVerNum),'): ',num2str(targetINum),' or ',num2str(targetINum-1)])
+                    %-1 possibility comes from situations where iterator halfway through an element when script ended, thus leaving iterator at +1 but framespike not having happened yet
+            else
+                disp(['Number of detected framespikes: ',num2str(nSpikes),'; Target based on btData (Script ver ',num2str(progVerNum),'): ',num2str(targetINum),' or ',num2str(targetINum-1)])
+            end
             %if (batteryDesign == 0 && nSpikes == btData(end,5)-1 ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
             %if (batteryDesign == 0 && nSpikes == targetINum ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
             if (batteryDesign == 0 && (nSpikes == targetINum || nSpikes == targetINum-1) ) || ( batteryDesign == 1 )
@@ -851,6 +915,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         crash = yes %Might be 'normal' cases where this occurs
                     end
                     lastUseful = [];
+                    %---------
                     %Empirical booleans
                         %"The Empire Strikes Back"
                     if lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) > itLOCS(end)
@@ -874,6 +939,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         ['-# Uncommon ending case detected; Specification does not exist #-']
                         todo = yes
                     end
+                    %---------
                     %mushroom
 
                     %QA for pre-drift between inferTimes and btData
@@ -953,8 +1019,58 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     temp( preTemp == 1 ) = btData( find(preTemp == 1), 5 ); %Don't use bwlabel, because bwlabel doesn't quite work if there are no repetitions of elements (i.e. Speedy optomotor)
                         %Related: This may encounter issues if stimuli switching faster than BT data being saved
                     [~,flipOnsetIndices] = ismember( [1:nanmax(temp)], temp );
-
                     
+                    %g11
+
+                    %Remove opto-related i elements
+                    if matParamStruct.matSave.optoElements > 0
+                        flipOnsetIndices( 1:matParamStruct.matSave.optoElements ) = [];
+                        disp(['Battery: Proximal ', num2str(matParamStruct.matSave.optoElements),' btData flip detects removed due to opto relation'])
+                    end
+
+                    %Check for approximate timing between first flipOnset and first non-opto iteration (Should work even if no opto)
+                    if abs( btData( flipOnsetIndices(1) , 6 ) - inferTimes( itLOCS(1) ) ) > 5 %Allow 5 startup PTB time effectively
+                        ['-# Alert: Potential error in first (DAQ) iteration <--> first BT flip detection timing #-'] %Probably most likely if first itLOCS is at start of PTB whilst flipOnset is post-opto, or vice versa
+                        crash = yes
+                    end
+
+                    %New
+                    firstUseful = NaN;
+                    lastUseful = NaN;
+
+                    firstUseful = 1; %Note: Assumes that initialisation framespike/etc have been cleared
+                    disp(['First flip-matching framespike assumed as #',num2str(firstUseful)])
+
+                    %---------
+                    %Empirical booleans
+                        %"The Empire Strikes Back"
+                    if lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) > itLOCS(end)
+                            %" Ends with a full iterator block (inc. framespike) immediately followed by an iterator increase BUT NOT a change in btData "
+                                %Note that this is actually really only the case for a PTB end happening coincidentally right on an i change (Since btData saving occurs 1 loop cycle after iterator increase)
+                        lastUseful = length(frameLOCS)-1;
+                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                        disp(['(Terminal pattern Foxtrot 2 Beta 2 [frameSpike n - 1])']) %So named because it's how 14May F2 B2 ends
+                    elseif lastIt == length(flipOnsetIndices) && frameLOCS(end) > itLOCS(end)
+                            % "Ends midway through an iterator block, no framespike at very end, with a change in btData at last framespike"
+                            % Presumable common case?
+                        lastUseful = length(frameLOCS);
+                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                        disp(['(Terminal pattern Foxtrot 2 Beta 3 [frameSpike n])']) %So named because it's how 14May F2 B3 ends
+                    elseif lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) < itLOCS(end)
+                            % Similar to F2B3, except iterator larger(?)
+                        lastUseful = length(frameLOCS);
+                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                        disp(['(Terminal pattern Foxtrot 1 Beta 1 [frameSpike n])']) %So named because it's how 14May F1 B1 ends
+                    else
+                        ['-# Uncommon ending case detected; Specification does not exist #-']
+                        todo = yes
+                    end
+                    %---------
+                    estPTBInferTimeStart = inferTimes( frameLOCS(firstUseful) ) - btData( flipOnsetIndices(1), 6); %Theoretical time (inferTimes reference) PTB started at
+                    estPTBInferTimeEnd = inferTimes( frameLOCS(lastUseful) ) + ( btData(end,6) - btData( flipOnsetIndices(end), 6) );  
+
+                    %Old
+                    %{
                     %if exist( 'progIdent' ) && ( ~isequal( progIdent, 'FLY_SEQUENTIAL_DEPENDENCIES_v8dot3_XM' ) && ~isequal( progIdent, 'FLY_SEQUENTIAL_DEPENDENCIES_v8dot4_XM' ) ) 
                     if progVerNum >= 8.45
                         estPTBInferTimeStart = inferTimes( frameLOCS(1) ) - btData( 1 , 6); %Assume that first framespike occurred immediately prior to first BT element
@@ -964,6 +1080,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         estPTBInferTimeStart = inferTimes( frameLOCS(1) ) - btData( flipOnsetIndices( matParamStruct.matSave.optoElements+1 ), 6); %For older (battery) data, assume that first framespike occurs immediately after optomotor
                     end
                     estPTBInferTimeEnd = inferTimes( frameLOCS(end) ) + ( btData(end,6) - btData( flipOnsetIndices(end), 6) );  %This is generally a safe assumption, regardless of framespike position
+                    %}
                     %QA
                     if estPTBInferTimeStart > 10
                         ['## Alert: PTB estimated to have started >10s after TS initiation; Error? ##'] %Likely to either be a very lagged PTB start or an error in framespike/frameLOCS attribution
@@ -1201,6 +1318,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             xlabel(['Time (s)'])
             ylabel(['Count'])
         end
+
+        %% Photodiode stuff
+        %Quick allocation for battery design currently
+        if ~isShortcutting && batteryDesign && hasPhotData
+        %Incorporate photodiode data
+                %NOTE: INEFFICIENT
+            %if hasPhotData
+            photData = syncStruct.AI.Photodiode;
+            %end
+        elseif isShortcutting && batteryDesign && hasPhotData
+            photData = shortStruct.photData;
+        end
     
             %% Save data, to increase speed for subsequent runs
         if saveShortcut == 1 && isShortcutting ~= 1
@@ -1232,6 +1361,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             end
 
             shortStruct.hasDaqData = hasDaqData;
+            shortStruct.hasPhotData = hasPhotData;
+            if hasPhotData
+                shortStruct.photData = photData;
+            end
     
             %save( [hFolder,filesep,'h5Shortcut.mat'], 'shortStruct' )
             %Check/Make folder to put shortcut files into
@@ -1407,8 +1540,12 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
               %if batteryDesign
               frameToVolList = imFrameListZ(1,adjImStimStartVol:adjImStimEndVol); %Basically which frame is associated with start of each vol
               volTimes = imFrameTimes( frameToVolList ); %What time (inferTimes reference) each volume occurred at [Accurate to inferTimes]
+              volTimesDesc{1} = 'InferTimes of vol'; %Will store descriptions of each row
               volTimes(2,:) = methodBTRowInterpZ; %What row of btData each volume is associated with (Depending on method) [Interpolated, not true calculated]
-              %If the preceding line crashes, there is desync between methodBTSeqInterpZ and volTimes
+               %If the preceding line crashes, there is desync between methodBTSeqInterpZ and volTimes
+              volTimesDesc{2} = 'btData row of vol';
+              volTimes(3,:) = frameOnsetIndices( frameToVolList );
+              volTimesDesc{3} = 'TS index of vol';
               %end
               %motherbase
     
@@ -1942,6 +2079,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       BLOCKS( thisFlyRowInd ).iSequence = iSeqTerp;
                       BLOCKS( thisFlyRowInd ).volTimes = volTimes;                    
                       BLOCKS( thisFlyRowInd ).stimulus = 'battery';
+                      if hasPhotData
+                          BLOCKS( thisFlyRowInd ).photData = photData; %Will blow out size a bit probably
+                      end
                   end
                   if exist( 'preBaselineExists' ) && preBaselineExists %Pre-experiment blank baseline
                       BLOCKS( thisFlyRowInd ).preBaseline = blankBaseline;     
