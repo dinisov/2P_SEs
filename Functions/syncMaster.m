@@ -1,4 +1,4 @@
-%%function FLIES = syncMaster(FLIES, flyRecord, options)
+function FLIES = syncMaster(FLIES, flyRecord, options)
 
 %Mk ???
 %Mk 6 - Support for battery, and blanks during bendy block design
@@ -23,7 +23,7 @@
     %Also, ability to analyse LED data as if rolling?
 
 
-%{
+%{{
 arguments
     %BLOCKS struct
     FLIES struct
@@ -46,7 +46,7 @@ arguments
     options.postHocCorrectInferTimes double = 1 %If DAQ data is present, uses DAQ/PTB timings to adjust inferTimes (Since inferTimes is interpolated, not true clock)
 end
 %}
-%{{
+%{
 %BLOCKS = FLIES(fly).BLOCKS;
 FLIES = FLIES;
 flyRecord = flyRecord;
@@ -2201,4 +2201,4 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 end
 
 %function end
-%%end
+end
