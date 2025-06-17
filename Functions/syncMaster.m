@@ -1,4 +1,4 @@
-function FLIES = syncMaster(FLIES, flyRecord, options)
+%%function FLIES = syncMaster(FLIES, flyRecord, options)
 
 %Mk ???
 %Mk 6 - Support for battery, and blanks during bendy block design
@@ -23,7 +23,7 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
     %Also, ability to analyse LED data as if rolling?
 
 
-%{{
+%{
 arguments
     %BLOCKS struct
     FLIES struct
@@ -46,7 +46,7 @@ arguments
     options.postHocCorrectInferTimes double = 1 %If DAQ data is present, uses DAQ/PTB timings to adjust inferTimes (Since inferTimes is interpolated, not true clock)
 end
 %}
-%{
+%{{
 %BLOCKS = FLIES(fly).BLOCKS;
 FLIES = FLIES;
 flyRecord = flyRecord;
@@ -757,6 +757,61 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 %}
 
             %--------------------
+            %Check for IFI loss and correct first
+            temp2 = diff( frameLOCS ); %Inter-framespike index difference; Again, should be (relatively) stable
+            ifiLoss =0;
+            if nanmax( abs(temp2) ) > nanmean(temp2) + 4*nanstd(temp2) %Note: Calcs may not cover symmetrical conditions of frameSpike shift
+                ['-# Alert: Significant deviation/s in inter-framespike interval detected #-']
+                %Note: No explicit inter-framespike interval rectification currently implemented, only phase loss
+                %errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) ); %SD-based system
+                errorSpikes = find( abs(temp2 - nanmean(temp2))  >  0.1*nanmean(temp2)  );
+                errorSpikesMag = abs(temp2(errorSpikes)) - nanmean(temp2);
+                disp([num2str(errorSpikes)])
+                disp([ '(',num2str(round(errorSpikesMag)),' frames deviated from +-10% mean IFI threshold [',num2str(round(0.1*nanmean(temp2))),'])' ])
+                ifiLoss = 1;
+            end
+            if size( errorSpikes, 2 ) > 0
+                disp(['IFI loss in framespikes detected'])
+
+                %Plot
+                figure
+                for eros = 1:size( errorSpikes, 2 ) 
+                    subplot( 1, size( errorSpikes, 2 ) , eros  )
+                    thisErrorSpike = errorSpikes(eros);
+                    spikeRange = [ thisErrorSpike-2, thisErrorSpike+2 ];
+                    spikeRange( spikeRange < 0 ) = [];
+                    spikeRange( spikeRange > size(frameLOCS,2) ) = [];
+                    plot( [inferTimes( frameLOCS(spikeRange(1)):frameLOCS(spikeRange(2)) )],...
+                        [syncStruct.AI.FrameSpike( frameLOCS(spikeRange(1)) : frameLOCS(spikeRange(2)) )] )
+                    hold on
+                    scatter( [inferTimes( frameLOCS( spikeRange(1):spikeRange(2) ) )],...
+                        [syncStruct.AI.FrameSpike( frameLOCS(spikeRange(1):spikeRange(2))) ] )
+                    scatter( [inferTimes( frameLOCS( thisErrorSpike ) )], [syncStruct.AI.FrameSpike( frameLOCS( thisErrorSpike ) )]+0.1, 'Color', [1,0,0] )
+                    title(['IFI loss frameSpike (#',num2str(errorSpikes(eros)),') location'])
+                    xlabel(['Time (s)'])
+                end
+
+                %Identify
+                errorLOCS = [];
+                for eros = 1:size( errorSpikes,2 )
+                    thisErrorSpike = errorSpikes(eros);
+                    if size( errorSpikes,2 ) >= 2 && thisErrorSpike+1 ==  errorSpikes(eros+1) %"More than 1 error spike and this error spike is directly followed (in frameLOCS) by another error spike"
+                        %This is designed for the case where the framespike writing lagged out and took ~100+ms to write and unwrite, thus leading to an aberrantly broad framespike
+                            %Note: This is not designed to deal with 3+ error spikes in quick succession
+                            errorLOCS = thisErrorSpike;
+                            frameLOCS( thisErrorSpike ) = []; %"Delete the first of the aberrantly double-detected framespikes"
+                            framePKS( thisErrorSpike ) = [];
+                            disp(['-# Framespike #', num2str(thisErrorSpike),' deleted to rectify phase #-'])
+                    else
+                        ['## case not written yet ##']
+                        %This will be something like a framespike being just really delayed or ahead in time; TBD what to do
+                        crash = yes
+                    end
+                end
+
+            end
+
+
             %Check for phase loss/other irregularities in data
             temp = []; %Index difference between framespikes and iterator changes; Should be stable
             for i = 1:nanmin( [size(frameLOCS,2), size( itLOCS,1)] ) %Note: itLOCS not 100% guaranteed 1:1 with itProcRangeIndUnwrapped
@@ -766,39 +821,39 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             stdPhaseDiff = nanstd(temp);
             %temp = diff(temp); %Diff, better for mean/SDing
 
-            temp2 = diff( frameLOCS ); %Inter-framespike index difference; Again, should be (relatively) stable
-
             phaseLoss = 0;
             if any(temp < 0)%nanmax( abs(temp) ) > nanmean(temp) + 4*nanstd(temp)
                 ['-# Alert: Phase loss detected between framespike and iterator #-']
                 phaseLoss = 1;
             end
-            ifiLoss =0;
-            if nanmax( abs(temp2) ) > nanmean(temp2) + 4*nanstd(temp2) %Note: Calcs may not cover symmetrical conditions of frameSpike shift
-                ['-# Alert: Significant deviation/s in inter-framespike interval detected #-']
-                %Note: No explicit inter-framespike interval rectification currently implemented, only phase loss
-                errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) );
-                disp([num2str(errorSpikes)])
-                ifiLoss = 1;
-            end
+
 
             %Rectify
             if phaseLoss && ifiLoss %FrameSpike positions both undertake/overtake iterator AND unequally spaced
+                not modified yet wrt ifi prerectification
                 %errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) );
                 phaseLossSpike = errorSpikes( find( frameLOCS(errorSpikes) - itLOCS(errorSpikes)' < 0 ) );
                     %NOTE: CURRENTLY ONLY FINDS FIRST INSTANCE, SINCE NOT RECURSIVE
-                disp(['Apparent phase loss frameSpike: #',num2str(phaseLossSpike),...
+                disp(['Apparent phase loss frameSpike/s: #',num2str(phaseLossSpike),...
                     ' (~',num2str(floor( inferTimes( frameLOCS( phaseLossSpike) ) )),'s)'])
                 phaseLossSpikeInd = frameLOCS( phaseLossSpike );
 
                 %Plot
                 figure
-                plot( [inferTimes( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )] )
-                hold on
-                scatter( [inferTimes( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )] )
-                scatter( [inferTimes( frameLOCS(phaseLossSpike) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike) )]+0.1, 'Color', [1,0,0] )
-                title(['Phase loss frameSpike (#',num2str(phaseLossSpike),') location'])
-                xlabel(['Time (s)'])
+                for phasmo = 1:size( phaseLossSpikeInd,2 )
+                    subplot( 1, size( phaseLossSpikeInd,2 ), phasmo )
+                    %plot( [inferTimes( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )] )
+                    plot( [inferTimes( frameLOCS(phaseLossSpike(phasmo)-2) : frameLOCS(phaseLossSpike(phasmo)+2) )],...
+                        [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)-2) : frameLOCS(phaseLossSpike(phasmo)+2) )] )
+                    hold on
+                    %scatter( [inferTimes( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )] )
+                    %scatter( [inferTimes( frameLOCS(phaseLossSpike) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike) )]+0.1, 'Color', [1,0,0] )
+                    scatter( [inferTimes( frameLOCS(phaseLossSpike(phasmo)-2:phaseLossSpike(phasmo)+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)-2:phaseLossSpike(phasmo)+2) )] )
+                    scatter( [inferTimes( frameLOCS(phaseLossSpike(phasmo)) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)) )]+0.1, 'Color', [1,0,0] )
+                    %title(['Phase loss frameSpike (#',num2str(phaseLossSpike),') location'])
+                    title(['Phase loss frameSpike (#',num2str(phaseLossSpike(phasmo)),') location'])
+                    xlabel(['Time (s)'])
+                end
 
                 %Check if phase loss spike within believable proximity to intended 'true' position
                 if itLOCS(phaseLossSpike+1) - phaseLossSpikeInd < meanPhaseDiff+2*stdPhaseDiff && ...
@@ -1341,13 +1396,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
         %% Photodiode stuff
         %Quick allocation for battery design currently
-        if ~isShortcutting && batteryDesign && hasPhotData
+        if ~isShortcutting && hasPhotData %&& batteryDesign 
         %Incorporate photodiode data
-                %NOTE: INEFFICIENT
+                %NOTE: INEFFICIENT; PROBABLY REPLACE WITH INTERPOLATED/SMALLER VERSION SOON
             %if hasPhotData
             photData = syncStruct.AI.Photodiode;
             %end
-        elseif isShortcutting && batteryDesign && hasPhotData
+        elseif isShortcutting && hasPhotData %&& batteryDesign 
             photData = shortStruct.photData;
         end
     
@@ -1397,7 +1452,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %sword
     
         end
-    
+        %fighti    
     
         %% Tether image to known reference frame
     
@@ -2201,4 +2256,4 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 end
 
 %function end
-end
+%%end
