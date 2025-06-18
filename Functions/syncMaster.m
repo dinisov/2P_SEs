@@ -1,4 +1,4 @@
-%%function FLIES = syncMaster(FLIES, flyRecord, options)
+function FLIES = syncMaster(FLIES, flyRecord, options)
 
 %Mk ???
 %Mk 6 - Support for battery, and blanks during bendy block design
@@ -23,7 +23,7 @@
     %Also, ability to analyse LED data as if rolling?
 
 
-%{
+%{{
 arguments
     %BLOCKS struct
     FLIES struct
@@ -46,7 +46,7 @@ arguments
     options.postHocCorrectInferTimes double = 1 %If DAQ data is present, uses DAQ/PTB timings to adjust inferTimes (Since inferTimes is interpolated, not true clock)
 end
 %}
-%{{
+%{
 %BLOCKS = FLIES(fly).BLOCKS;
 FLIES = FLIES;
 flyRecord = flyRecord;
@@ -792,17 +792,36 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 end
 
                 %Identify
-                errorLOCS = [];
+                errorLOCS = []; %Will store deleted LOCS for posterity
+                rectifiedErrorSpikes = []; %Will store errorSpikes that are no longer valid
+                    %Note: Currently not done with a while loop/etc, so there is no guarantee that framespikes following rectification will actually be valid
                 for eros = 1:size( errorSpikes,2 )
                     thisErrorSpike = errorSpikes(eros);
-                    if size( errorSpikes,2 ) >= 2 && thisErrorSpike+1 ==  errorSpikes(eros+1) %"More than 1 error spike and this error spike is directly followed (in frameLOCS) by another error spike"
+                    disp(['Processing error spike ', num2str(eros),' (#',num2str(thisErrorSpike),')'])
+                    %Pre-QA
+                    if thisErrorSpike == 1
+                        ['## Alert: Unsafe to perform IFI rectification on first framespike ##']
+                        %I mean, theoretically it's no different, but in practice one would want to do it with care
+                        crash = yes
+                    end
+                    if size( errorSpikes,2 ) >= 2 && eros <= size( errorSpikes,2 )-1 && thisErrorSpike+1 ==  errorSpikes(eros+1) %"More than 1 error spike AND not last AND this error spike is directly followed (in frameLOCS) by another error spike"
                         %This is designed for the case where the framespike writing lagged out and took ~100+ms to write and unwrite, thus leading to an aberrantly broad framespike
                             %Note: This is not designed to deal with 3+ error spikes in quick succession
                             errorLOCS = thisErrorSpike;
                             frameLOCS( thisErrorSpike ) = []; %"Delete the first of the aberrantly double-detected framespikes"
                             framePKS( thisErrorSpike ) = [];
+                            rectifiedErrorSpikes = [rectifiedErrorSpikes,errorSpikes(eros+1)];
                             disp(['-# Framespike #', num2str(thisErrorSpike),' deleted to rectify phase #-'])
-                    else
+                                %Note: Currently as written the actual framespike deleted here doesn't matter **theoretically**
+                                    %This is because aside from Framespike 1 and last, the physical position of individual framespikes is not used for anything
+                                        %Secondary note: This is not true wrt phase, and so it is possible that picking one of an aberrant double could be better/worse for preserving phase
+                    elseif ismember( thisErrorSpike, rectifiedErrorSpikes )
+                        disp(['-# Error spike already rectified #-'])
+                        continue
+                    elseif abs( errorSpikesMag(eros) ) > 1.25*nanmean(temp2)
+                        ['## likely missed framespike; case not written yet ##']
+                        crash = yes
+                    else %CHECK FOR PHASE?
                         ['## case not written yet ##']
                         %This will be something like a framespike being just really delayed or ahead in time; TBD what to do
                         crash = yes
@@ -811,6 +830,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
             end
 
+            %--------------------
 
             %Check for phase loss/other irregularities in data
             temp = []; %Index difference between framespikes and iterator changes; Should be stable
@@ -827,9 +847,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 phaseLoss = 1;
             end
 
-
             %Rectify
-            if phaseLoss && ifiLoss %FrameSpike positions both undertake/overtake iterator AND unequally spaced
+            if phaseLoss %&& ifiLoss %FrameSpike positions both undertake/overtake iterator AND unequally spaced
                 not modified yet wrt ifi prerectification
                 %errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) );
                 phaseLossSpike = errorSpikes( find( frameLOCS(errorSpikes) - itLOCS(errorSpikes)' < 0 ) );
@@ -920,7 +939,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             else
                 disp(['Number of detected framespikes: ',num2str(nSpikes),'; Target based on btData (Script ver ',num2str(progVerNum),'): ',num2str(targetINum),' or ',num2str(targetINum-1)])
             end
-            %if (batteryDesign == 0 && nSpikes == btData(end,5)-1 ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
+            %if (batteryDesign == 0 o&& nSpikes == btData(end,5)-1 ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
             %if (batteryDesign == 0 && nSpikes == targetINum ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
             if (batteryDesign == 0 && (nSpikes == targetINum || nSpikes == targetINum-1) ) || ( batteryDesign == 1 )
                     %Note: As of v8.2, it may be the norm for btData at end to match nSpikes without - 1
@@ -2256,4 +2275,4 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 end
 
 %function end
-%%end
+end
