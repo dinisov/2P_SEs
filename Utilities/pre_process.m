@@ -2,7 +2,7 @@ close all;
 
 if ~exist('IJM','var')
     clear;
-    addpath('D:\group_vanswinderen\Dinis\Fiji.app\scripts');
+    addpath('C:\Users\uqmvan13\2p\Fiji.app\scripts');
     ImageJ;
 end
 
@@ -16,9 +16,9 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record.xlsx");
 % blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
-chosenFlies = [275,276,277,278];
+chosenFlies = [300];
 
-chosenBlocks = {[1,2,3],[1,2,3],[1,2],[1,2,5,6]};
+chosenBlocks = {[2,3]};
 
 for fly = 1:length(chosenFlies)
     
