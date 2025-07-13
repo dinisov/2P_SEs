@@ -1,4 +1,4 @@
-function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, ~, separateByState, doRolling)
+function FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, ~, separateByState, doRolling)
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -14,15 +14,21 @@ for fly = 1:length(chosenFlies)
     
     currentDate = char(datetime(thisFlyBlocks.Date(1),'Format','dMMMyy'));
     
-    blockNumbers = thisFlyBlocks.Block.';
+    if isempty(chosenBlocks)
+        blockNumbers = thisFlyBlocks.Block.';
+    else
+        blockNumbers = chosenBlocks{fly};
+        disp(['Using manual block specification (',num2str(blockNumbers),' for this fly)'])
+    end
     
     for b = blockNumbers
 
-        currentBlock = thisFlyBlocks(blockNumbers==b,:);
+        %currentBlock = thisFlyBlocks(blockNumbers==b,:)
+        currentBlock = thisFlyBlocks(thisFlyBlocks.Block==b,:); %Note: This modification may have unintended consequences
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
         currentDirectory = fullfile(dataDirectory,currentDate,flyID);
 
-        disp(flyID);
+        disp(flyID)
 
         BLOCKS(b).flyNum = chosenFlies(fly);
         BLOCKS(b).flyID = flyID;

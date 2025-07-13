@@ -1,24 +1,38 @@
 close all; clear;
 
-addpath('D:\group_vanswinderen\Dinis\Scripts\Global functions\');
-addpath('D:\group_vanswinderen\Dinis\Scripts\Indexes and legends\');
+addpath('C:\Users\uqmvan13\2p\Dinis Scripts\Global functions\');
+addpath('C:\Users\uqmvan13\2p\Dinis Scripts\Indexes and legends\');
 %addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\');
 addpath('.\Functions\');
 
 close all; clear;
 
+%Matt/Dinish
+%{{
 RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
 
 %where the sequence data is located (stimulus files)
 %sequenceDirectory = 'I:\RFDG2021-Q4413\2P_Data\RPiData';
 sequenceDirectory = 'I:\RFDG2021-Q4413\Matt';
 
+
 %where the main data is found
 dataDirectory = fullfile(RDMDirectory,'Gcamp7s_CC/');
 
-outputDirectory = '../2P Results 3';
+outputDirectory = '../2P_RESULTS_4';
 
 flyRecord = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
+%}
+
+
+%Andre params
+%{
+RDMDirectory = 'I:\RFDG2021-Q4413\Andre\2p_Data\\'; %Andre
+sequenceDirectory = 'I:\RFDG2021-Q4413\Andre';
+dataDirectory = fullfile(RDMDirectory);
+outputDirectory = '../2P Results Andre';
+flyRecord = readtable("I:\RFDG2021-Q4413\Andre\2p_Record\Andre_2P_record.xlsx");
+%}
 
 %get rid of excluded flies
 flyRecord = flyRecord(~logical(flyRecord.Exclude),:);
@@ -33,7 +47,10 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [250];
+chosenFlies = [322]; %Matt
+chosenBlocks = {[2]}; %Leave empty if not using
+    %Note: If using, block/s must be specified for *all* chosen flies
+%chosenFlies = [83]; %Andre
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
@@ -44,19 +61,34 @@ flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 %whether to analyse grouped blocks
 groupedBlocks = 0;
 
+%%
+%Pre QA for bad block specification
+if ~isempty(chosenBlocks)
+    for fly = 1:length(chosenFlies)
+        thisFlyBlocks = flyRecord(flyRecord.Fly == chosenFlies(fly),:);
+        if any( ~ismember(chosenBlocks{fly},thisFlyBlocks.Block.') )
+            ['## Alert: One or more requested blocks not existing in flyRecord ##']
+            crash = yes
+        end
+    end
+end
+
 %% process flies
 
 % transient movies; component fits; fit movies; t-tests; oddballs; LvsR; PCA; global transient
 %analysisToggle = [1 1 1 0 1 0 1 1];
-analysisToggle = [0 0 0 0 0 0 0 0];
+analysisToggle = [1 0 0 0 0 0 1 0];
 separateByState = 0; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
-doRolling = 1; %Whether to also do rolling analysis
+doRolling = 0; %Whether to also do rolling analysis
+    %Note: Requires MATLAB >=2021
 
 for fly = chosenFlies
     if ~isempty(flyRecord(flyRecord.Fly == fly,:))
         %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks);
         %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState);
-        processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
+        %fake
+        %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
+        processFlies(flyRecord, fly, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
     end
 end
 %% fit and plot some seq eff profiles of interest
