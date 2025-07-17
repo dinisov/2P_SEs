@@ -16,10 +16,10 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 imageSize = [-1 -1]; % <value> -> Requested size, -1 -> Automatically derive size from loaded data 
 
-chosenFlies = [301];
+chosenFlies = [305,306];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = {[4]};
+chosenBlocks = {[3],[1,2,3]};
     %FORMAT MUST BE {[<block/s>]} 
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
@@ -81,6 +81,7 @@ function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMod
     end
     if ~exist('altnVolSelectionMode', 'var') || ( isempty(altnVolSelectionMode) )
         altnVolSelectionMode = 1; %Default
+        disp(['-# nVol selection mode not specified; Using default #-'])
     end
     
     if altnVolSelectionMode == 2
@@ -90,6 +91,11 @@ function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMod
 
     % slices within each volume including flyback 
     nSlices = block.Steps + block.FlybackFrames;
+    %QA
+    if block.FlybackFrames == 99
+        ['## Alert: Extreme likelihood of standin flybackFrames value in flyRecord ##']
+        crash = yes
+    end
     
     %total number of volumes recorded
     nVolTotal = block.realFrames/nSlices;
