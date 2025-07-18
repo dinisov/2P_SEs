@@ -1,4 +1,4 @@
-%%function FLIES = syncMaster(FLIES, flyRecord, options)
+function FLIES = syncMaster(FLIES, flyRecord, options)
 
 %Mk ???
 %Mk 6 - Support for battery, and blanks during bendy block design
@@ -23,7 +23,7 @@
 
     %Also, ability to analyse LED data as if rolling?
 
-%{
+%{{
 arguments
     %BLOCKS struct
     FLIES struct
@@ -49,7 +49,7 @@ arguments
 end
 functionAlity = 1;
 %}
-%{{
+%{
 if exist('functionAlity')
     ['## Error: Both function and non-function params specified ##']
     crash = yes
@@ -1507,6 +1507,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %Prepare for wider use
             photProc = photTemp;
 
+            %Some potentially useful post-hoc reporting
+            temp = bwlabel( photProc );
+            disp(['Phot indicates ',num2str(nanmax(temp)),' stimulus events'])            
+
         end
     
             %% Save data, to increase speed for subsequent runs
@@ -2391,4 +2395,4 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 end
 
 %function end
-%%end
+end
