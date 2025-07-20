@@ -42,10 +42,11 @@ arguments
     options.useShortcut double = 1 %Whether to actually use said shortcut
     options.daqFramespikeVoltage double = 1 %Approximate voltage for the FrameSpike voltage in DAQ/TS
     options.blankHandleMode double = 2 %How to deal with blanks when includeBlanks used (1 - Siphon blanks separately, 2 - Treat as normal and siphon at end [Safer])
-    options.disregardBattery double = 1 %Whether to discard battery blocks at end, on account of SEs analysis incompatibility
+    options.disregardBattery double = 0 %Whether to discard battery blocks at end, on account of SEs analysis incompatibility
     options.postHocCorrectInferTimes double = 1 %If DAQ data is present, uses DAQ/PTB timings to adjust inferTimes (Since inferTimes is interpolated, not true clock)
     %options.disregardNonBattery double = 0 %Whether to discard NON-battery blocks at end, for simpler battery analysis; Not really functional/useful due to fact that entire analysis has to process before this procs
     options.cleanPhotData double = 1 %Whether to apply esoteric photodiode cleaning operations
+    options.doBendyTransientGraph double = 1 %Whether to do an improvised transient (+ phot) graph for bendy block design data
 end
 functionAlity = 1;
 %}
@@ -58,22 +59,24 @@ end
 FLIES = FLIES;
 flyRecord = flyRecord;
 options.dataDirectory = dataDirectory;
-options.doPlot = 1
-options.doVid = 0
-options.rollingAnalysis = -1
-options.dataSource = -1
-options.allowRandomSequenceEmpty = 0
-options.disregardRollingDesign = 0
-options.btInterpolationMethod = 'intelligent' 
-options.nBack = 5
-options.saveShortcut = 0
-options.useShortcut = 0
-options.daqFramespikeVoltage = 1
-options.blankHandleMode = 2
-options.disregardBattery = 0
-options.postHocCorrectInferTimes = 1
+options.doPlot = 1;
+options.doVid = 0;
+options.rollingAnalysis = -1;
+options.dataSource = -1;
+options.allowRandomSequenceEmpty = 0;
+options.disregardRollingDesign = 0;
+options.btInterpolationMethod = 'intelligent';
+options.nBack = 5;
+options.saveShortcut = 0;
+options.useShortcut = 0;
+options.daqFramespikeVoltage = 1;
+options.blankHandleMode = 2;
+options.disregardBattery = 0;
+options.postHocCorrectInferTimes = 1;
 %options.disregardNonBattery = 0;
-options.cleanPhotData = 1
+options.cleanPhotData = 1;
+options.doBendyTransientGraph = 1;
+options
 %}
 
 
@@ -95,6 +98,7 @@ blankHandleMode = options.blankHandleMode;
 disregardBattery = options.disregardBattery;
 %disregardNonBattery = options.disregardNonBattery;
 cleanPhotData = options.cleanPhotData;
+doBendyTransientGraph = options.doBendyTransientGraph;
 
 
 %Pre-loop preparation
@@ -749,7 +753,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %shadow
 
             %OMEGA PLOT
-                %DANGER - 12:30 (As in, it takes 12.5m to generate this plot or change the limits)
+                %DANGER - 12:30 (As in, it takes 12.5m [Not really] to generate this plot or change the limits)
                 %{
             figure
             plot( inferTimes, syncStruct.AI.FrameSpike )
@@ -778,7 +782,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 errorSpikes = find( abs(temp2 - nanmean(temp2))  >  0.1*nanmean(temp2)  );
                 errorSpikesMag = abs(temp2(errorSpikes)) - nanmean(temp2);
                 disp([num2str(errorSpikes)])
-                disp([ '(',num2str(round(errorSpikesMag)),' frames deviated from +-10% mean IFI threshold [',num2str(round(0.1*nanmean(temp2))),'])' ])
+                disp([ '(Error spike/s deviated by ',num2str(round(errorSpikesMag)),' TS frames from +-10% mean IFI threshold [',num2str(round(0.1*nanmean(temp2))),'])' ])
                 ifiLoss = 1;
             end
             if exist('errorSpikes') && size( errorSpikes, 2 ) > 0
@@ -832,6 +836,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     elseif abs( errorSpikesMag(eros) ) > 1.25*nanmean(temp2)
                         ['## likely missed framespike; case not written yet ##']
                         crash = yes
+                    elseif abs( (frameLOCS( thisErrorSpike+1 ) - frameLOCS( thisErrorSpike )) - (itLOCS( thisErrorSpike+2 ) - itLOCS( thisErrorSpike+1 )) ) < 0.01*nanmean(temp2)
+                        %Note: This case may have to be broadened for 'normal' phase loss (i.e. use itLocs +1 and 0 respectively, or vice versa)
+                        disp(['-# IFI stutter and iterator stutter appear identical; Not rectifying #-'])
+                            %Phase loss checks will be important to ensure this does not cause issues
                     else %CHECK FOR PHASE?
                         ['## case not written yet ##']
                         %This will be something like a framespike being just really delayed or ahead in time; TBD what to do
@@ -1034,7 +1042,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     end
                     %---------
                     %mushroom
-
+                    disp(char(10))
                     %QA for pre-drift between inferTimes and btData
                     preDrift = (inferTimes( frameLOCS(lastUseful) ) - inferTimes( frameLOCS(1) )) - (btData( flipOnsetIndices(lastUseful), 6) - btData( flipOnsetIndices(1), 6));
                     disp(['Initial apparent drift magnitude: ',num2str(preDrift),'s']) %"Tokyo Drift"
@@ -1248,7 +1256,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             bestGuessCommenceTime = shortStruct.bestGuessCommenceTime;
             guessMode = shortStruct.guessMode;
         end
-        disp(['Best guess commencement time (from ',guessIndex{guessMode},'): ', ...
+        disp([char(10),'Best guess commencement time (from ',guessIndex{guessMode},'): ', ...
             datestr(datetime( bestGuessCommenceTime , 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10'))])
                 %Note: Relates to estimated experiment start time, not just PTB or imaging
     
@@ -1434,11 +1442,14 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %end
         elseif isShortcutting && hasPhotData %&& batteryDesign 
             photData = shortStruct.photData;
+            if isfield( shortStruct, 'photProc' )
+                photProc = shortStruct.photProc;
+            end
         end
 
         if ~isShortcutting && hasPhotData && cleanPhotData
             %destroyer
-            disp(['-- Cleaning photodiode data'])
+            disp([char(10),'Cleaning photodiode data'])
             
             photTemp = photData;
             photTemp( photTemp < 0.3 ) = 0; %Hopefully remove all iterator shared signal (Note: Will delete low luminosity true phot events)
@@ -1456,6 +1467,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %'Fix' artificial lead/lag induced by smoothing
             disp(['Fixing artificial lead/lag in phot data'])
             tic
+            flatFails = 0;
             for i = 1:nanmax( photLabel )
                 if nansum( photLabel == i ) > smoothVal 
                     startEnd = [ find( photLabel == i , 1, 'first' ), find( photLabel == i , 1, 'last' ) ]; %Find putative start/end of this stimulus event
@@ -1463,10 +1475,16 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     coords( coords < 1 ) = []; coords( coords > length(photTemp) ) = []; %Clean
                     photTemp( coords ) = 0; %Flatten
                 else
-                    ['-# error: cannot flatten smoothing lead/lag for apparent stim. event #',num2str(i),' due to small size (',num2str(nansum( photLabel == i )),') #-']
+                    flatFails = flatFails + 1;
+                    if ~batteryDesign
+                        ['-# error: cannot flatten smoothing lead/lag for apparent stim. event #',num2str(i),' due to small size (',num2str(nansum( photLabel == i )),') #-']
+                    end
                 end
             end
             toc
+            if batteryDesign && flatFails > 0
+                ['-# battery design encountered ',num2str(flatFails),' failures to flatten lead/lag (',num2str(nanmax( photLabel )),' total detected events)']
+            end
 
             %darkness
 
@@ -1584,7 +1602,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     ['-# Alert: Failure to identify imaging start #-']
                 elseif isempty( imStimEnd )
                     ['-# Alert: Failure to identify imaging end #-']
-                    ['Apparent PTB duration: ', num2str((inferTimes( lastImStimFrameInd )/60) ),'m']
+                    if exist('inferTimes')
+                        ['Apparent PTB duration: ', num2str((inferTimes( lastImStimFrameInd )/60) ),'m']
+                    end
                 end
                 if isShortcutting ~= 1
                 ['Imaging started ', num2str( inferTimes( frameOnsetIndices(1) ) ),'s after TS start']
@@ -2181,7 +2201,39 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             disp(['(And ',num2str(length(blankTrialIDs)),' blank trials)'])
                         end
 
+                        %Interim plot if requested
+                        if doBendyTransientGraph
+                            temp = [];
+                            temp{1} = squeeze( nanmean( dataStimTrim, [1,2] ) ); %Mean of imaging 
+                            temp{2} = temp{1}( collInds ); %2D array of means (Event, Time)
+                            temp{6} = nanmean(temp{2},1); %1D mean of transients
+                            temp{8} = nanstd( temp{2}, [], 1 ) / sqrt( size(temp{2},1) ); %1D SEM of transients
+                            if hasPhotData && cleanPhotData
+                                temp{3} = volTimes(3,:); %All TS timepoints associated with volumes
+                                temp{4} = temp{3}( collInds ); %2D array of TS timepoints relating to specific volumes
+                                temp{5} = photProc( temp{4} ); %2D array of phot data during specific volumes
+                                temp{7} = nanmean( temp{5}, 1 ); %normalize( nanmean( temp{5}, 1 ), 'Range', [nanmin( temp{6} ) - range( temp{6} ) , nanmin( temp{6} ) ] ); %1D mean of phot
+                                temp{9} = nanstd( temp{5}, [], 1 ) / sqrt( size(temp{5},1) ); %1D SEM of phot
+                            end
+                            figure
+                            errorbar( temp{6}, temp{8} )
+                            if hasPhotData && cleanPhotData
+                                hold on
+                                errorbar( temp{7}*range(temp{6}) + nanmin( temp{6} ) - 0.5*range(temp{6}), temp{9}*range(temp{6}) )
+                                legend([{'Transient'},{'Phot'}])
+                            else
+                                legend([{'Transient'}])
+                            end
+                            title(['Block design transient plot - ',flyID])
+                            xlabel(['Volume'])
+                            ylabel(['Pixel intensity (a.u.)'])
+                            clear temp
+                        end
+
                         %Process blank data into something valid (if applicable)
+
+                        %to do: blank 'transient' plot (w/ phot)
+
                         %crawl
                         if includesBlanks && blankHandleMode == 1 && ~isempty(preBlankStack)
                             %elysium
@@ -2229,7 +2281,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       photProcVol = photProc( volTimes(3,:) )'; %Ostensibly same as bendy rolling                      
                   end
               end
-    
+
+              %--------------------------------------------------------------------------------------------
     
               %Overwrite data (if function source)
               if dataSource == -1
