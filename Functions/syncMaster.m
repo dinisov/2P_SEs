@@ -47,6 +47,7 @@ arguments
     %options.disregardNonBattery double = 0 %Whether to discard NON-battery blocks at end, for simpler battery analysis; Not really functional/useful due to fact that entire analysis has to process before this procs
     options.cleanPhotData double = 1 %Whether to apply esoteric photodiode cleaning operations
     options.doBendyTransientGraph double = 1 %Whether to do an improvised transient (+ phot) graph for bendy block design data
+    options.overwriteShortcut double = 0 %Whether to forcibly overwrite shortcut files (Useful after syncMaster changes)
 end
 functionAlity = 1;
 %}
@@ -76,6 +77,7 @@ options.postHocCorrectInferTimes = 1;
 %options.disregardNonBattery = 0;
 options.cleanPhotData = 1;
 options.doBendyTransientGraph = 1;
+options.overwriteShortcut = 0;
 options
 %}
 
@@ -99,6 +101,7 @@ disregardBattery = options.disregardBattery;
 %disregardNonBattery = options.disregardNonBattery;
 cleanPhotData = options.cleanPhotData;
 doBendyTransientGraph = options.doBendyTransientGraph;
+overwriteShortcut = options.overwriteShortcut;
 
 
 %Pre-loop preparation
@@ -179,7 +182,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         %------------------------------
     
         isShortcutting = 0;
-        if useShortcut == 1
+        if useShortcut == 1 && overwriteShortcut ~= 1
             %shortFile = dir( [hFolder,filesep,'h5Shortcut.mat'] );
             shortFileList = dir( strcat(dataFolder,filesep,'SHORT',filesep,'*h5Shortcut.mat') );
             shortFile = [];
@@ -198,6 +201,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 isShortcutting = 1
                 disp(['-- Shortcut file successfully loaded --'])
             end
+        elseif overwriteShortcut == 1
+            saveShortcut = 1;
+            disp(['-# Overwriting shortcut files by request #-'])
         end
     
         if useShortcut == 0 || isShortcutting == 0
@@ -2215,7 +2221,15 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                 temp{7} = nanmean( temp{5}, 1 ); %normalize( nanmean( temp{5}, 1 ), 'Range', [nanmin( temp{6} ) - range( temp{6} ) , nanmin( temp{6} ) ] ); %1D mean of phot
                                 temp{9} = nanstd( temp{5}, [], 1 ) / sqrt( size(temp{5},1) ); %1D SEM of phot
                             end
+                            temp{10} = [];
+                            for vol = 1:size( collInds,2 )
+                                temp{10}(:,:,vol) = nanmean( dataStimTrim(:,:, collInds(:,vol) ), 3 );
+                            end
+                            [~, temp{11}(1)] = nanmin( temp{6} ); temp{11}(2) = floor( size(temp{6},2) /2 ); [~, temp{11}(3)] = nanmax( temp{6} );
+
+                            %falling
                             figure
+                            subplot( 2,3, [1:3] )
                             errorbar( temp{6}, temp{8} )
                             if hasPhotData && cleanPhotData
                                 hold on
@@ -2224,9 +2238,21 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             else
                                 legend([{'Transient'}])
                             end
-                            title(['Block design transient plot - ',flyID])
+                            title(['Block design transient plot - ',strrep(flyID,'_',' ')])
                             xlabel(['Volume'])
                             ylabel(['Pixel intensity (a.u.)'])
+                            xlim([1,size(temp{6},2)])
+
+                            subplot( 2,3, [4] )
+                            imagesc( temp{10}(:,:, temp{11}(1) ) )
+                            title(['Min. frame (Vol #',num2str(temp{11}(1)),')'])
+                            subplot( 2,3, [5] )
+                            imagesc( temp{10}(:,:, temp{11}(2) ) )
+                            title(['Mid. frame (Vol #',num2str(temp{11}(2)),')'])
+                            subplot( 2,3, [6] )
+                            imagesc( temp{10}(:,:, temp{11}(3) ) )
+                            title(['Max. frame (Vol #',num2str(temp{11}(3)),')'])
+
                             clear temp
                         end
 
