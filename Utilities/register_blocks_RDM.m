@@ -2,9 +2,6 @@
 % currently does the Z averaged stacks but can be extended to align the
 % original green/red channels (i.e. align each slice in the Z stack)
 
-
-note: currently non-functional due to midway through attempting to add fragmentation
-
 close all; clear;
 
 mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
@@ -19,10 +16,10 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 imageSize = [-1 -1]; % <value> -> Requested size, -1 -> Automatically derive size from loaded data 
 
-chosenFlies = [299,300,301];
+chosenFlies = [305,306];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = {[2,3],[1,2,3],[1,2,3,4]};
+chosenBlocks = {[3],[1,2,3]};
     %FORMAT MUST BE {[<block/s>]} 
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
@@ -55,13 +52,10 @@ for fly = 1:length(chosenFlies)
         end
         %alignBlock(thisFlyBlocks(b,:), imageSize, mainDirectory);
         %alignBlock(currentBlock, imageSizeActual, mainDirectory);
-        [data] = preLoad(currentBlock, mainDirectory, 'green', imageSize, altnVolSelectionMode);
-        kc4k
-        %alignBlock(currentBlock, imageSizeActual, mainDirectory, 'green', altnVolSelectionMode);
-        alignBlock(currentBlock, imageSizeActual, mainDirectory, 'green', colour_channel, avg_z_colour_aligned, refImage);
-        clear colourChannel avg_z_colour_aligned refImage
+        alignBlock(currentBlock, imageSizeActual, mainDirectory, 'green', altnVolSelectionMode);
         if currentBlock.nChannels == 2
-            alignBlock(currentBlock, imageSizeActual, mainDirectory, 'red'); %No check for existence
+            %alignBlock(currentBlock, imageSizeActual, mainDirectory, 'red'); %No check for existence
+            alignBlock(currentBlock, imageSizeActual, mainDirectory, 'red', altnVolSelectionMode);
         end
     end
 
@@ -72,7 +66,7 @@ for fly = 1:length(chosenFlies)
 
 end
     
-function alignBlock(block, imageSize, mainDirectory, colour, colour_channel, avg_z_colour, refImage)
+function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMode)
 
     %For non-function operations
     %{
@@ -85,10 +79,9 @@ function alignBlock(block, imageSize, mainDirectory, colour, colour_channel, avg
     if ~exist('colour', 'var') || ( isempty(colour) )
         colour = 'green'; %Default
     end
-    %Beginning of slice
-    %{
     if ~exist('altnVolSelectionMode', 'var') || ( isempty(altnVolSelectionMode) )
         altnVolSelectionMode = 1; %Default
+        disp(['-# nVol selection mode not specified; Using default #-'])
     end
     
     if altnVolSelectionMode == 2
@@ -96,9 +89,13 @@ function alignBlock(block, imageSize, mainDirectory, colour, colour_channel, avg
             %Note: Time spent registering is more a factor of image size and number of volumes than how many frames go into the mean image
     end
 
-
     % slices within each volume including flyback 
     nSlices = block.Steps + block.FlybackFrames;
+    %QA
+    if block.FlybackFrames == 99
+        ['## Alert: Extreme likelihood of standin flybackFrames value in flyRecord ##']
+        crash = yes
+    end
     
     %total number of volumes recorded
     nVolTotal = block.realFrames/nSlices;
@@ -114,11 +111,18 @@ function alignBlock(block, imageSize, mainDirectory, colour, colour_channel, avg
     currentDirectory = fullfile(mainDirectory,currentDate,currentBlockDirectory);
     disp(currentDirectory);
     
-    %testFunction('making')
+%     disp('Copying original file');
+%     tic;
+%     if ~exist(fullfile(currentDirectory,'green_channel_128x128'),'file')
+%         copyfile(fullfile(mainDirectory,currentDate,currentBlockDirectory,'green_channel_128x128.mat'),fullfile(currentDirectory,'green_channel_128x128.mat'));
+%     end
+%     toc;
 
     %thisFile = dir( [fullfile(currentDirectory,'green_channel_*x*.mat')] );
     thisFile = dir( [fullfile(currentDirectory,[colour,'_channel_*x*.mat'])] );
 
+    %if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file') && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
+    %if ~isempty( thisFile ) && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
     if ~isempty( thisFile ) && ~exist(fullfile(currentDirectory,['avg_z_',colour,'_aligned.mat']),'file')
     
         % load red and green channels
@@ -126,124 +130,124 @@ function alignBlock(block, imageSize, mainDirectory, colour, colour_channel, avg
         disp(['Loading ',colour,' channel']);
         %tic; green_channel = load(fullfile(currentDirectory,'green_channel_128x128')); toc;
         tic; colour_channel = load([ thisFile.folder,filesep,thisFile.name ]); toc; %Will probs crash if >1 file; Replaces "green_channel"
-    end
 
+    %     disp('Loading red channel');
+    %     tic; red_channel = load(fullfile(currentDirectory,'red_channel_128x128')); toc;
     
-    %if %If removed due to preloading now
-    %Automatically derive image size if requested
-    if any( imageSize == -1 )
-        disp(['Automatically deriving image size'])
-        imageSize = size( colour_channel.rData, [1,2] )
-    end
-
-    %hyperstack the green and red channels (pixelX,pixelY,nSlices,time)
-    %[imageSize nSlices nVolTotal]
-    colour_channel = reshape(colour_channel.rData,[imageSize nSlices nVolTotal]);
-%     rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
-
-    % average over the volume
-    avg_z_colour = squeeze(mean(colour_channel,3)); %Replaces "avg_z_green"
-
-        % z-average aligned
-        avg_z_colour_aligned = zeros(size(avg_z_colour)); %Replaces "avg_z_green_aligned"
-    %     avg_z_red_aligned = zeros(size(avg_z_red));
-
-        % full stack aligned
-        colour_channel_aligned = zeros(size(colour_channel)); %Replaces "green_channel_aligned"
-
-        %make a reference image for registering (mean of first recording of nVol)
-        if nVol > 0
-            refImage = mean(avg_z_colour(:,:,1:nVol),3); %Old block calcs
-        else
-            if altnVolSelectionMode == 1
-                disp(['Using first 1%/ ', num2str(ceil(size(avg_z_colour,3)*0.001)),' averaged volumes as reference'])
-                refImage = mean(avg_z_colour(:,:, 1:ceil(size(avg_z_colour,3)*0.001) ),3); %Use first 1% of total frames as reference
-                    %Note: Might have issues with very short recordings, etc
-            else
-                minVolCount = min( [ceil(size(avg_z_colour,3)*0.001), eqSpaceMaxAllowable] );
-                disp(['Using min of ',num2str([ceil(size(avg_z_colour,3)*0.001), eqSpaceMaxAllowable]),' (', num2str( minVolCount ),') equally spaced as ref'])
-                refVolInds = floor( linspace( 1, size(avg_z_colour,3) , minVolCount ) );
-                %QA
-                if any( refVolInds < 1 ) || any( refVolInds > size(avg_z_colour,3) ) || numel( unique(refVolInds) ) ~= numel( refVolInds )
-                    ['## Alert: Either sub-zero vol, overmax vol, or non-unique vols requested for reference ##']
-                    crash = yes
-                end
-                refImage = mean(avg_z_colour(:,:, refVolInds ),3);
-
-            end
+        %Automatically derive image size if requested
+        if any( imageSize == -1 )
+            disp(['Automatically deriving image size'])
+            imageSize = size( colour_channel.rData, [1,2] )
         end
-        
-    %}
-    %End slice
+
+        %hyperstack the green and red channels (pixelX,pixelY,nSlices,time)
+        %[imageSize nSlices nVolTotal]
+        colour_channel = reshape(colour_channel.rData,[imageSize nSlices nVolTotal]);
+    %     rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
     
-        if ~block.Align
-           ['-# Alignment not requested for this block #-']
-           return
-        end
-        
-        %Some new-function arrangement prep
+        disp(['Image size: ', num2str(imageSize),', nSlices: ', num2str(nSlices), ', nVolTotal: ', num2str(nVolTotal)])
+
         % average over the volume
-        %avg_z_colour = squeeze(mean(colour_channel,3)); %Replaces "avg_z_green"; Imported above
-        % z-average aligned
-        avg_z_colour_aligned = zeros(size(avg_z_colour)); %Replaces "avg_z_green_aligned"
-        % full stack aligned
-        colour_channel_aligned = zeros(size(colour_channel)); %Replaces "green_channel_aligned"
-        % slices within each volume including flyback 
-        nSlices = block.Steps + block.FlybackFrames;
-        nVolTotal = kaede; %Needs to be recalculated according to how much data given 
-        
-        
-        
-        [opt,metric]=imregconfig('multimodal');
+        avg_z_colour = squeeze(mean(colour_channel,3)); %Replaces "avg_z_green"
+    %     avg_z_red = squeeze(sum(rc_hstack,3));
+    
+        disp(['Averaged image dimensions: ', num2str( size(avg_z_colour) )])
 
-    %     opt.MaximumIterations = 300;
-        opt.InitialRadius = 1e-3;
+        if block.Align
 
-        %register green channel
-        disp('Aligning stacks');
-        volMarkers = floor(linspace(1,nVolTotal,100)); %Used for progress reports
-        tic;
-        parfor vol = 1:nVolTotal
+            % z-average aligned
+            avg_z_colour_aligned = zeros(size(avg_z_colour)); %Replaces "avg_z_green_aligned"
+        %     avg_z_red_aligned = zeros(size(avg_z_red));
 
-            im_trans = imregtform(avg_z_colour(:,:,vol),refImage,'translation',opt,metric);
-            R = imref2d(size(refImage));
+            % full stack aligned
+            colour_channel_aligned = zeros(size(colour_channel)); %Replaces "green_channel_aligned"
 
-            % apply transformation to avg image
-            avg_z_colour_aligned(:,:,vol) = imwarp(avg_z_colour(:,:,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
-    %         avg_z_red_aligned(:,:,i) = imwarp(avg_z_red(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
-
-            % apply transformation to each slice in z direction (can this be done all at once for a volume?)
-            for z = 1:nSlices
-                colour_channel_aligned(:,:,z,vol) = imwarp(colour_channel(:,:,z,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+            %make a reference image for registering (mean of first recording of nVol)
+            if nVol > 0
+                refImage = mean(avg_z_colour(:,:,1:nVol),3); %Old block calcs
+            else
+                if altnVolSelectionMode == 1
+                    disp(['Using first 1%/ ', num2str(ceil(size(avg_z_colour,3)*0.001)),' averaged volumes as reference'])
+                    refImage = mean(avg_z_colour(:,:, 1:ceil(size(avg_z_colour,3)*0.001) ),3); %Use first 1% of total frames as reference
+                        %Note: Might have issues with very short recordings, etc
+                else
+                    minVolCount = min( [ceil(size(avg_z_colour,3)*0.001), eqSpaceMaxAllowable] );
+                    disp(['Using min of ',num2str([ceil(size(avg_z_colour,3)*0.001), eqSpaceMaxAllowable]),' (', num2str( minVolCount ),') equally spaced as ref'])
+                    refVolInds = floor( linspace( 1, size(avg_z_colour,3) , minVolCount ) );
+                    %QA
+                    if any( refVolInds < 1 ) || any( refVolInds > size(avg_z_colour,3) ) || numel( unique(refVolInds) ) ~= numel( refVolInds )
+                        ['## Alert: Either sub-zero vol, overmax vol, or non-unique vols requested for reference ##']
+                        crash = yes
+                    end
+                    refImage = mean(avg_z_colour(:,:, refVolInds ),3);
+                    
+                end
             end
 
-            %Report
-            if any( vol == volMarkers ) %Note: Given parfor nature, these may all hit at same time, depending on number of parallel workers
-                disp([ num2str(find( vol == volMarkers, 1, 'first' )),'% marker reached' ])                    
+            [opt,metric]=imregconfig('multimodal');
+
+        %     opt.MaximumIterations = 300;
+            opt.InitialRadius = 1e-3;
+
+            %register green channel
+            disp('Aligning stacks');
+            volMarkers = floor(linspace(1,nVolTotal,10)); %Used for progress reports
+            tic;
+            parfor vol = 1:nVolTotal
+
+                im_trans = imregtform(avg_z_colour(:,:,vol),refImage,'translation',opt,metric);
+                R = imref2d(size(refImage));
+
+                % apply transformation to avg image
+                avg_z_colour_aligned(:,:,vol) = imwarp(avg_z_colour(:,:,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+        %         avg_z_red_aligned(:,:,i) = imwarp(avg_z_red(:,:,i),im_trans,'OutputView',R, 'SmoothEdges', true);
+
+                % apply transformation to each slice in z direction (can this be done all at once for a volume?)
+                for z = 1:nSlices
+                    colour_channel_aligned(:,:,z,vol) = imwarp(colour_channel(:,:,z,vol),im_trans,'OutputView',R, 'SmoothEdges', false,'interp','nearest'); %#ok<*PFOUS>
+                end
+                
+                %Report
+                if any( vol == volMarkers ) %Note: Given parfor nature, these may all hit at same time, depending on number of parallel workers
+                    disp([ num2str(find( vol == volMarkers, 1, 'first' )),'% marker reached' ])                    
+                end
+
             end
+            toc;
+            disp(['(',num2str(nVolTotal/toc),' vol/s)'])
+
+            %disp('Saving AVG green channel aligned');
+            disp(['Saving AVG ',colour,' channel aligned']);
+            %tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned','-v7.3','-nocompression'); toc;
+            temp = struct;
+            temp.(['avg_z_',colour,'_aligned']) = avg_z_colour_aligned; %'Rename'
+            tic; save(fullfile(currentDirectory,['avg_z_',colour,'_aligned']),'-struct','temp','-v7.3','-nocompression'); toc;
+            %disp('Saving full green channel aligned');
+            disp(['Saving full ',colour,' channel aligned']);
+            %tic; save(fullfile(currentDirectory,'green_channel_aligned'),'green_channel_aligned','-v7.3','-nocompression'); toc;
+            temp = struct;
+            temp.([colour,'_channel_aligned']) = colour_channel_aligned; %'Rename'
+            tic; save(fullfile(currentDirectory,[colour,'_channel_aligned']),'-struct', 'temp','-v7.3','-nocompression'); toc;
 
         end
-        toc;
-        disp(['(',num2str(nVolTotal/toc),' vol/s)'])
 
-        %disp('Saving AVG green channel aligned');
-        disp(['Saving AVG ',colour,' channel aligned']);
-        %tic; save(fullfile(currentDirectory,'avg_z_green_aligned'),'avg_z_green_aligned','-v7.3','-nocompression'); toc;
-        temp = struct;
-        temp.(['avg_z_',colour,'_aligned']) = avg_z_colour_aligned; %'Rename'
-        tic; save(fullfile(currentDirectory,['avg_z_',colour,'_aligned']),'-struct','temp','-v7.3','-nocompression'); toc;
-        %disp('Saving full green channel aligned');
-        disp(['Saving full ',colour,' channel aligned']);
-        %tic; save(fullfile(currentDirectory,'green_channel_aligned'),'green_channel_aligned','-v7.3','-nocompression'); toc;
-        temp = struct;
-        temp.([colour,'_channel_aligned']) = colour_channel_aligned; %'Rename'
-        tic; save(fullfile(currentDirectory,[colour,'_channel_aligned']),'-struct', 'temp','-v7.3','-nocompression'); toc;
+    %     disp('Saving green channel before alignment');
+    %     tic; save(fullfile(currentDirectory,'avg_z_green'),'avg_z_green','-v7.3','-nocompression'); toc;
 
-    %end
+    %     disp('Saving red channel');
+    %     tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_red_aligned'); toc;
+
+        %delete files
+    %     disp('Deleting files');
+    %     tic;
+    %     if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file')
+    %         delete(fullfile(currentDirectory,'green_channel_128x128.mat'));
+    %     end
+    %     toc;
     
-    %else
-    %    disp(['-# Either no data found, or registered data already existing #-'])
-    %end
+    else
+        disp(['-# Either no data found, or registered data already existing #-'])
+    end
     
 end
 
@@ -304,120 +308,5 @@ function alignAcrossBlocks(thisFlyBlocks, baseDirectory)
 %         tic; save(fullfile(currentDirectory,'avg_z_red_aligned'),'avg_z_green_aligned'); toc;
     
     end
-    
-end
-
-function [data] = preLoad(block, mainDirectory, colour, imageSize, altnVolSelectionMode)
-
-    if ~exist('altnVolSelectionMode', 'var') || ( isempty(altnVolSelectionMode) )
-        altnVolSelectionMode = 1; %Default
-    end
-    if altnVolSelectionMode == 2
-        eqSpaceMaxAllowable = 128; %How many volumes max to allow for use
-            %Note: Time spent registering is more a factor of image size and number of volumes than how many frames go into the mean image
-    end
-
-    disp(['Preloading data']) %"More like...Prelon data"
-    
-    data = struct;
-
-    %Borrowed from above
-    % slices within each volume including flyback 
-    nSlices = block.Steps + block.FlybackFrames;
-    
-    %total number of volumes recorded
-    nVolTotal = block.realFrames/nSlices;
-    
-    % number of volumes recorded after each train of stimuli
-    nVol = nVolTotal/(block.BlockLength + block.BlankBlocks);
-    if nVol < 0
-        disp(['-# Probable rolling nature detected in nVol #-'])
-    end
-
-    currentDate = char(datetime(block.Date,'Format','dMMMyy'));
-    currentBlockDirectory = ['fly' num2str(block.FlyOnDay) '_exp' num2str(block.Block) '_' currentDate];
-    currentDirectory = fullfile(mainDirectory,currentDate,currentBlockDirectory);
-    disp(currentDirectory);
-    
-    %testFunction('making')
-
-    %thisFile = dir( [fullfile(currentDirectory,'green_channel_*x*.mat')] );
-    thisFile = dir( [fullfile(currentDirectory,[colour,'_channel_*x*.mat'])] );
-    
-    colour_channel = [];
-    avg_z_colour = [];
-    refImage = [];    
-    
-
-    %if ~isempty( thisFile ) && ~exist(fullfile(currentDirectory,['avg_z_',colour,'_aligned.mat']),'file')
-    if ~isempty( thisFile ) && exist(fullfile(currentDirectory,['avg_z_',colour,'_aligned.mat']),'file') == 2
-    
-        % load red and green channels
-        %disp('Loading green channel');
-        disp(['Loading ',colour,' channel']);
-        %tic; green_channel = load(fullfile(currentDirectory,'green_channel_128x128')); toc;
-        tic; 
-        colour_channel = load([ thisFile.folder,filesep,thisFile.name ]); 
-        toc; %Will probs crash if >1 file; Replaces "green_channel"
-        
-            %if %If removed due to preloading now
-        %Automatically derive image size if requested
-        if any( imageSize == -1 )
-            disp(['Automatically deriving image size'])
-            imageSize = size( colour_channel.rData, [1,2] )
-        end
-
-        %hyperstack the green and red channels (pixelX,pixelY,nSlices,time)
-        %[imageSize nSlices nVolTotal]
-        colour_channel = reshape(colour_channel.rData,[imageSize nSlices nVolTotal]);
-    %     rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
-
-        % average over the volume
-        avg_z_colour = squeeze(mean(colour_channel,3)); %Replaces "avg_z_green"
-        
-        % z-average aligned
-        %avg_z_colour_aligned = zeros(size(avg_z_colour)); %Replaces "avg_z_green_aligned"
-            %Ditto below
-    %     avg_z_red_aligned = zeros(size(avg_z_red));
-
-        % full stack aligned
-        %%colour_channel_aligned = zeros(size(colour_channel)); %Replaces "green_channel_aligned"
-            %Unnecessary to make here (Later on needed)
-
-        %make a reference image for registering (mean of first recording of nVol)
-        if nVol > 0
-            refImage = mean(avg_z_colour(:,:,1:nVol),3); %Old block calcs
-        else
-            if altnVolSelectionMode == 1
-                disp(['Using first 1%/ ', num2str(ceil(size(avg_z_colour,3)*0.001)),' averaged volumes as reference'])
-                refImage = mean(avg_z_colour(:,:, 1:ceil(size(avg_z_colour,3)*0.001) ),3); %Use first 1% of total frames as reference
-                    %Note: Might have issues with very short recordings, etc
-            else
-                minVolCount = min( [ceil(size(avg_z_colour,3)*0.001), eqSpaceMaxAllowable] );
-                disp(['Using min of ',num2str([ceil(size(avg_z_colour,3)*0.001), eqSpaceMaxAllowable]),' (', num2str( minVolCount ),') equally spaced as ref'])
-                refVolInds = floor( linspace( 1, size(avg_z_colour,3) , minVolCount ) );
-                %QA
-                if any( refVolInds < 1 ) || any( refVolInds > size(avg_z_colour,3) ) || numel( unique(refVolInds) ) ~= numel( refVolInds )
-                    ['## Alert: Either sub-zero vol, overmax vol, or non-unique vols requested for reference ##']
-                    crash = yes
-                end
-                refImage = mean(avg_z_colour(:,:, refVolInds ),3);
-
-            end
-        end
-
-    else
-        disp(['No data detected'])
-        %colour_channel = [];
-    end
-    
-                %Imminently segmented 
-    data.colour_channel = colour_channel;
-    data.avg_z_colour = avg_z_colour;
-    data.refImage = refImage;
-    
-    data.nVolTotal = NaN; %Need to replace with post-hoc calcs
-        
-    
     
 end
