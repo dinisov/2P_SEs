@@ -1,4 +1,4 @@
-function FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, ~, separateByState, doRolling)
+function FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, ~, separateByState, doRolling, useUnaligned)
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -58,7 +58,12 @@ for fly = 1:length(chosenFlies)
         
         % load 128x128 data
         disp('Loading green channel');
-        tic; load(fullfile(currentDirectory,'avg_z_green_aligned')); toc;
+        if isempty(useUnaligned) || useUnaligned == 0
+            tic; load(fullfile(currentDirectory,'avg_z_green_aligned')); toc;
+        else
+            disp(['-# Using unaligned data for analysis #-'])
+            tic; load(fullfile(currentDirectory,'avg_z_green_unaligned')); toc;
+        end
 
 %         disp('Loading red channel');
 %         tic; load(fullfile(currentDirectory,'avg_z_red_aligned')); toc;
@@ -72,8 +77,12 @@ for fly = 1:length(chosenFlies)
             BLOCKS(b).greenChannel = imresize3(rData,[gridSize size(rData,3)],'box');
             clear('rData');
         else
-            BLOCKS(b).greenChannel = imresize3(avg_z_green_aligned,[gridSize size(avg_z_green_aligned,3)],'box');
-%         BLOCKS(b).redChannel = imresize3(avg_z_red_aligned,[gridSize size(avg_z_red_aligned,3)],'box');
+            if isempty(useUnaligned) || useUnaligned == 0
+                BLOCKS(b).greenChannel = imresize3(avg_z_green_aligned,[gridSize size(avg_z_green_aligned,3)],'box');
+            else
+                BLOCKS(b).greenChannel = imresize3(avg_z_green_unaligned,[gridSize size(avg_z_green_unaligned,3)],'box');
+            end
+            %         BLOCKS(b).redChannel = imresize3(avg_z_red_aligned,[gridSize size(avg_z_red_aligned,3)],'box');
         end
         toc;
         
