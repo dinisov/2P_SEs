@@ -1,9 +1,40 @@
-function FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, ~, separateByState, doRolling, useUnaligned)
+function FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, options) %New
+%%function FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, ~, separateByState, doRolling, useUnaligned) %Deprecated
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
+%{{
+%Function form
+arguments
+    flyRecord table
+    chosenFlies double
+    chosenBlocks cell
+    gridSize double
+    dataDirectory string
+    sequenceDirectory string
+    options.separateByState double = 0
+    options.doRolling double = 0
+    options.alternateUseCase double = [] %Whether to act normally (empty), use averaged data (0), use unaligned data (1), or use 1 plane of 3D data (3),
+    options.reqZ double = 1 %When alternateUseCase 3 (Single Z-plane), specifies which Z plane to use (Note that flyback frames are included here, so be careful)
+end
+%}
+%{
+%Non-function form
+options.separateByState = 0;
+options.doRolling = 0;
+options.alternateUseCase = 3;
+options.reqZ = 1
+%}
+
+
 % structure with necessary info
 FLIES = struct;
+
+%Arguments
+separateByState = options.separateByState;
+doRolling = options.doRolling;
+alternateUseCase = options.alternateUseCase;
+reqZ = options.reqZ;
 
 for fly = 1:length(chosenFlies)
     
@@ -58,11 +89,18 @@ for fly = 1:length(chosenFlies)
         
         % load 128x128 data
         disp('Loading green channel');
-        if isempty(useUnaligned) || useUnaligned == 0
+        %if isempty(useUnaligned) || useUnaligned == 0
+        if isempty(alternateUseCase) || alternateUseCase == 0
             tic; load(fullfile(currentDirectory,'avg_z_green_aligned')); toc;
-        else
+        elseif alternateUseCase == 1
             disp(['-# Using unaligned data for analysis #-'])
             tic; load(fullfile(currentDirectory,'avg_z_green_unaligned')); toc;
+        elseif alternateUseCase == 3
+            disp(['-# Using single Z-plane data for analysis #-'])
+            tic; load(fullfile(currentDirectory,'green_channel_aligned')); toc;
+        else
+            ['Unspecified alternate use case']
+            crash = yes
         end
 
 %         disp('Loading red channel');
@@ -77,10 +115,17 @@ for fly = 1:length(chosenFlies)
             BLOCKS(b).greenChannel = imresize3(rData,[gridSize size(rData,3)],'box');
             clear('rData');
         else
-            if isempty(useUnaligned) || useUnaligned == 0
+            %if isempty(useUnaligned) || useUnaligned == 0
+            if isempty(alternateUseCase) || alternateUseCase == 0 %Use aligned average
                 BLOCKS(b).greenChannel = imresize3(avg_z_green_aligned,[gridSize size(avg_z_green_aligned,3)],'box');
-            else
+            elseif alternateUseCase == 1 %Use unaligned
                 BLOCKS(b).greenChannel = imresize3(avg_z_green_unaligned,[gridSize size(avg_z_green_unaligned,3)],'box');
+            elseif alternateUseCase == 3 %Use 1 plane of aligned
+                BLOCKS(b).greenChannel = imresize3( squeeze(green_channel_aligned(:,:,reqZ,:)),[gridSize size(green_channel_aligned,4)],'box'); %Note slightly different size call
+                    %Squeeze necessary to prevent crash
+                disp(['Using only requested Z-plane ',num2str(reqZ),' of ',num2str(size(green_channel_aligned,3)),...
+                    ' (',num2str(currentBlock.Steps),' real, ',num2str(currentBlock.FlybackFrames),' flyback)'])
+                BLOCKS(b).singularZ = reqZ;
             end
             %         BLOCKS(b).redChannel = imresize3(avg_z_red_aligned,[gridSize size(avg_z_red_aligned,3)],'box');
         end
@@ -174,7 +219,11 @@ for fly = 1:length(chosenFlies)
         BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,55);
         
         % plot after filtering
-        figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        figure; 
+        plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        title(['Post SG-filtered raw data - ',strrep(flyID,'_',' ')])
+        xlabel(['Frame no.'])
+        ylabel(['Intensity'])
     
         BLOCKS(b).blankImageStack = [];
         
