@@ -1,4 +1,4 @@
-function processFlies(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling)
+function processFlies(flyRecord, chosenFlies, chosenBlocks, chosenZ, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling)
 %UNTITLED Summary of this function goes here
 disp([char(10),'-------------------------------------'])
 %% collate, reduce, filter and concatenate pre-aligned data
@@ -7,7 +7,9 @@ disp([char(10),'-------------------------------------'])
 %FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState);
 %FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling);
 %FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling);
-FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling,1);
+%FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling,0); %[Current] Terminal option is useUnaligned (0 is normal/No)
+FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory,...
+    'alternateUseCase', 3, 'reqZ', chosenZ); %Moved Matt additions to options
 
 %% Interrupt flow for rolling datasets
 %for fly = 1:length(FLIES)
@@ -18,7 +20,7 @@ FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirect
 %    end
 %end
 [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
-    'disregardRollingDesign', 0, 'overwriteShortcut', 1);
+    'disregardRollingDesign', 0, 'overwriteShortcut', 0);
     %New version, receives FLIES, similar to other scripts
 
 %% analyse SEs

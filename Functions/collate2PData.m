@@ -1,5 +1,4 @@
 function FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, options) %New
-%%function FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, ~, separateByState, doRolling, useUnaligned) %Deprecated
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -15,7 +14,7 @@ arguments
     options.separateByState double = 0
     options.doRolling double = 0
     options.alternateUseCase double = [] %Whether to act normally (empty), use averaged data (0), use unaligned data (1), or use 1 plane of 3D data (3),
-    options.reqZ double = 1 %When alternateUseCase 3 (Single Z-plane), specifies which Z plane to use (Note that flyback frames are included here, so be careful)
+    options.reqZ = {} %When alternateUseCase 3 (Single Z-plane), specifies which Z plane/s to use (Note that flyback frames are included here, so be careful)
 end
 %}
 %{
@@ -23,7 +22,7 @@ end
 options.separateByState = 0;
 options.doRolling = 0;
 options.alternateUseCase = 3;
-options.reqZ = 1
+options.reqZ = chosenZ;
 %}
 
 
@@ -35,6 +34,12 @@ separateByState = options.separateByState;
 doRolling = options.doRolling;
 alternateUseCase = options.alternateUseCase;
 reqZ = options.reqZ;
+
+%Pre-check for some circumstances
+if alternateUseCase == 3 && isempty(reqZ)
+    ['## Alert: Singular Z requested, but Z planes of interest apparently empty! ##']
+    crash = yes
+end
 
 for fly = 1:length(chosenFlies)
     
@@ -86,6 +91,17 @@ for fly = 1:length(chosenFlies)
         else
             BLOCKS(b).isRolling = 0;
         end
+
+        %Singular Z if applicable
+        if ~isempty(reqZ) 
+            if iscell(reqZ)
+                thisReqZ = reqZ{fly}( find( blockNumbers == b ) ); %Note: Will behave strange if same block called twice
+                disp(['Using individual value for singular Z for this fly-block (Z=',num2str(thisReqZ),')'])
+            elseif numel(reqZ) == 1 && ~iscell(reqZ)
+                thisReqZ = reqZ;
+                disp(['Using one value for singular Z across all flies/blocks (Z=',num2str(thisReqZ),')'])
+            end
+        end
         
         % load 128x128 data
         disp('Loading green channel');
@@ -121,11 +137,11 @@ for fly = 1:length(chosenFlies)
             elseif alternateUseCase == 1 %Use unaligned
                 BLOCKS(b).greenChannel = imresize3(avg_z_green_unaligned,[gridSize size(avg_z_green_unaligned,3)],'box');
             elseif alternateUseCase == 3 %Use 1 plane of aligned
-                BLOCKS(b).greenChannel = imresize3( squeeze(green_channel_aligned(:,:,reqZ,:)),[gridSize size(green_channel_aligned,4)],'box'); %Note slightly different size call
+                BLOCKS(b).greenChannel = imresize3( squeeze(green_channel_aligned(:,:,thisReqZ,:)),[gridSize size(green_channel_aligned,4)],'box'); %Note slightly different size call
                     %Squeeze necessary to prevent crash
-                disp(['Using only requested Z-plane ',num2str(reqZ),' of ',num2str(size(green_channel_aligned,3)),...
+                disp(['Using only requested Z-plane ',num2str(thisReqZ),' of ',num2str(size(green_channel_aligned,3)),...
                     ' (',num2str(currentBlock.Steps),' real, ',num2str(currentBlock.FlybackFrames),' flyback)'])
-                BLOCKS(b).singularZ = reqZ;
+                BLOCKS(b).singularZ = thisReqZ;
             end
             %         BLOCKS(b).redChannel = imresize3(avg_z_red_aligned,[gridSize size(avg_z_red_aligned,3)],'box');
         end
@@ -213,7 +229,11 @@ for fly = 1:length(chosenFlies)
         BLOCKS(b).blankBlocks = currentBlock.BlankBlocks-nBadBlankTrials;
         
         % plot before filtering
-        figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        figure; 
+        plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        title(['Pre SG-filtered raw data - ',strrep(flyID,'_',' ')])
+        xlabel(['Frame no.'])
+        ylabel(['Intensity'])
         
         % apply a savitsky-golay filter to remove larger trends in data
         BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,55);

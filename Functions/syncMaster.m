@@ -5,6 +5,7 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
 %Mk 7 - Better support for DAQ data, highspeed recording support
 %Mk 8 - Photodiode (initial) support
 %Mk 8.5 - Better photodiode support, minor graphs for SEs data
+%Mk 9 - Support for singular Z
 
 %function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
@@ -48,6 +49,7 @@ arguments
     options.cleanPhotData double = 1 %Whether to apply esoteric photodiode cleaning operations
     options.doBendyTransientGraph double = 1 %Whether to do an improvised transient (+ phot) graph for bendy block design data
     options.overwriteShortcut double = 0 %Whether to forcibly overwrite shortcut files (Useful after syncMaster changes)
+    options.simulationRun double = 0 %Whether to skip the writing of data to FLIES.BLOCKS structure (Prevents bleedover when debugging)
 end
 functionAlity = 1;
 %}
@@ -78,6 +80,7 @@ options.postHocCorrectInferTimes = 1;
 options.cleanPhotData = 1;
 options.doBendyTransientGraph = 1;
 options.overwriteShortcut = 0;
+options.simulationRun = 1;
 options
 %}
 
@@ -102,7 +105,7 @@ disregardBattery = options.disregardBattery;
 cleanPhotData = options.cleanPhotData;
 doBendyTransientGraph = options.doBendyTransientGraph;
 overwriteShortcut = options.overwriteShortcut;
-
+simulationRun = options.simulationRun;
 
 %Pre-loop preparation
 flagParamSaveList = who;
@@ -1627,6 +1630,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             imFrameList = [1:tsImFrameCount]; %All frames, irrespective of Z (or imaging)
             %imFrameListZ = reshape(imFrameList, (thisFlyRecord.Steps + thisFlyRecord.FlybackFrames), size( avg_z_green_aligned , 3 )); %Z in rows, Vol # in cols
             imFrameListZ = reshape(imFrameList, (thisFlyRecord.Steps + thisFlyRecord.FlybackFrames), size( thisImData , 3 )); %Z in rows, Vol # in cols
+            %g11
     
             %Find first and last usable volume
             %Start
@@ -1648,11 +1652,28 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             adjImStimEnd = imStimEnd; %Use last stim frame as end, regardless of vol position
                 %This simplifies some sequence calcs
             %Express in volume reference
-            [~,adjImStimStartVol] = find( imFrameListZ == adjImStimStart );
-            [~,adjImStimEndVol] = find( imFrameListZ == adjImStimEnd );
+            [~,adjImStimStartVol] = find( imFrameListZ == adjImStimStart ); %Note that in 1 Z-plane situations these will actually be the same it seems
+            [~,adjImStimEndVol] = find( imFrameListZ == adjImStimEnd ); %Note that in 1 Z-plane situations these will actually be the same it seems
             clear adjImStimEnd adjImStimStart %Clear these to remind of fact that they may be inaccurate if end volumes adjusted because NaNs etc
             disp(['Adjusted imaging volumes of stimulation interest: ', num2str(adjImStimStartVol),' : ', num2str(adjImStimEndVol),...
                 ' (',num2str(adjImStimEndVol-adjImStimStartVol+1),' total)' ])
+                %Note: For multi-Z plane imaging, this section may desync imStimStart/adjImStimStartVol/etc [Vol ref.] and firstImStimFrameInd [TS ref] by up to a vol's worth of time (Probably) 
+
+            %Testatory figure of transient against phot (if existing)
+            %{
+            if hasPhotData
+                dataCoords = [imStimStart:imStimEnd];
+                photCoords = [firstImStimFrameInd:lastImStimFrameInd];
+                blirg = squeeze(nanmean(FLIES.BLOCKS.greenChannel(:,:,dataCoords),[1,2]));
+                newc = interp1([1:size(blirg,1)], [1:size(blirg,1)] , linspace(1,size(blirg,1), size(photCoords,2) ) )'; %Interpolated original volume number
+                blirg = interp1([1:size(blirg,1)], blirg , linspace(1,size(blirg,1), size(photCoords,2) ) )'; %Bit inefficient to bring trans data up to phot size but eh
+                figure
+                plot( blirg )
+                hold on
+                plot( (photData(photCoords)*10)+130)
+                title( ['Interpolated transient + phot'] )
+            end
+            %}
     
             %Interpolate sequence element across (usable) volume space
             %Old
@@ -1671,6 +1692,14 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             btRowPosInterpZ = nan( size(imFrameListZ,1), size(imFrameListZ,2) ); %Will hold info about which row of btData corresponds with frames, not i value
             btRowPosInterpZ( imStimStart: imStimEnd) = interp1([1:size(btData,1)], [1:size(btData,1)] , linspace(1,size(btData,1), imStimEnd-imStimStart+1 ), 'previous' )';
             btRowPosInterpZ = btRowPosInterpZ( : , adjImStimStartVol:adjImStimEndVol );
+
+            %Check if data coming from forced singular Z plane
+            if isfield( thisBlock, 'singularZ' ) && ~isempty( thisBlock.singularZ )
+                disp(['Singular Z plane detected; Adjusting seq/vol interpolation for Z=',num2str(thisBlock.singularZ)])
+                btSeqPosInterpZ = btSeqPosInterpZ( thisBlock.singularZ, : );
+                btRowPosInterpZ = btRowPosInterpZ( thisBlock.singularZ, : );
+
+            end
 
     
             %Pick a method to identify preceding stimuli by
@@ -1712,6 +1741,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         %The most common cause for this is imaging not being (much) faster than stimulation
                 ['-# Warning: Sequence elements apparently lost due to aliasing/imaging framerate #-']
             end
+
+            %kirara
     
              %Find actual stimuli delivered (via randomSequence)   
              if ~batteryDesign %Not battery (Rolling, Block, etc)
@@ -1761,6 +1792,26 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
               volTimesDesc{3} = 'TS index of vol';
               %end
               %motherbase
+
+              %Second testatory figure of transient against phot (if existing)
+              %{{
+              if hasPhotData
+                  %dataCoords = [imStimStart:imStimEnd]; %Using dataStimTrim this time, which is based on adjImStartVol
+                  photCoords = [firstImStimFrameInd:lastImStimFrameInd]; %Note: As above, less guaranteed synchronicity with adjusted timings (Due to no equivalent adjustment to TS start/end timings)
+                  blirg = squeeze(nanmean(dataStimTrim,[1,2]));
+                  blirg = interp1([1:size(blirg,1)], blirg , linspace(1,size(blirg,1), size(photCoords,2) ) )'; %Bit inefficient to bring trans data up to phot size but eh
+                  btlerg = btData( volTimes(2,:) , 5 );
+                  figure
+                  plot( blirg ) %Mean transient data
+                  hold on
+                  plot( (photData(photCoords)*10)+130) %Phot data
+                  scatter( volTimes(3,:),  (btlerg*0.1)+134 ) %i value (1 in 10 dilution)
+                  plot( volTimes(3,:), btData( volTimes(2,:) , 8 )+137 ) %Random sequence status
+                  title( ['Interpolated transient + phot + 1/10th i + stim'] )
+              end
+              %}
+
+              %strobe
     
               %Siphon out blanks
                     %Start by extracting pre-experiment blank baseline (If existing)
@@ -2289,8 +2340,6 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   end
               end
 
-              %callgravity
-
               %Collect appropriate processed photodiode data, now that volTimes is finished being modified presumably
               if hasPhotData && cleanPhotData
                   if ~batteryDesign
@@ -2310,6 +2359,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
               %--------------------------------------------------------------------------------------------
     
+              %callgravity
+
               %Overwrite data (if function source)
               if dataSource == -1
                   %thisBlock.greenChannel = dataStimTrim; %Mostly unnecessary
@@ -2464,9 +2515,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         end
     end
 
-    if dataSource == -1
+    if dataSource == -1 && ~simulationRun
         FLIES(fly).BLOCKS = BLOCKS;
         disp(['-- Modified BLOCKS reinserted into FLIES --'])
+    elseif simulationRun
+        ['-# Modified BLOCKS not reinserted, due to simulation #-']
     end
     
     disp(['-- Newtype data synchronised --'])

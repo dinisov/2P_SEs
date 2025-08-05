@@ -47,10 +47,13 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [322]; %Matt
-chosenBlocks = {[2]}; %Leave empty if not using
+chosenFlies = [330]; %Matt
+chosenBlocks = {[1,3]}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
-%chosenFlies = [83]; %Andre
+chosenZ = {[3,1]};
+
+%chosenFlies = [105]; %Andre
+%chosenBlocks = {[2]};
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
@@ -88,7 +91,8 @@ for fly = chosenFlies
         %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState);
         %fake
         %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
-        processFlies(flyRecord, fly, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
+        %fake
+        processFlies(flyRecord, fly, chosenBlocks, chosenZ, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
     end
 end
 %% fit and plot some seq eff profiles of interest
