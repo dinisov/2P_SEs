@@ -50,6 +50,7 @@ arguments
     options.doBendyTransientGraph double = 1 %Whether to do an improvised transient (+ phot) graph for bendy block design data
     options.overwriteShortcut double = 0 %Whether to forcibly overwrite shortcut files (Useful after syncMaster changes)
     options.simulationRun double = 0 %Whether to skip the writing of data to FLIES.BLOCKS structure (Prevents bleedover when debugging)
+    options.unsiphonedSEs double = 0 %Whether to *not* do any data siphoning/etc for SEs, and just calculate volTimes/etc and leave data trimmed
 end
 functionAlity = 1;
 %}
@@ -81,6 +82,7 @@ options.cleanPhotData = 1;
 options.doBendyTransientGraph = 1;
 options.overwriteShortcut = 0;
 options.simulationRun = 1;
+options.unsiphonedSEs = 1;
 options
 %}
 
@@ -106,6 +108,7 @@ cleanPhotData = options.cleanPhotData;
 doBendyTransientGraph = options.doBendyTransientGraph;
 overwriteShortcut = options.overwriteShortcut;
 simulationRun = options.simulationRun;
+unsiphonedSEs = options.unsiphonedSEs;
 
 %Pre-loop preparation
 flagParamSaveList = who;
@@ -1459,6 +1462,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         if ~isShortcutting && hasPhotData && cleanPhotData
             %destroyer
             disp([char(10),'Cleaning photodiode data'])
+
+            %gachiakuta
             
             photTemp = photData;
             photTemp( photTemp < 0.3 ) = 0; %Hopefully remove all iterator shared signal (Note: Will delete low luminosity true phot events)
@@ -1842,6 +1847,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   %medBTSeqInterpZ( baseInds ) = [];
                   %modeBTSeqInterpZ( baseInds ) = [];
                   methodBTSeqInterpZ( baseInds ) = [];
+
+                  volTimes( :, baseInds ) = []; %Might break things
     
                   disp(['Blank pre-experiment baseline of ',num2str(numel(baseInds)),' elements collected; Data/sequence trimmed'])
               end
@@ -1973,11 +1980,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   %Loss in this context is how much of the original imaging data could not be associated with 'blocks' 
                     %It is likely to be highest when imaging rates are low and stimulus frequencies are high (i.e. 1 in 3 is 33%, but 1 in 8 is only 12.5%)
     
-              end                
+              end  
+
+              %kc4k
 
               hasSiphoned = 0; %Flag to indicate whether blanks siphoned off
               stillRollable = 1; %Flag to indicate whether data can still be analysed rolling-style after blank removal
-              if batteryDesign ~= 1 && ( any( imStimTerp == 5 ) || bendyBlockDesign == 1 )
+              if batteryDesign ~= 1 && ( any( imStimTerp == 5 ) || bendyBlockDesign == 1 ) && ~unsiphonedSEs
                   if bendyBlockDesign == 0 %"Blanks indicate true blank periods, intended for alternative analysis/etc"
                     %Note: This isn't really main rolling analysis here, just blank removal, unlike below for block design bendy
                         disp(['Rolling design; Siphoning blanks for alternative analysis'])
@@ -2337,12 +2346,21 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             
                         end
     
-                  end
+                  end %bendyBlockDesign end
+
+              elseif ~batteryDesign && unsiphonedSEs 
+                  disp(['-# Not siphoning SEs data by request #-'])
+                    %NOTE: NOT TESTED FOR ROLLING
+              elseif batteryDesign
+                  disp(['-- Battery design; Siphoning unnecessary --'])
+              else
+                  ['## unknown case ##']
+                  crash = yes
               end
 
               %Collect appropriate processed photodiode data, now that volTimes is finished being modified presumably
               if hasPhotData && cleanPhotData
-                  if ~batteryDesign
+                  if ~batteryDesign && ~unsiphonedSEs
                       if bendyBlockDesign == 0
                           photProcVol = photProc( volTimes(3,:) )'; %Collect only phot data from imaging volumes
                             %Note: Will crash if volTimes does not exist, which may occur
@@ -2352,7 +2370,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       else
                           photProcVol = photProc( postStimTimes(3,:) )'; %Note different vol/time selection for bendy block                        
                       end
-                  else
+                  elseif batteryDesign || unsiphonedSEs
                       photProcVol = photProc( volTimes(3,:) )'; %Ostensibly same as bendy rolling                      
                   end
               end
@@ -2366,7 +2384,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   %thisBlock.greenChannel = dataStimTrim; %Mostly unnecessary
                   %thisBlock.randomSequence = imStimTerp; %Mostly unnecessary
                   %BLOCKS(thisFlyRowInd,:) = thisBlock;
-                  if ~batteryDesign %Rolling, Block, etc
+                  if ~batteryDesign && ~unsiphonedSEs %Rolling, Block, etc
                       %abort
                       if bendyBlockDesign == 0 %Rolling
                           BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
@@ -2410,7 +2428,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                           BLOCKS( thisFlyRowInd ).blankImageTimes = blankTimes; %Might crash depending on handling mode?
                           disp(['Modified blank data (and inds) inserted into BLOCKS'])                          
                       end
-                  else %Battery
+                  elseif batteryDesign %Battery
                       BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
                       BLOCKS( thisFlyRowInd ).iSequence = iSeqTerp;
                       BLOCKS( thisFlyRowInd ).volTimes = volTimes;                    
@@ -2418,6 +2436,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       %if hasPhotData
                       %    BLOCKS( thisFlyRowInd ).photData = photData; %Will blow out size a bit probably
                       %end
+                  elseif ~batteryDesign && unsiphonedSEs
+                      BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
+                      BLOCKS( thisFlyRowInd ).volTimes = volTimes;                    
+                      BLOCKS( thisFlyRowInd ).stimulus = 'bendy_block_unsiphoned';
                   end
                   BLOCKS( thisFlyRowInd ).hasPhotData = hasPhotData;
                   if hasPhotData
@@ -2439,7 +2461,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
     
               %QA for empty randomSequence data
                 %In theory there might be reasons for this to be the case, but none are good for following analysis
-              if ~batteryDesign && isempty( BLOCKS( thisFlyRowInd ).randomSequence ) && allowRandomSequenceEmpty == 0
+              if ~batteryDesign && isempty( BLOCKS( thisFlyRowInd ).randomSequence ) && ( allowRandomSequenceEmpty == 0 && ~unsiphonedSEs )
                   ['## Alert: Failure to acquire/generate randomSequence data for block ',num2str( BLOCKS(thisFlyRowInd).blockNum ),' ##']
                   crash = yes
               end
