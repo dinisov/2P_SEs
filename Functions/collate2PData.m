@@ -65,6 +65,7 @@ for fly = 1:length(chosenFlies)
         currentDirectory = fullfile(dataDirectory,currentDate,flyID);
 
         disp(flyID)
+        currentBlock
 
         BLOCKS(b).flyNum = chosenFlies(fly);
         BLOCKS(b).flyID = flyID;
@@ -77,6 +78,15 @@ for fly = 1:length(chosenFlies)
                 disp('Trim coords acquired')
             else
                 disp(['NaN/empty trim coords'])
+            end
+        end
+        %Append phase shift if applicable
+        if any( strcmp('ArbSyncVolShift',currentBlock.Properties.VariableNames) ) %Check if field existing
+            if ~isnan(currentBlock.ArbSyncVolShift)
+                BLOCKS(b).ArbSyncVolShift = currentBlock.ArbSyncVolShift;
+                disp(['Arbitrary phase shift specified (',num2str(BLOCKS(b).ArbSyncVolShift),' vols)'])
+            else
+                disp(['No phase shift specified'])
             end
         end
         

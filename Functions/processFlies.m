@@ -9,7 +9,7 @@ disp([char(10),'-------------------------------------'])
 %FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling);
 %FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling,0); %[Current] Terminal option is useUnaligned (0 is normal/No)
 FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory,...
-    'alternateUseCase', 3, 'reqZ', chosenZ); %Moved Matt additions to options
+    'alternateUseCase', 0, 'reqZ', chosenZ); %Moved Matt additions to options
 
 %% Interrupt flow for rolling datasets
 %for fly = 1:length(FLIES)
@@ -20,7 +20,7 @@ FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirect
 %    end
 %end
 [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
-    'disregardRollingDesign', 0, 'overwriteShortcut', 0);
+    'disregardRollingDesign', 0, 'overwriteShortcut', 0, 'unsiphonedSEs', 0);
     %New version, receives FLIES, similar to other scripts
 
 %% analyse SEs

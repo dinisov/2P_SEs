@@ -47,13 +47,14 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [330]; %Matt
-chosenBlocks = {[1,3]}; %Leave empty if not using
+chosenFlies = [328,329,330]; %Matt
+chosenBlocks = {[2],[2],[1,2,3]}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
-chosenZ = {[3,1]};
+chosenZ = {};
 
-%chosenFlies = [105]; %Andre
-%chosenBlocks = {[2]};
+%chosenFlies = [119]; %Andre
+%chosenBlocks = {[1]};
+%chosenZ = {};
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 

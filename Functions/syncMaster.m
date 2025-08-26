@@ -51,6 +51,7 @@ arguments
     options.overwriteShortcut double = 0 %Whether to forcibly overwrite shortcut files (Useful after syncMaster changes)
     options.simulationRun double = 0 %Whether to skip the writing of data to FLIES.BLOCKS structure (Prevents bleedover when debugging)
     options.unsiphonedSEs double = 0 %Whether to *not* do any data siphoning/etc for SEs, and just calculate volTimes/etc and leave data trimmed
+    options.doBatteryIFICheck double = 0 %Whether to force IFI checks to be done on framespike data for battery (Standard for block design, omitted usually for battery cos freq. condition)
 end
 functionAlity = 1;
 %}
@@ -80,9 +81,10 @@ options.postHocCorrectInferTimes = 1;
 %options.disregardNonBattery = 0;
 options.cleanPhotData = 1;
 options.doBendyTransientGraph = 1;
-options.overwriteShortcut = 0;
+options.overwriteShortcut = 1;
 options.simulationRun = 1;
-options.unsiphonedSEs = 1;
+options.unsiphonedSEs = 0;
+options.doBatteryIFICheck = 0; 
 options
 %}
 
@@ -109,6 +111,7 @@ doBendyTransientGraph = options.doBendyTransientGraph;
 overwriteShortcut = options.overwriteShortcut;
 simulationRun = options.simulationRun;
 unsiphonedSEs = options.unsiphonedSEs;
+doBatteryIFICheck = options.doBatteryIFICheck;
 
 %Pre-loop preparation
 flagParamSaveList = who;
@@ -151,6 +154,12 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         else
             disp(['-# Rolling analysis not applicable for ',flyID,' #-'])
             continue
+        end
+
+        %Identify ahead of time whether arbitrary phase shift will need to be applied
+        if isfield( thisBlock, 'ArbSyncVolShift' ) && ~isempty(thisBlock.ArbSyncVolShift)
+            arbPhaseShift = thisBlock.ArbSyncVolShift;
+            disp(['Arbitrary phase shift requested (',num2str(arbPhaseShift),' volumes)'])
         end
     
         %Identify folder to look for ThorSync (h5) data in
@@ -786,27 +795,47 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %--------------------
             %Check for IFI loss and correct first
             temp2 = diff( frameLOCS ); %Inter-framespike index difference; Again, should be (relatively) stable
-            ifiLoss =0;
+            ifiLoss = 0;
             if nanmax( abs(temp2) ) > nanmean(temp2) + 4*nanstd(temp2) %Note: Calcs may not cover symmetrical conditions of frameSpike shift
-                ['-# Alert: Significant deviation/s in inter-framespike interval detected #-']
                 %Note: No explicit inter-framespike interval rectification currently implemented, only phase loss
                 %errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) ); %SD-based system
                 errorSpikes = find( abs(temp2 - nanmean(temp2))  >  0.1*nanmean(temp2)  );
                 errorSpikesMag = abs(temp2(errorSpikes)) - nanmean(temp2);
-                disp([num2str(errorSpikes)])
-                disp([ '(Error spike/s deviated by ',num2str(round(errorSpikesMag)),' TS frames from +-10% mean IFI threshold [',num2str(round(0.1*nanmean(temp2))),'])' ])
+                if exist('daqFrameSpikeCount')
+                    ['-# Alert: ',num2str(length(errorSpikes)),' significant deviation/s in inter-framespike interval detected (of ~',num2str(daqFrameSpikeCount),' total) #-']
+                else
+                    ['-# Alert: ',num2str(length(errorSpikes)),' significant deviation/s in inter-framespike interval detected #-']
+                end
+                if length(errorSpikes) < 10
+                    disp([num2str(errorSpikes)])
+                else
+                    disp([num2str(errorSpikes(1:5)),'...',num2str(errorSpikes(end-5:end))])
+                end
+                if ~batteryDesign || ( batteryDesign && doBatteryIFICheck )
+                    disp([ '(Error spike/s deviated by ',num2str(round(errorSpikesMag)),' TS frames from +-10% mean IFI threshold [',num2str(round(0.1*nanmean(temp2))),'])' ])
+                end
                 ifiLoss = 1;
             end
-            if exist('errorSpikes') && size( errorSpikes, 2 ) > 0
+            if exist('errorSpikes') && size( errorSpikes, 2 ) > 0 && ( ~batteryDesign || ( batteryDesign && doBatteryIFICheck ) )
                 disp(['IFI loss in framespikes detected'])
 
                 %Plot
                 figure
-                for eros = 1:size( errorSpikes, 2 ) 
-                    subplot( 1, size( errorSpikes, 2 ) , eros  )
+                if size( errorSpikes, 2 ) > 10
+                    eroInds = errorSpikes( floor([1:length(errorSpikes)/10:length(errorSpikes)]) );
+                    ['-# Excessive number of error spikes; Using 10 across range #-']
+                    disp(num2str(eroInds))
+                else
+                    eroInds = 1:size( errorSpikes, 2 );
+                end
+                a = 1;
+                for eros = eroInds%1:size( errorSpikes, 2 ) 
+                    %subplot( 1, size( errorSpikes, 2 ) , eros  )
+                    subplot( 1, size( eroInds, 2 ) , a  )
                     thisErrorSpike = errorSpikes(eros);
                     spikeRange = [ thisErrorSpike-2, thisErrorSpike+2 ];
-                    spikeRange( spikeRange < 0 ) = [];
+                    %spikeRange( spikeRange < 0 ) = [];
+                    spikeRange( spikeRange < 0 ) = 1; %Use framespike 1, rather than null
                     spikeRange( spikeRange > size(frameLOCS,2) ) = [];
                     plot( [inferTimes( frameLOCS(spikeRange(1)):frameLOCS(spikeRange(2)) )],...
                         [syncStruct.AI.FrameSpike( frameLOCS(spikeRange(1)) : frameLOCS(spikeRange(2)) )] )
@@ -816,6 +845,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     scatter( [inferTimes( frameLOCS( thisErrorSpike ) )], [syncStruct.AI.FrameSpike( frameLOCS( thisErrorSpike ) )]+0.1, 'Color', [1,0,0] )
                     title(['IFI loss frameSpike (#',num2str(errorSpikes(eros)),') location'])
                     xlabel(['Time (s)'])
+                    a = a + 1;
                 end
 
                 %Identify
@@ -1464,6 +1494,55 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             disp([char(10),'Cleaning photodiode data'])
 
             %gachiakuta
+
+            %Advanced phot rectification
+                %Non-functional
+            %{
+            temp = -photData;
+
+            temp(1:69418) = nan;
+            temp(51441900:end) = nan;
+
+
+            minPeriodGap = (( numel( matParamStruct.matSave.daqRange ) / matParamStruct.matSave.frequency ) * sampRate ) * 0.9;
+
+
+            [PKS,LOCS,W] = findpeaks( temp , 'MinPeakDistance', minPeriodGap );
+
+            temprange = [ nanmean( mink( temp, 15 ) ) , nanmean( maxk( temp, 15 ) ) ];
+
+
+            %Saw
+            blirg = -sawtooth( [0:1/minPeriodGap*5.2:pi*numel(PKS)] ); %5.2 arb?
+
+            blerg = normalize( blirg , 'Range', temprange );
+
+            templerg = temp - blerg;
+
+            %Or
+            blorg = nan( 1, numel(temp) );
+            for bInd = 2:size(LOCS,2)
+                coords = LOCS(bInd-1) : LOCS(bInd);
+                %blorg( coords ) = -0.01*bInd;
+                %recfunc = linspace( temprange(2) , temprange(1), numel(coords) );
+                cutcoords = floor( linspace( nanmin(coords), nanmax(coords), 100 ) );
+                cutdata = temp( cutcoords );
+                p = polyfit( cutcoords, cutdata, 2 );
+                f = polyval(p,coords);
+                
+                blorg(coords) = f;
+            end
+
+            plot( )
+
+
+
+
+
+
+
+
+            %}
             
             photTemp = photData;
             photTemp( photTemp < 0.3 ) = 0; %Hopefully remove all iterator shared signal (Note: Will delete low luminosity true phot events)
@@ -1798,25 +1877,57 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
               %end
               %motherbase
 
+              %volTimes 'bootleg' adjustment
+              %volTimesAdj = volTimes;
+              %volTimesAdj(3,:) = volTimesAdj(3,:) - firstImStimFrameInd; %Manually shift TS reference back by 
+              
+
               %Second testatory figure of transient against phot (if existing)
               %{{
-              if hasPhotData
+              if hasPhotData && ~isShortcutting
+
+                  %Pre calcs
                   %dataCoords = [imStimStart:imStimEnd]; %Using dataStimTrim this time, which is based on adjImStartVol
                   photCoords = [firstImStimFrameInd:lastImStimFrameInd]; %Note: As above, less guaranteed synchronicity with adjusted timings (Due to no equivalent adjustment to TS start/end timings)
                   blirg = squeeze(nanmean(dataStimTrim,[1,2]));
                   blirg = interp1([1:size(blirg,1)], blirg , linspace(1,size(blirg,1), size(photCoords,2) ) )'; %Bit inefficient to bring trans data up to phot size but eh
                   btlerg = btData( volTimes(2,:) , 5 );
+
+                  %Old
+                    %Misleading, as it plots Ca2+/phot data on 1:len indices, then randomSeq on volTimes indices, which are off by 1st element ~index
+                    %{
                   figure
                   plot( blirg ) %Mean transient data
                   hold on
                   plot( (photData(photCoords)*10)+130) %Phot data
                   scatter( volTimes(3,:),  (btlerg*0.1)+134 ) %i value (1 in 10 dilution)
                   plot( volTimes(3,:), btData( volTimes(2,:) , 8 )+137 ) %Random sequence status
-                  title( ['Interpolated transient + phot + 1/10th i + stim'] )
+                  title( ['Interpolated transient + phot + 1/10th i + stim (Index)'] )
+                    %}
+
+                  %New
+                  phoTimes = inferTimes(photCoords);
+                  figure
+                  plot( phoTimes, blirg' )
+                  hold on
+                  plot( phoTimes, (photData(photCoords)*10)+130)
+                  plot( volTimes(1,:), btData( volTimes(2,:) , 8 )+135 ) %Use original TS reference (Time)
+                  %title( ['Interpolated transient + phot (TS time ref)'] )
+                  title( [strrep(flyID,'_',' '),' - interpolated transient + phot (TS time ref)'] )
+
               end
               %}
 
               %strobe
+
+              %Testatory plot
+              figure
+              subplot(2,1,1)
+              plot( squeeze( nanmean(dataStimTrim, [1,2] ) ) )
+              hold on
+              plot( imStimTerp+nanmean(dataStimTrim, 'all' )-7 )
+              title('data and imStimTerp pre blank intro trim')
+
     
               %Siphon out blanks
                     %Start by extracting pre-experiment blank baseline (If existing)
@@ -1852,6 +1963,14 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
     
                   disp(['Blank pre-experiment baseline of ',num2str(numel(baseInds)),' elements collected; Data/sequence trimmed'])
               end
+
+              %Finish plot
+              subplot(2,1,2)
+              plot( squeeze( nanmean(dataStimTrim, [1,2] ) ) )
+              hold on
+              plot( imStimTerp+nanmean(dataStimTrim, 'all' )-7 )
+              title('data and imStimTerp post blank intro trim')
+
               %Follow up by collecting during-sequence blanks (if existing)
                     %(Only for inline blank handling though)
               if includesBlanks && blankHandleMode == 1
@@ -2096,6 +2215,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             %Note: This can still only be like, 25% or less of all inter-stimulus periods
                         disp(['Selected inter-stim period to collect: ', num2str(nomInter),' (',num2str(( nansum(interStimPeriods == nomInter) / numel(interStimPeriods) )*100),'% of original periods)'])
     
+                        %timeoflove
+
                         %Find indices of inter-stimulus periods
                         [~,intInds] = max(temp3,[],2); %First element of each respective inter-stim period
                         [~,outInds] = max(fliplr(temp3),[],2); %End of each inter-stim period, flipped reference frame
@@ -2105,11 +2226,27 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         collInds = intInds + repmat( [1:nomInter], size(intInds,1), 1 ) - 1; %Note: Original phase of inter-stimulus obviously obliterated here
                         disp([ 'Last frame of imaging to be collected: ', num2str(collInds(end)) ])
                         disp([ 'Total imaging size: ', num2str( size(dataStimTrim,3) ) ])
+
                         %Make sure last element of collection not outside data
                         if collInds(end) > size(dataStimTrim,3)
                             collInds(end,:) = []; %Remove one imaging period
                             disp(['Terminal collection period removed; New end: ', num2str(collInds(end)) ])
+                        end                       
+
+                        %Another testatory figure
+                        meanStimTrimTrans = nanmean(dataStimTrim, 'all' );
+                        figure
+                        plot( squeeze( nanmean(dataStimTrim, [1,2] ) ) )
+                        hold on
+                        plot( imStimTerp+meanStimTrimTrans-8 )
+                        for row = 1:size(collInds,1)
+                            line( [ collInds(row,1),collInds(row,end) ], [meanStimTrimTrans+5,meanStimTrimTrans+5], 'Color', 'g' )
+                            if row > 1
+                                line( [ collInds(row-1,end),collInds(row,1) ], [meanStimTrimTrans+6,meanStimTrimTrans+6], 'Color', 'r' )
+                            end
                         end
+                        xlim([1,collInds(5,end)]) %Free to resize
+                        title(['Meaned data + collection period (g) + stim period (r) + sequence (bottom) [First 5 trials window]'])
     
                         %Prepare a labelled form of randomSeqCorr for intelligent stimulus collection, if applicable
                         if isequal( btInterpolationMethod, 'intelligent' ) 
@@ -2170,6 +2307,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                     stimSeq( row, : ) = randomSeqForLabel( stimSeqCorrInds( row, : ) ); %Stimuli
                                case 'intelligent'
                                    thisStimEnd =  methodBTSeqInterpZ( stimInds(row,end) );
+                                   %stimSeqCorrInds( row, : ) = stimInds(row,:); %Note: In this incarnation, this is more of a feelgood approximation of stim volumes than perfect reporter
+                                        %Due to difference in how Intelligent mode collates stim identity
+                                        %Note: This is subsampled to nBack and thus less than useful?
                                    %Check for accidentally landing in inter-stimulus period
                                         %Note: A rolling phase adjustment might be useful, but would have to be justified from first principles (Why would phase become unaligned over time?)
                                    if randomSeqLabel( thisStimEnd ) == 0
@@ -2218,12 +2358,86 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                     %i.e. >1 stimuli occurred in the span of a single volume
                         end
 
+                        %Average stim  plot
+                        %(Old position)
+                        %{
+                        temp = squeeze( nanmean( dataStimTrim, [1,2] ) );
+                        %temp2 = temp( stimSeqCorrInds );
+                        temp2 = [];
+                        temp2 = nan( size(collInds,1), floor(nanmax(diff(collInds(:,end)))*1.25) );
+                        coords = [1:collInds(1,1)-1]; %Collect pre first collInds stim period
+                        temp2( 1, 1:length(coords) ) = temp(coords);
+                        for row = 2:size(collInds,1) 
+                            coords = [collInds(row-1,end)+1:collInds(row,1)-1]; %Collect pre first collInds stim period
+                            temp2( row, 1:length(coords) ) = temp(coords);
+                        end
+                        figure
+                        %plot( nanmean(temp2,1) );
+                        %Stim
+                        errorbar( nanmean(temp2,1), nanstd(temp2,[],1) )
+                        %}
+                        %Average stim and collection plot
+                        temp = squeeze( nanmean( dataStimTrim, [1,2] ) );
+                        %temp2 = temp( stimSeqCorrInds );
+                        temp2 = [];
+                        temp2 = nan( size(collInds,1), floor(nanmax(diff(collInds(:,end)))*1.25) );
+                        coords = [1:collInds(1,1)-1]; %Collect pre first collInds stim period
+                        temp2( 1, 1:length(coords) ) = temp(coords);
+                        for row = 2:size(collInds,1) 
+                            coords = [collInds(row-1,end)+1:collInds(row,1)-1]; %Collect pre first collInds stim period
+                            temp2( row, 1:length(coords) ) = temp(coords);
+                        end
+                        figure
+                        %plot( nanmean(temp2,1) );
+                        %Stim
+                        subplot(2,1,1)
+                        errorbar( nanmean(temp2,1), nanstd(temp2,[],1) / sqrt( size(temp2,1) ) )
+                        legend({'Stim'})
+                        %hold on
+                        %for row = 1:size(temp2,1)
+                        %    plot( temp2(row,:) )                      
+                        %end
+                        title([strrep(flyID,'_',' '),' - [Whole] Stim period average transient'])
+                        xlabel(['Time (vol)'])
+                        %Note that this plot uses inter-collInds for 'stim' collection, not technically any stim inds
+                        %Coll
+                        temp3 = temp(collInds);
+                        if exist('arbPhaseShift')
+                            coords = collInds + arbPhaseShift;
+                            [temp5,~] = nanmax( coords, [], 2);
+                            [temp6,~] = nanmin( coords, [], 2);
+                            if any(temp5 > size(temp,1))
+                                coords( find(temp5 > size(temp,1)), : ) = [];
+                            end
+                            if any(temp6 < 1)
+                                coords( find(temp6 < 1), : ) = [];
+                            end
+                            temp4 = temp(coords);
+                        end
+                        subplot(2,1,2)
+                        errorbar( nanmean(temp3,1), nanstd(temp3,[],1) / sqrt( size(temp3,1) ) )
+                        if exist('arbPhaseShift')
+                            hold on
+                            errorbar( nanmean(temp4,1), nanstd(temp4,[],1) / sqrt( size(temp4,1) ) )
+                        end
+                        %title([strrep(flyID,'_',' '),' - Coll period average transient'])
+                        titleStr = [strrep(flyID,'_',' '),' - Coll period average transient'];
+                        if exist('arbPhaseShift')
+                            titleStr = [titleStr,char(10),'(And phase-shifted [',num2str(arbPhaseShift),'] version)'];
+                            legend([{'Orig.'},{'Phase shifted'}])
+                        else
+                            legend({'Orig.'})
+                        end
+                        xlabel(['Time (vol)'])
+                        title(titleStr)
+
                         %Interruption to siphon blanks if applicable and moded
                         if includesBlanks && blankHandleMode == 2
                             blankTrialIDs = find( nansum( stimSeq == -2, 2 ) == blockLength ); %Identify which trials were blank
                                 %Note: No explicit check for sequences that were mixed or aberrant blanks/ISI/etc
                             disp([num2str(length(blankTrialIDs)),' blank trials found in final sequence; Siphoning outline'])
 
+                            blankCollInds = collInds( blankTrialIDs, : );
                             deImBlankInds = reshape( collInds( blankTrialIDs, : )', 1, size(collInds( blankTrialIDs, : ),1)*nomInter ); %Based on deImInds as done below, obviously
                             %postBlankData = dataStimTrim( :,:, deImBlankInds );
                             blankStack = dataStimTrim( :,:, deImBlankInds );
@@ -2241,11 +2455,47 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             stimSeq( blankTrialIDs , : ) = [];
                             collInds( blankTrialIDs , : ) = [];
 
+                            %Testatory plot of blanks
+                            figure
+                            errorbar( nanmean(temp(blankCollInds),1), nanstd(temp(blankCollInds),[],1) / sqrt(size(blankCollInds,1)) )
+                            title([strrep(flyID,'_',' '),' - Blank coll period average transient'])
+                            xlabel(['Time (vol)'])
+                            if exist('arbPhaseShift')
+                                try %Too lazy to write properly
+                                    hold on
+                                    errorbar( nanmean(temp(blankCollInds+arbPhaseShift),1), nanstd(temp(blankCollInds),[],1) / sqrt(size(blankCollInds,1)) )
+                                    legend([{'Orig. blank'},{'Phase shifted blank'}])
+                                catch
+                                    disp([('(Failure to append phase shifted blank data to testatory plot)')])
+                                end
+                            end
+
                         end
     
                         %Reshape derived stimulus sequence
                         deRandomSeq = reshape(stimSeq', 1, size(stimSeq,1)*blockLength); %Transposition v important here for correct rowwise-ness
                          
+
+                        %Apply phase shift equally to all collection indices
+                            %Do this immediately prior to actual collection
+                        phaseShifted = 0; %Default no
+                        if exist('arbPhaseShift') && ~isempty(arbPhaseShift)
+                            collInds = collInds + arbPhaseShift;
+                                %Note: Does not shift stimulus inds, by design
+                            disp(['Phase shift applied'])
+                            [temp5,~] = nanmax( collInds, [], 2);
+                            [temp6,~] = nanmin( collInds, [], 2);
+                            if any(temp5 > size(dataStimTrim,3))
+                                collInds( find(temp5 > size(dataStimTrim,3)), : ) = [];
+                                disp(['(Trial/s ',num2str(find(temp5 > size(dataStimTrim,3))),' had to be ditched due to overrun)'])
+                            end
+                            if any(temp6 < 1)
+                                collInds( find(temp6 < 1), : ) = [];
+                                disp(['(Trial/s ',num2str(find(temp6 < 1)),' had to be ditched due to underrun)'])
+                            end
+                            phaseShifted = 1;
+                        end
+
                         %Now to collect frames
                         deImInds = reshape( collInds', 1, size(collInds,1)*nomInter ); %A run-on list of what volumes relate to stimulation
                             %Note that collInds holds the original, segmented version of volume positions
@@ -2298,7 +2548,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             else
                                 legend([{'Transient'}])
                             end
-                            title(['Block design transient plot - ',strrep(flyID,'_',' ')])
+                            if ~exist('arbPhaseShift')
+                                title(['Block design transient plot - ',strrep(flyID,'_',' ')])
+                            else
+                                title(['Block design transient plot - ',strrep(flyID,'_',' '),' (Phase shifted)'])
+                            end
                             xlabel(['Volume'])
                             ylabel(['Pixel intensity (a.u.)'])
                             xlim([1,size(temp{6},2)])
@@ -2457,6 +2711,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   end
                   %BLOCKS( thisFlyRowInd ).volTimes = volTimes; %Note: Does not (presently) account for blank removal/etc
                   BLOCKS( thisFlyRowInd ).syncModified = 1;
+                  BLOCKS( thisFlyRowInd ).phaseShifted = phaseShifted;
               end
     
               %QA for empty randomSequence data
