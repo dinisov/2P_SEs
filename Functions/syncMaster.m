@@ -2486,11 +2486,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             [temp5,~] = nanmax( collInds, [], 2);
                             [temp6,~] = nanmin( collInds, [], 2);
                             if any(temp5 > size(dataStimTrim,3))
-                                collInds( find(temp5 > size(dataStimTrim,3)), : ) = [];
+                                collInds( find(temp5 > size(dataStimTrim,3)), : ) = []; %Delete first collection period
+                                deRandomSeq( 1:blockLength ) = []; %And corresponding stim period
                                 disp(['(Trial/s ',num2str(find(temp5 > size(dataStimTrim,3))),' had to be ditched due to overrun)'])
                             end
                             if any(temp6 < 1)
                                 collInds( find(temp6 < 1), : ) = [];
+                                deRandomSeq( end-blockLength+1:end ) = [];
                                 disp(['(Trial/s ',num2str(find(temp6 < 1)),' had to be ditched due to underrun)'])
                             end
                             phaseShifted = 1;
