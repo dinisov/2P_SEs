@@ -47,13 +47,14 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [328,329,330]; %Matt
-chosenBlocks = {[2],[2],[1,2,3]}; %Leave empty if not using
+chosenFlies = [317:323]; %Matt
+%chosenFlies = [317]; %Matt
+chosenBlocks = {}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
-chosenZ = {};
+chosenZ = {}; %Same format as chosenBlocks (Specified for all)
 
 %chosenFlies = [119]; %Andre
-%chosenBlocks = {[1]};
+%chosenBlocks = {[2]};
 %chosenZ = {};
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
@@ -81,20 +82,35 @@ end
 
 % transient movies; component fits; fit movies; t-tests; oddballs; LvsR; PCA; global transient
 %analysisToggle = [1 1 1 0 1 0 1 1];
-analysisToggle = [1 0 0 0 0 0 1 0];
+%analysisToggle = [1 0 0 0 0 0 1 0];
+analysisToggle = [1 1 0 0 0 0 1 1];
 separateByState = 0; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
 doRolling = 0; %Whether to also do rolling analysis
     %Note: Requires MATLAB >=2021
 
-for fly = chosenFlies
+%for fly = chosenFlies %Does not work with chosenBlocks/etc specification for some reason
+for flyInd = 1:length(chosenFlies)
+    fly = chosenFlies(flyInd)
+    %a = 1;
     if ~isempty(flyRecord(flyRecord.Fly == fly,:))
         %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks);
         %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState);
-        %fake
         %processFlies(flyRecord, fly, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
+        %processFlies(flyRecord, fly, chosenBlocks, chosenZ, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
+        if ~isempty(chosenBlocks)
+            theseChosenBlocks = chosenBlocks(flyInd); %Ameliorates issues with irregular block requests
+        else
+            theseChosenBlocks = {};
+        end
+        if ~isempty(chosenZ)
+            theseChosenZs = chosenZ(flyInd); %Ditto
+        else
+            theseChosenZs = {};
+        end
         %fake
-        processFlies(flyRecord, fly, chosenBlocks, chosenZ, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
+        processFlies(flyRecord, fly, theseChosenBlocks, theseChosenZs, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
     end
+    %a = a + 1
 end
 %% fit and plot some seq eff profiles of interest
 

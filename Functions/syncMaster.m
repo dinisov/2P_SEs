@@ -2105,6 +2105,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
               hasSiphoned = 0; %Flag to indicate whether blanks siphoned off
               stillRollable = 1; %Flag to indicate whether data can still be analysed rolling-style after blank removal
+              phaseShifted = 0; %Default no
               if batteryDesign ~= 1 && ( any( imStimTerp == 5 ) || bendyBlockDesign == 1 ) && ~unsiphonedSEs
                   if bendyBlockDesign == 0 %"Blanks indicate true blank periods, intended for alternative analysis/etc"
                     %Note: This isn't really main rolling analysis here, just blank removal, unlike below for block design bendy
@@ -2421,7 +2422,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             errorbar( nanmean(temp4,1), nanstd(temp4,[],1) / sqrt( size(temp4,1) ) )
                         end
                         %title([strrep(flyID,'_',' '),' - Coll period average transient'])
-                        titleStr = [strrep(flyID,'_',' '),' - Coll period average transient'];
+                        titleStr = ['Fly #',num2str(thisBlock.flyNum),'-',num2str(thisBlock.blockNum),' - ',strrep(flyID,'_',' '),' - Coll period average transient'];
                         if exist('arbPhaseShift')
                             titleStr = [titleStr,char(10),'(And phase-shifted [',num2str(arbPhaseShift),'] version)'];
                             legend([{'Orig.'},{'Phase shifted'}])
@@ -2478,7 +2479,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
                         %Apply phase shift equally to all collection indices
                             %Do this immediately prior to actual collection
-                        phaseShifted = 0; %Default no
+                        %phaseShifted = 0; %Default no (Moved above in case of unsiphoned)
                         if exist('arbPhaseShift') && ~isempty(arbPhaseShift)
                             collInds = collInds + arbPhaseShift;
                                 %Note: Does not shift stimulus inds, by design
@@ -2551,9 +2552,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                 legend([{'Transient'}])
                             end
                             if ~exist('arbPhaseShift')
-                                title(['Block design transient plot - ',strrep(flyID,'_',' ')])
+                                title(['Block design transient plot - ',strrep(flyID,'_',' '),' (','#',num2str(thisBlock.flyNum),'-',num2str(thisBlock.blockNum),')'])
                             else
-                                title(['Block design transient plot - ',strrep(flyID,'_',' '),' (Phase shifted)'])
+                                title(['Block design transient plot - ',strrep(flyID,'_',' '),' (Phase shifted)',' (','#',num2str(thisBlock.flyNum),'-',num2str(thisBlock.blockNum),')'])
                             end
                             xlabel(['Volume'])
                             ylabel(['Pixel intensity (a.u.)'])

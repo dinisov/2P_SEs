@@ -20,8 +20,15 @@ FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirect
 %    end
 %end
 [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
-    'disregardRollingDesign', 0, 'overwriteShortcut', 0, 'unsiphonedSEs', 0);
+    'disregardRollingDesign', 0, 'overwriteShortcut', 0, 'unsiphonedSEs', 0, 'disregardBattery', 1);
     %New version, receives FLIES, similar to other scripts
+
+%And check for accidental battery inclusion
+%[FLIES.BLOCKS.stimulus]
+if isfield( FLIES.BLOCKS, 'stimulus') && ~isempty( strfind( [FLIES.BLOCKS.stimulus], 'battery' ) )
+    ['## Alert: Battery blocks erroneously included in analysis ##']
+    crash = yes
+end
 
 %% analyse SEs
 % separates images according to preceding sequence of stimuli and
