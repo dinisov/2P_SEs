@@ -52,6 +52,7 @@ arguments
     options.simulationRun double = 0 %Whether to skip the writing of data to FLIES.BLOCKS structure (Prevents bleedover when debugging)
     options.unsiphonedSEs double = 0 %Whether to *not* do any data siphoning/etc for SEs, and just calculate volTimes/etc and leave data trimmed
     options.doBatteryIFICheck double = 0 %Whether to force IFI checks to be done on framespike data for battery (Standard for block design, omitted usually for battery cos freq. condition)
+    options.savePhasePlots double = 1 %Whether to force draw/save of phase plots where applicable
 end
 functionAlity = 1;
 %}
@@ -85,6 +86,7 @@ options.overwriteShortcut = 1;
 options.simulationRun = 1;
 options.unsiphonedSEs = 0;
 options.doBatteryIFICheck = 0; 
+options.savePhasePlots = 1;
 options
 %}
 
@@ -112,6 +114,7 @@ overwriteShortcut = options.overwriteShortcut;
 simulationRun = options.simulationRun;
 unsiphonedSEs = options.unsiphonedSEs;
 doBatteryIFICheck = options.doBatteryIFICheck;
+savePhasePlots = options.savePhasePlots;
 
 %Pre-loop preparation
 flagParamSaveList = who;
@@ -215,6 +218,12 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 canShortcut = 1;
                 isShortcutting = 1
                 disp(['-- Shortcut file successfully loaded --'])
+            end
+
+            %Quick QA for whether shortcut file still applicable
+            if exist('arbPhaseShift') && ~isfield( shortStruct,'arbPhaseShift' )
+                ['-# Alert: Phase shift (now) requested in record, but was not used when shortcut file generated #-']
+                crash = yes %Theoretically overkill, but probably good practice
             end
         elseif overwriteShortcut == 1
             saveShortcut = 1;
@@ -1661,6 +1670,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     shortStruct.photProc = photProc; %Yet larger shortcut files...
                 end
             end
+
+            if exist('arbPhaseShift')
+                shortStruct.arbPhaseShift = arbPhaseShift;
+            end
     
             %save( [hFolder,filesep,'h5Shortcut.mat'], 'shortStruct' )
             %Check/Make folder to put shortcut files into
@@ -2360,6 +2373,14 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         end
 
                         %Average stim  plot
+                        if savePhasePlots
+                            %Check/Make folder to put figures into
+                            phaseFolder = strcat( dataFolder,filesep,'PHASE' );
+                            if exist(phaseFolder) ~= 7
+                                mkdir( phaseFolder )
+                                disp(['Phase figure folder made at ',phaseFolder])
+                            end
+                        end
                         %(Old position)
                         %{
                         temp = squeeze( nanmean( dataStimTrim, [1,2] ) );
@@ -2431,6 +2452,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         end
                         xlabel(['Time (vol)'])
                         title(titleStr)
+                        if savePhasePlots
+                            drawnow
+                            saveas(gcf, [phaseFolder,filesep,flyID,'_phasePlot'], 'png');
+                            disp(['Phase plot saved'])
+                        end
 
                         %Interruption to siphon blanks if applicable and moded
                         if includesBlanks && blankHandleMode == 2
@@ -2569,6 +2595,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             subplot( 2,3, [6] )
                             imagesc( temp{10}(:,:, temp{11}(3) ) )
                             title(['Max. frame (Vol #',num2str(temp{11}(3)),')'])
+                            if savePhasePlots
+                                drawnow
+                                saveas(gcf, [phaseFolder,filesep,flyID,'_transientPlot'], 'png');
+                                disp(['Phase transient plot saved'])
+                            end
 
                             clear temp
                         end
