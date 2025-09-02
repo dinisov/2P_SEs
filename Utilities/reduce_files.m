@@ -19,9 +19,11 @@ finalSize = [128 128];
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
-chosenFlies = [306];
-chosenBlocks = {[3]}; % leave empty if reducing all blocks for one fly
+chosenFlies = [357];
+chosenBlocks = {[1]}; % leave empty if reducing all blocks for one fly
     %MUST BE IN FORMAT {[blocks]}
+colourSkip = [0]; %Which colour/s to not skip (1-Green, 2-Red)
+    % 0 OR [1,2] - Do all, [1] - Do green, [2] - Do red
 
 flagParamSaveList = who;
 flagParamSaveList = [flagParamSaveList;'flagParamSaveList';'fly'];
@@ -75,13 +77,21 @@ for fly = 1:length(chosenFlies)
         disp(['Fly: ',flyID]);
         
         codeStartTime = posixtime(datetime('now'));
-        %loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize, 1); %currentBlock corresponds to currentFly
-        loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSizeActual, 1, 'green'); %currentBlock corresponds to currentFly
+        if ismember(colourSkip,0) || ismember(colourSkip,1)
+            %loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize, 1); %currentBlock corresponds to currentFly
+            loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSizeActual, 1, 'green'); %currentBlock corresponds to currentFly
+        else
+            disp(['-# Skipping green reduction by request #-'])
+        end
         if currentBlock.nChannels == 2
             temp = dir( [currentRDMDirectory,filesep,'red_channel.raw'] );
             if ~isempty( temp )
-                disp(['Reducing and saving red channel data as well'])
-                loadReduceSave(currentRDMDirectory, 'red_channel.raw', currentBlock, finalSizeActual, 1, 'red');      
+                if ismember(colourSkip,0) || ismember(colourSkip,2)
+                    disp(['Reducing and saving red channel data as well'])
+                    loadReduceSave(currentRDMDirectory, 'red_channel.raw', currentBlock, finalSizeActual, 1, 'red');      
+                else
+                    disp(['-# Skipping red reduction by request #-'])
+                end
             else
                 ['-# Alert: Two channels specified, but red channel data not found #-']
             end
@@ -134,7 +144,20 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments, colour)
         %[imageSize nFrames]
         %size(data)
         %rearrange
-        data = permute(reshape(data, [imageSize nFrames]),[2 1 3]);
+        %data = permute(reshape(data, [imageSize nFrames]),[2 1 3]);
+        try
+            data = permute(reshape(data, [imageSize nFrames]),[2 1 3]);
+        catch ME
+            if (strcmp(ME.identifier,'MATLAB:getReshapeDims:notSameNumel'))
+                ['## Alert: Error in resizing raw data ##']
+                ['Raw data size: ',num2str(size(data))]
+                ['Requested new dims: ',num2str([imageSize nFrames])]
+                crash = yes
+            else
+                ['## Unexpected error in resizing ##']
+                crash = yes
+            end
+        end
         if ~isunix
             [memStruct,~] = memory;
             disp(['Stage 3 mem. used: ',num2str(memStruct.MemUsedMATLAB/1000/10000)])
