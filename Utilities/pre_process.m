@@ -6,7 +6,7 @@ if ~exist('IJM','var')
     ImageJ;
 end
 
-maxFrames = 600000; %Used by fiji
+maxFrames = 9000000; %Used by fiji
 
 mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
@@ -16,9 +16,9 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record.xlsx");
 % blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
-chosenFlies = [300];
+chosenFlies = [358];
 
-chosenBlocks = {[2,3]};
+chosenBlocks = {[1,2,3]};
 
 for fly = 1:length(chosenFlies)
     
@@ -51,6 +51,10 @@ for fly = 1:length(chosenFlies)
            if totalFrames > maxFrames
             ['## Alert: Frames to load < apparent total # of frames ##']
             crash = yes
+           end
+           if currentBlock.nChannels == 99
+               ['## Alert: Likely error in nChannels specification ##']
+               crash = yes
            end
     
            if ~exist([currentDirectory '/green_channel.raw'],'file')
