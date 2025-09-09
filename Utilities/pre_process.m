@@ -16,9 +16,9 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record.xlsx");
 % blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
-chosenFlies = [358];
+chosenFlies = [360,361];
 
-chosenBlocks = {[1,2,3]};
+chosenBlocks = {[2],[1,2,3]};
 
 for fly = 1:length(chosenFlies)
     
@@ -31,12 +31,18 @@ for fly = 1:length(chosenFlies)
     
         currentDate = char(datetime(thisFlyBlocks.Date(1),'Format','dMMMyy'));
 
-        nBlocks = height(thisFlyBlocks);
+        %nBlocks = height(thisFlyBlocks);
 
         for b = chosenBlocks{fly}
 
             %currentBlock = thisFlyBlocks(b,:); %Old
             currentBlock = thisFlyBlocks( find( thisFlyBlocks.Block == b ) ,:); %New
+
+            %Check for probably fly record error
+            if isempty(currentBlock)
+                ['## Alert: No block/s detected for block=',num2str(b),', fly #',num2str(chosenFlies(fly)),' ##']
+                crash = yes
+            end
             
             flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
             currentDirectory = fullfile(mainDirectory,currentDate,flyID);
