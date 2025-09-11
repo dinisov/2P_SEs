@@ -1,30 +1,23 @@
-function processFlies(flyRecord, chosenFlies, chosenBlocks, chosenZ, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling)
+function processFlies(flyRecord, chosenFlies, chosenBlocks, chosenZ, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, ...
+    separateByState, doRolling, recordPath)
 %UNTITLED Summary of this function goes here
 disp([char(10),'-------------------------------------'])
 %% collate, reduce, filter and concatenate pre-aligned data
 
-%FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks);
-%FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState);
-%FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling);
-%FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling);
-%FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling,0); %[Current] Terminal option is useUnaligned (0 is normal/No)
 FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory,...
     'alternateUseCase', 0, 'reqZ', chosenZ); %Moved Matt additions to options
 
+%% update records
+recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',0)
+
 %% Interrupt flow for rolling datasets
-%for fly = 1:length(FLIES)
-%    if any([FLIES(fly).BLOCKS.isRolling]) || doRolling
-%            %Note that doRolling on non-rolling data may behave weirdly and isn't tested (yet)
-%        [FLIES(fly).BLOCKS] = syncMaster( FLIES(fly).BLOCKS , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1, 'disregardRollingDesign', 0 );
-%            %BLOCKS in, (modified) BLOCKS out (Old version)
-%    end
-%end
+
+%[FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
+%    'disregardRollingDesign', 0, 'overwriteShortcut', 1, 'unsiphonedSEs', 0, 'disregardBattery', 1);
 [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
-    'disregardRollingDesign', 0, 'overwriteShortcut', 0, 'unsiphonedSEs', 0, 'disregardBattery', 1);
-    %New version, receives FLIES, similar to other scripts
+    'disregardRollingDesign', 0, 'overwriteShortcut', 1, 'unsiphonedSEs', 0, 'disregardBattery', 1);
 
 %And check for accidental battery inclusion
-%[FLIES.BLOCKS.stimulus]
 if isfield( FLIES.BLOCKS, 'stimulus') && ~isempty( strfind( [FLIES.BLOCKS.stimulus], 'battery' ) )
     ['## Alert: Battery blocks erroneously included in analysis ##']
     crash = yes
@@ -87,6 +80,9 @@ if analysisToggle(7)
     end
     toc;
 end
+
+%% update records again
+recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',1)
 
 end
 
