@@ -11,12 +11,15 @@ FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirect
 recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',0)
 
 %% Interrupt flow for rolling datasets
-
-%[FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
-%    'disregardRollingDesign', 0, 'overwriteShortcut', 1, 'unsiphonedSEs', 0, 'disregardBattery', 1);
-[FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
-    'disregardRollingDesign', 0, 'overwriteShortcut', 1, 'unsiphonedSEs', 0, 'disregardBattery', 1);
-
+try
+    %[FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
+    %    'disregardRollingDesign', 0, 'overwriteShortcut', 1, 'unsiphonedSEs', 0, 'disregardBattery', 1);
+    [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
+        'disregardRollingDesign', 0, 'overwriteShortcut', 1, 'unsiphonedSEs', 0, 'disregardBattery', 1);
+catch
+    ['## syncMaster error; Continuing with next fly ##']
+    return %Skips rest of blocks for this fly
+end
 %And check for accidental battery inclusion
 if isfield( FLIES.BLOCKS, 'stimulus') && ~isempty( strfind( [FLIES.BLOCKS.stimulus], 'battery' ) )
     ['## Alert: Battery blocks erroneously included in analysis ##']
