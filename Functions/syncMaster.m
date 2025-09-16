@@ -53,6 +53,9 @@ arguments
     options.unsiphonedSEs double = 0 %Whether to *not* do any data siphoning/etc for SEs, and just calculate volTimes/etc and leave data trimmed
     options.doBatteryIFICheck double = 0 %Whether to force IFI checks to be done on framespike data for battery (Standard for block design, omitted usually for battery cos freq. condition)
     options.savePhasePlots double = 1 %Whether to force draw/save of phase plots where applicable
+    options.shiftImTime double = 0 %Whether to shift detected imaging start time backwards/forwards and by how much (seconds)
+    options.ifiRectificationMode double = 0 %Mode for IFI error rectification (0 - Legacy [< Aug 25], 1 - Experimental [Slicing of data/etc] )
+    options.outputDirectory string = "C:\Users\uqmvan13\2p\2P_RESULTS_4"
 end
 functionAlity = 1;
 %}
@@ -87,6 +90,9 @@ options.simulationRun = 1;
 options.unsiphonedSEs = 0;
 options.doBatteryIFICheck = 0; 
 options.savePhasePlots = 1;
+options.shiftImTime = 360;
+options.ifiRectificationMode = 0;
+options.outputDirectory = "C:\Users\uqmvan13\2p\2P_RESULTS_4";
 options
 %}
 
@@ -115,6 +121,14 @@ simulationRun = options.simulationRun;
 unsiphonedSEs = options.unsiphonedSEs;
 doBatteryIFICheck = options.doBatteryIFICheck;
 savePhasePlots = options.savePhasePlots;
+shiftImTime = options.shiftImTime;
+ifiRectificationMode = options.ifiRectificationMode;
+outputDirectory = options.outputDirectory;
+
+%Quick check for important options
+if shiftImTime ~= 0
+    ['-# Caution: Imaging start time requested to be arbitrarily shifted (',num2str(shiftImTime),'s) #-']
+end
 
 %Pre-loop preparation
 flagParamSaveList = who;
@@ -305,6 +319,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         inferTimes = linspace( 0, size( syncStruct.CI.frameData , 2 ) / sampRate, size( syncStruct.CI.frameData , 2 ) );
             %Linearly space time from 1st to last element of frameData
             %The division of total frame count by sampling rate is weak to (TS) framedrops/etc, but no better option present
+        disp(['Self reported TS duration: ',num2str(round( inferTimes(end), 2 )),'s (',num2str(length(inferTimes)),' samples)'])
         end
     
         %Read experiment information file from ThorImage
@@ -320,6 +335,16 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         imStartTime = expStruct.Date.uTimeAttribute;
             %Note: This is confirmed to be when Start button was pressed, not when imaging commenced
                 %i.e. Disparity of 1 - 30s
+        %Arbitarily shift time if required
+            %Applicable primarily to data acquired 27/8/25 - ???, where one of either imaging PC or laptop are shifted 6 mins in time
+        if shiftImTime ~= 0
+            %ruelle
+            imStartTime = imStartTime + shiftImTime;
+            disp(['-# Imaging start time arbitrarily shifted by ',num2str(shiftImTime),'s #-'])
+            disp([datestr( datetime( imStartTime-shiftImTime, 'ConvertFrom', 'posix', 'TimeZone', '+10' ) ),...
+                ' -> ',...
+                datestr( datetime( imStartTime, 'ConvertFrom', 'posix', 'TimeZone', '+10' ) )])
+        end
     
         if useShortcut == 0 || isShortcutting == 0        
         %ThorImage (apparently)
@@ -471,9 +496,31 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 %It is intended to be used to QA ptbEndTime in case of not ending because repetitive, not a true comparison
               %QA
               if abs( ptbEndTime - estimatedPTBEndTime ) > 0.05 * ( estimatedPTBEndTime - imStartTime )  %"Did PTB end more than 5% +- Arduino time?"
+                    %Note: ptbEndTime here comes from last reported btData (posix) time, while estimatedPTBEndTime comes from Arduino low time (+ Exp.xml posix start time)
                   ['## Alert: PTB self-reported end time differs significantly from Arduino estimated end time ##']
+                  ['(',num2str(abs( ptbEndTime - estimatedPTBEndTime )),'s)']
+                  ['btData self report duration: ',num2str( round(ptbEndTime - ptbStartTime) ),'s']
+                  ['Arduino apparent duration:', num2str(round( inferTimes( bleachEndInd ) )),'s']
+                  ['TS calculated duration: ',num2str(round( inferTimes(end), 2 )),'s']
+                  [char(10)]
+                  ['Imaging reported start time: ',datestr( datetime( imStartTime , 'ConvertFrom', 'posix', 'TimeZone', '+10' ) )]
+                  ['btData reported start time: ',datestr( datetime( ptbStartTime , 'ConvertFrom', 'posix', 'TimeZone', '+10' ) )]
+                  ['Click -> Proceed time (apparently) thus: ',num2str(seconds( datetime( ptbStartTime , 'ConvertFrom', 'posix', 'TimeZone', '+10' ) - datetime( imStartTime , 'ConvertFrom', 'posix', 'TimeZone', '+10' ) )),'s']
                   crash = yes %Not technically critical, but probably worrying
               end
+              %Secondary QA, mostly to counter possible issues from arbitrarily shifting imaging start time
+              if ptbStartTime < imStartTime
+                  ['## Alert: PTB start time (apparently) precedes imaging start time ##']
+                  [datestr( datetime( ptbStartTime, 'ConvertFrom', 'posix', 'TimeZone', '+10' ) ),...
+                      '(PTB) vs ',...
+                      datestr( datetime( imStartTime, 'ConvertFrom', 'posix', 'TimeZone', '+10' ) ),'(Imaging)']
+                  if imShiftTime ~= 0
+                      ['Note: This may be because of an induced arbitrary shift in imaging start time (',num2str(shiftImTime),'s)']
+                  end
+                  crash = yes %Probably a bad thing
+              end
+
+              %wrld
     
               %Find out if rolling experiment (unless battery)
               if rollingAnalysis == -1 && isfield( matParamStruct.matSave, 'blockDesign' ) && ~batteryDesign
@@ -612,6 +659,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 title([strrep(expName,'_',' '),' - Last 10 framespike elements + Iterator'])
                 xlabel('Times (s)')
                 ylabel('Voltage (V)')
+                %Same as above but for an arbitrary position
+                %{
+                figure
+                theseInds = [frameLOCS(1185):frameLOCS(1205)];
+                plot( inferTimes(theseInds) , syncStruct.AI.FrameSpike(theseInds) )
+                hold on
+                scatter( inferTimes(frameLOCS(1185:1205)), framePKS(1185:1205) )
+                for i = 1185:1205
+                text( inferTimes(frameLOCS(i)), framePKS(i)*1.1, [num2str(i)], 'Color', 'r' )
+                end
+                plot( inferTimes(theseInds) , syncStruct.AI.Iterator(theseInds), 'r' )
+                %}
             end
 
             %Find iterator values
@@ -805,10 +864,12 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %Check for IFI loss and correct first
             temp2 = diff( frameLOCS ); %Inter-framespike index difference; Again, should be (relatively) stable
             ifiLoss = 0;
-            if nanmax( abs(temp2) ) > nanmean(temp2) + 4*nanstd(temp2) %Note: Calcs may not cover symmetrical conditions of frameSpike shift
+            errorSpikes = find( abs(temp2 - nanmean(temp2))  >  0.1*nanmean(temp2)  );
+            %if nanmax( abs(temp2) ) > nanmean(temp2) + 4*nanstd(temp2) %Note: Calcs may not cover symmetrical conditions of frameSpike shift
+            if ~isempty(errorSpikes)
                 %Note: No explicit inter-framespike interval rectification currently implemented, only phase loss
                 %errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) ); %SD-based system
-                errorSpikes = find( abs(temp2 - nanmean(temp2))  >  0.1*nanmean(temp2)  );
+                %%errorSpikes = find( abs(temp2 - nanmean(temp2))  >  0.1*nanmean(temp2)  ); %Moved above for simplicity
                 errorSpikesMag = abs(temp2(errorSpikes)) - nanmean(temp2);
                 if exist('daqFrameSpikeCount')
                     ['-# Alert: ',num2str(length(errorSpikes)),' significant deviation/s in inter-framespike interval detected (of ~',num2str(daqFrameSpikeCount),' total) #-']
@@ -846,21 +907,30 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     %spikeRange( spikeRange < 0 ) = [];
                     spikeRange( spikeRange < 0 ) = 1; %Use framespike 1, rather than null
                     spikeRange( spikeRange > size(frameLOCS,2) ) = [];
-                    plot( [inferTimes( frameLOCS(spikeRange(1)):frameLOCS(spikeRange(2)) )],...
-                        [syncStruct.AI.FrameSpike( frameLOCS(spikeRange(1)) : frameLOCS(spikeRange(2)) )] )
+                    theseInds = frameLOCS(spikeRange(1)):frameLOCS(spikeRange(2));
+                    plot( [inferTimes( theseInds )],...
+                        [syncStruct.AI.FrameSpike( theseInds )] )
                     hold on
                     scatter( [inferTimes( frameLOCS( spikeRange(1):spikeRange(2) ) )],...
                         [syncStruct.AI.FrameSpike( frameLOCS(spikeRange(1):spikeRange(2))) ] )
                     scatter( [inferTimes( frameLOCS( thisErrorSpike ) )], [syncStruct.AI.FrameSpike( frameLOCS( thisErrorSpike ) )]+0.1, 'Color', [1,0,0] )
+                    plot( inferTimes(theseInds) , syncStruct.AI.Iterator(theseInds)*0.25, 'r' )
+                    scatter( [inferTimes( itLOCS( spikeRange(1)+1:spikeRange(2)+1 ) )],... %+1 necessary because iterator precedes framespike
+                        [syncStruct.AI.Iterator( itLOCS(spikeRange(1)+1:spikeRange(2)+1)) ]*0.25 )
                     title(['IFI loss frameSpike (#',num2str(errorSpikes(eros)),') location'])
                     xlabel(['Time (s)'])
                     a = a + 1;
                 end
 
+                %vengabus
+
                 %Identify
                 errorLOCS = []; %Will store deleted LOCS for posterity
                 rectifiedErrorSpikes = []; %Will store errorSpikes that are no longer valid
                     %Note: Currently not done with a while loop/etc, so there is no guarantee that framespikes following rectification will actually be valid
+                if ifiRectificationMode == 1
+                    necessarySliceInds = []; %Will be filled if applicable
+                end
                 for eros = 1:size( errorSpikes,2 )
                     thisErrorSpike = errorSpikes(eros);
                     disp(['Processing error spike ', num2str(eros),' (#',num2str(thisErrorSpike),')'])
@@ -868,34 +938,109 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     if thisErrorSpike == 1
                         ['## Alert: Unsafe to perform IFI rectification on first framespike ##']
                         %I mean, theoretically it's no different, but in practice one would want to do it with care
-                        crash = yes
+                        %crash = yes
+                        continue
                     end
-                    if size( errorSpikes,2 ) >= 2 && eros <= size( errorSpikes,2 )-1 && thisErrorSpike+1 ==  errorSpikes(eros+1) %"More than 1 error spike AND not last AND this error spike is directly followed (in frameLOCS) by another error spike"
-                        %This is designed for the case where the framespike writing lagged out and took ~100+ms to write and unwrite, thus leading to an aberrantly broad framespike
-                            %Note: This is not designed to deal with 3+ error spikes in quick succession
-                            errorLOCS = thisErrorSpike;
+                    if ifiRectificationMode == 0
+
+                        %Legacy rectification mode
+                        %if size( errorSpikes,2 ) >= 2 && eros <= size( errorSpikes,2 )-1 && thisErrorSpike+1 ==  errorSpikes(eros+1) %Original
+                        if size( errorSpikes,2 ) >= 2 && eros <= size( errorSpikes,2 )-1 && thisErrorSpike+1 ==  errorSpikes(eros+1) && ...
+                                abs(nanmedian( syncStruct.AI.FrameSpike( frameLOCS(thisErrorSpike):frameLOCS(thisErrorSpike+1) ) ) - nanmedian(framePKS)) < 4*nanstd( framePKS )
+                        %"More than 1 error spike AND not last AND this error spike is directly followed (in frameLOCS) by another error spike" AND ...
+                        %       signal between this error and next framespike is likely stuck at high    
+                                %This is designed for the case where the framespike writing lagged out and took ~100+ms to write and unwrite, thus leading to an aberrantly broad framespike
+                                    %Note: This is not designed to deal with 3+ error spikes in quick succession
+                                %errorLOCS = thisErrorSpike;
+                                errorLOCS = [errorLOCS,thisErrorSpike];
+                                frameLOCS( thisErrorSpike ) = []; %"Delete the first of the aberrantly double-detected framespikes"
+                                framePKS( thisErrorSpike ) = [];
+                                if numel(eros) >= 2
+                                    rectifiedErrorSpikes = [rectifiedErrorSpikes,errorSpikes(eros+1)];
+                                end
+                                disp(['-# Framespike #', num2str(thisErrorSpike),' deleted to rectify phase #-'])
+                                    %Note: Currently as written the actual framespike deleted here doesn't matter **theoretically**
+                                        %This is because aside from Framespike 1 and last, the physical position of individual framespikes is not used for anything
+                                            %Secondary note: This is not true wrt phase, and so it is possible that picking one of an aberrant double could be better/worse for preserving phase
+                        elseif ismember( thisErrorSpike, rectifiedErrorSpikes )
+                            disp(['-# Error spike already rectified #-'])
+                            continue
+                        elseif abs( (frameLOCS( thisErrorSpike+1 ) - frameLOCS( thisErrorSpike )) - (itLOCS( thisErrorSpike+2 ) - itLOCS( thisErrorSpike+1 )) ) < 0.05*nanmean(temp2)
+                        %"Framespike delayed (or broad), but phase with iterator maintained"
+                            %Note: This case may have to be broadened for 'normal' phase loss (i.e. use itLocs +1 and 0 respectively, or vice versa)
+                            %Secondary note: More nuanced iterator non-phase-loss detection may be possible
+                            disp(['-# IFI stutter and iterator stutter appear identical; Not rectifying #-'])
+                                %Phase loss checks will be important to ensure this does not cause issues
+                            continue
+                        elseif ( frameLOCS( thisErrorSpike+1 ) - frameLOCS( thisErrorSpike ) ) < 0.75*nanmean(temp2) && ...
+                                abs(frameLOCS(thisErrorSpike) - itLOCS( thisErrorSpike )) >= 0.25*nanmean(temp2) && ...
+                                abs(frameLOCS(thisErrorSpike+1) - itLOCS( thisErrorSpike+1 )) < 0.25*nanmean(temp2)
+                        %"Spike too close to postceder AND this framespike is more than 5% away from iterator change AND next framespike is within 5% of iterator change"
+                            %Note: This will almost certainly fail with triple detection on a broad framespike (as opposed to double detection)
+                            errorLOCS = [errorLOCS,thisErrorSpike];
                             frameLOCS( thisErrorSpike ) = []; %"Delete the first of the aberrantly double-detected framespikes"
                             framePKS( thisErrorSpike ) = [];
-                            rectifiedErrorSpikes = [rectifiedErrorSpikes,errorSpikes(eros+1)];
-                            disp(['-# Framespike #', num2str(thisErrorSpike),' deleted to rectify phase #-'])
-                                %Note: Currently as written the actual framespike deleted here doesn't matter **theoretically**
-                                    %This is because aside from Framespike 1 and last, the physical position of individual framespikes is not used for anything
-                                        %Secondary note: This is not true wrt phase, and so it is possible that picking one of an aberrant double could be better/worse for preserving phase
-                    elseif ismember( thisErrorSpike, rectifiedErrorSpikes )
-                        disp(['-# Error spike already rectified #-'])
-                        continue
-                    elseif abs( errorSpikesMag(eros) ) > 1.25*nanmean(temp2)
-                        ['## likely missed framespike; case not written yet ##']
-                        crash = yes
-                    elseif abs( (frameLOCS( thisErrorSpike+1 ) - frameLOCS( thisErrorSpike )) - (itLOCS( thisErrorSpike+2 ) - itLOCS( thisErrorSpike+1 )) ) < 0.01*nanmean(temp2)
-                        %Note: This case may have to be broadened for 'normal' phase loss (i.e. use itLocs +1 and 0 respectively, or vice versa)
-                        disp(['-# IFI stutter and iterator stutter appear identical; Not rectifying #-'])
-                            %Phase loss checks will be important to ensure this does not cause issues
-                    else %CHECK FOR PHASE?
-                        ['## case not written yet ##']
-                        %This will be something like a framespike being just really delayed or ahead in time; TBD what to do
-                        crash = yes
+                            if numel(eros) >= 2
+                                rectifiedErrorSpikes = [rectifiedErrorSpikes,errorSpikes(eros+1)];
+                            end
+                            disp(['-# Framespike #', num2str(thisErrorSpike),' probably double-detection; Deleted to rectify phase #-'])
+
+                        elseif abs( errorSpikesMag(eros) ) > 1.25*nanmean(temp2)
+                            ['## likely missed framespike; case not written yet ##']
+                            crash = yes
+                        elseif frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1) < 0.25*nanmean(temp2) || frameLOCS(thisErrorSpike+1) - frameLOCS(thisErrorSpike) < 0.25*nanmean(temp2)
+                            ['likely overdetection; Need to write case']
+                            crash = yes
+                        else %CHECK FOR PHASE?
+                            ['## case not written yet ##']
+                            %This will be something like a framespike being just really delayed or ahead in time; TBD what to do
+                            crash = yes
+                        end
+
+                    else
+
+                        %'Modern' rectification
+                        %Overdetection of a single/s spike (Uncommon?)
+                        if frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1) < 0.25*nanmean(temp2) || frameLOCS(thisErrorSpike+1) - frameLOCS(thisErrorSpike) < 0.25*nanmean(temp2)
+                            ['likely overdetection; Need to write case for modern rectification']
+                            to do yes
+                        end
+
+                        %Framespike(/PTB) stutter 
+                        needSlice = 0; %Flag initialisation
+                        if abs( (frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1)) - nanmean(temp2) ) < 0.1*nanmean(temp2) %"This spike not actually error distance from preceder"
+                            disp(['Error spike (#',num2str(thisErrorSpike),') not actually error distance from preceder'])
+                            continue
+                        else %"Spike is further from preceder than expected"
+                            disp(['Error spike significant distance from preceder; Slicing required'])
+                            needSlice = 1;
+                        end
+                        %Slice data/etc
+                        if needSlice == 1
+                            %frequen
+                            %Calculate amount of data needing to be sliced/coords
+                            thisStutterMag = floor( (frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1)) - nanmean(temp2) ); %How many frames above average this stuttered for
+                                %Risk of negative?
+                            thisStutterInds = [frameLOCS(thisErrorSpike-1)+1:frameLOCS(thisErrorSpike-1)+thisStutterMag]; %Coordinates to be sliced/deleted
+                                %Go forward from last spike, under assumption that is where stutter actually happening
+                            
+                            necessarySliceInds = [necessarySliceInds, thisStutterInds];
+
+                            disp([num2str(thisStutterMag),' TS samples require slicing for this error spike'])
+                        end
+
+
                     end
+
+                %eros end    
+                end
+
+                %Slice data, if requested
+                if ifiRectificationMode == 1 && ~isempty(necessarySliceInds)
+                    disp([num2str(numel(necessarySliceInds)),' TS samples will be sliced total'])
+                    
+                    code abandoned due to complexity/unnecessity
+
                 end
 
             end
@@ -1270,6 +1415,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
             else %Note: Not tested with v8.2 new position of Data_Array saving
                 ['I M P E R F E C T I O N']
+                if exist('errorSpikes') && size( errorSpikes, 2 )
+                    ['Note: Pre-error rectification framespike count: ',num2str(daqFrameSpikeCount)]
+                end
+
                 crash = yes
 
                 %If this actually happens, add code to allow for (hopefully) minor disparities
@@ -1371,7 +1520,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         disp(['Estimated imaging end time (',guessIndex{guessMode},' -> Last frame high): ', ...
             datestr( datetime( bestGuessCommenceTime + tsLastFrameTime, 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
     
-        disp([ 'Estimated arduino duration: ', num2str((tsLastArduinoTime)/60),'m' ])
+        %disp([ 'Estimated arduino duration: ', num2str((tsLastArduinoTime)/60),'m' ])
+        disp([ 'Estimated arduino duration: ', num2str((tsLastArduinoTime)/60),'m (',num2str(tsLastArduinoTime),'s)'])
         %disp(['Estimated arduino end time (Exp self report -> Last bleach high): ', ...
         %    datestr( datetime( imStartTime + (inferTimes( bleachEndInd )), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
         disp(['Estimated arduino end time (',guessIndex{guessMode},' -> Last bleach high): ', ...
@@ -2380,6 +2530,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                 mkdir( phaseFolder )
                                 disp(['Phase figure folder made at ',phaseFolder])
                             end
+                            phaseResultsFolder = [outputDirectory,filesep,'Fly', num2str(thisBlock.flyNum), filesep,'Block' num2str(thisBlock.blockNum),filesep,'Phase'];
+                            if ~exist(phaseResultsFolder,'dir')
+                                mkdir(phaseResultsFolder);
+                                disp(['Secondary phase figure folder made at ',phaseResultsFolder])
+                            end
                         end
                         %(Old position)
                         %{
@@ -2455,7 +2610,29 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         if savePhasePlots
                             drawnow
                             saveas(gcf, [phaseFolder,filesep,flyID,'_phasePlot'], 'png');
+                            saveas(gcf, [phaseResultsFolder,filesep,flyID,'_phasePlot'], 'png');
                             disp(['Phase plot saved'])
+                        end
+
+                        %lain
+
+                        %QA plot for first/middle/last phot particularly
+                        if hasPhotData && size(collInds,1) > 30
+                            figure
+                            coords = floor(linspace( 1,size(photProc,1), 4 ));
+                            for i = 1:3
+                                subplot(1,3,i)
+                            %hold on
+                            %for i = 1:10
+                            %    plot( photProc(volTimes(3, stimInds(i,:) )) )  %Plot elements of photProc associated with each collection                                                                 
+                            %end
+                                theseCoords = floor([coords(i):coords(i)+10*sampRate]);
+                                plot(photProc(theseCoords),'Color','r')
+                                xlabel('Time (TS ref)')  
+                                title(['Phot example portion #',num2str(i)])
+                            end
+                        else
+                            ['-# Cannot do phot first/middle/last plot #-']
                         end
 
                         %Interruption to siphon blanks if applicable and moded
@@ -2598,6 +2775,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             if savePhasePlots
                                 drawnow
                                 saveas(gcf, [phaseFolder,filesep,flyID,'_transientPlot'], 'png');
+                                saveas(gcf, [phaseResultsFolder,filesep,flyID,'_transientPlot'], 'png');
                                 disp(['Phase transient plot saved'])
                             end
 
@@ -2746,6 +2924,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   %BLOCKS( thisFlyRowInd ).volTimes = volTimes; %Note: Does not (presently) account for blank removal/etc
                   BLOCKS( thisFlyRowInd ).syncModified = 1;
                   BLOCKS( thisFlyRowInd ).phaseShifted = phaseShifted;
+                  if shiftImTime ~= 0
+                      BLOCKS( thisFlyRowInd ).imagingStartTimeShift = shiftImTime;                 
+                  end
               end
     
               %QA for empty randomSequence data
@@ -2834,6 +3015,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
     end
     
     disp(['-- Newtype data synchronised --'])
+
+    if shiftImTime ~= 0
+        ['-# Reminder: Imaging start time requested to be arbitrarily shifted (',num2str(shiftImTime),'s) #-']
+    end
 
 end
 
