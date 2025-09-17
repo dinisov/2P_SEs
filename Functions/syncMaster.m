@@ -236,8 +236,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
             %Quick QA for whether shortcut file still applicable
             if exist('arbPhaseShift') && ~isfield( shortStruct,'arbPhaseShift' )
-                ['-# Alert: Phase shift (now) requested in record, but was not used when shortcut file generated #-']
-                crash = yes %Theoretically overkill, but probably good practice
+                %['-# Alert: Phase shift (now) requested in record, but was not used when shortcut file generated #-']
+                %crash = yes %Theoretically overkill, but probably good practice
+                disp(['-# Caution: Phase shift (now) requested in record, but was not used when shortcut file generated; Amending #-'])
+                shortStruct.arbPhaseShift = arbPhaseShift;
+                save( [strcat(dataFolder,filesep,'SHORT',filesep,shortFile)], 'shortStruct' )
+                    %Note: Theoretically bad to do this here, in case script crashes (And thus, the 'apparent' phase shift was never truly applied)
+                    %But it's probably fine, since on the next attempted run, it will load the phase shift and try again
             end
         elseif overwriteShortcut == 1
             saveShortcut = 1;
@@ -2530,7 +2535,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                 mkdir( phaseFolder )
                                 disp(['Phase figure folder made at ',phaseFolder])
                             end
-                            phaseResultsFolder = [outputDirectory,filesep,'Fly', num2str(thisBlock.flyNum), filesep,'Block' num2str(thisBlock.blockNum),filesep,'Phase'];
+                            phaseResultsFolder = strcat(outputDirectory,filesep,'Fly', num2str(thisBlock.flyNum), filesep,'Block', num2str(thisBlock.blockNum),filesep,'Phase');
+                            phaseResultsFolder = char(phaseResultsFolder);
                             if ~exist(phaseResultsFolder,'dir')
                                 mkdir(phaseResultsFolder);
                                 disp(['Secondary phase figure folder made at ',phaseResultsFolder])
