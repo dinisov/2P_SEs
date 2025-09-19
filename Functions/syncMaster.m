@@ -6,6 +6,7 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
 %Mk 8 - Photodiode (initial) support
 %Mk 8.5 - Better photodiode support, minor graphs for SEs data
 %Mk 9 - Support for singular Z
+%Mk 10 - Improved sync, phase plots, etc
 
 %function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
@@ -90,7 +91,7 @@ options.simulationRun = 1;
 options.unsiphonedSEs = 0;
 options.doBatteryIFICheck = 0; 
 options.savePhasePlots = 1;
-options.shiftImTime = 360;
+options.shiftImTime = 0;
 options.ifiRectificationMode = 0;
 options.outputDirectory = "C:\Users\uqmvan13\2p\2P_RESULTS_4";
 options
@@ -621,6 +622,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             if ~isnan( daqFrameSpikeCount ) && daqFrameSpikeCount ~= size(frameLOCS,2)+1
                     %Only 80% confident the initialisation framespike is counted as one...
                 ['## Alert: Disparity between post-hoc reported framespike count and detected framespike count ##']
+                ['(',num2str(daqFrameSpikeCount),' vs ',num2str(size(frameLOCS,2)+1),')']
                 %if ~batteryDesign
                 %crash = yes %Removed this so that later iterator QA can back up whether to crash
                 %end
@@ -951,9 +953,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         %Legacy rectification mode
                         %if size( errorSpikes,2 ) >= 2 && eros <= size( errorSpikes,2 )-1 && thisErrorSpike+1 ==  errorSpikes(eros+1) %Original
                         if size( errorSpikes,2 ) >= 2 && eros <= size( errorSpikes,2 )-1 && thisErrorSpike+1 ==  errorSpikes(eros+1) && ...
-                                abs(nanmedian( syncStruct.AI.FrameSpike( frameLOCS(thisErrorSpike):frameLOCS(thisErrorSpike+1) ) ) - nanmedian(framePKS)) < 4*nanstd( framePKS )
+                                ( abs(nanmedian( syncStruct.AI.FrameSpike( frameLOCS(thisErrorSpike):frameLOCS(thisErrorSpike+1) ) ) - nanmedian(framePKS)) < 4*nanstd( framePKS ) || ...
+                                  isempty( find(syncStruct.AI.FrameSpike( frameLOCS(thisErrorSpike):frameLOCS(thisErrorSpike+1) ) < nanmedian(framePKS)) ) )
                         %"More than 1 error spike AND not last AND this error spike is directly followed (in frameLOCS) by another error spike" AND ...
-                        %       signal between this error and next framespike is likely stuck at high    
+                        %       ( signal between this error and next framespike is likely stuck at high OR...
+                        %         signal never drops below median framespike value )
                                 %This is designed for the case where the framespike writing lagged out and took ~100+ms to write and unwrite, thus leading to an aberrantly broad framespike
                                     %Note: This is not designed to deal with 3+ error spikes in quick succession
                                 %errorLOCS = thisErrorSpike;
@@ -996,6 +1000,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         elseif frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1) < 0.25*nanmean(temp2) || frameLOCS(thisErrorSpike+1) - frameLOCS(thisErrorSpike) < 0.25*nanmean(temp2)
                             ['likely overdetection; Need to write case']
                             crash = yes
+                        elseif frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1) < 1.1*nanmean(temp2) && frameLOCS(thisErrorSpike+1) - frameLOCS(thisErrorSpike) < 1.5*nanmean(temp2) && ...
+                                numel(intersect( [find(itLOCS > frameLOCS(thisErrorSpike))] , [find(itLOCS < frameLOCS(thisErrorSpike+1))] )) == 1
+                            %"Normal distance to preceding framespike AND postceding framespike is within 1.5 of normal AND no iterator phase loss detected"
+                            disp(['-# Framespike #', num2str(thisErrorSpike),' likely only minor delay; Not rectifying #-'])
+                            continue
                         else %CHECK FOR PHASE?
                             ['## case not written yet ##']
                             %This will be something like a framespike being just really delayed or ahead in time; TBD what to do
@@ -2529,17 +2538,21 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
                         %Average stim  plot
                         if savePhasePlots
-                            %Check/Make folder to put figures into
-                            phaseFolder = strcat( dataFolder,filesep,'PHASE' );
-                            if exist(phaseFolder) ~= 7
-                                mkdir( phaseFolder )
-                                disp(['Phase figure folder made at ',phaseFolder])
-                            end
-                            phaseResultsFolder = strcat(outputDirectory,filesep,'Fly', num2str(thisBlock.flyNum), filesep,'Block', num2str(thisBlock.blockNum),filesep,'Phase');
-                            phaseResultsFolder = char(phaseResultsFolder);
-                            if ~exist(phaseResultsFolder,'dir')
-                                mkdir(phaseResultsFolder);
-                                disp(['Secondary phase figure folder made at ',phaseResultsFolder])
+                            try
+                                %Check/Make folder to put figures into
+                                phaseFolder = strcat( dataFolder,filesep,'PHASE' );
+                                if exist(phaseFolder) ~= 7
+                                    mkdir( phaseFolder )
+                                    disp(['Phase figure folder made at ',phaseFolder])
+                                end
+                                phaseResultsFolder = strcat(outputDirectory,filesep,'Fly', num2str(thisBlock.flyNum), filesep,'Block', num2str(thisBlock.blockNum),filesep,'Phase');
+                                phaseResultsFolder = char(phaseResultsFolder);
+                                if ~exist(phaseResultsFolder,'dir')
+                                    mkdir(phaseResultsFolder);
+                                    disp(['Secondary phase figure folder made at ',phaseResultsFolder])
+                                end
+                            catch
+                                ['-# Phailure to generate pholder for fase plots #-']
                             end
                         end
                         %(Old position)
@@ -2614,10 +2627,14 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         xlabel(['Time (vol)'])
                         title(titleStr)
                         if savePhasePlots
-                            drawnow
-                            saveas(gcf, [phaseFolder,filesep,flyID,'_phasePlot'], 'png');
-                            saveas(gcf, [phaseResultsFolder,filesep,flyID,'_phasePlot'], 'png');
-                            disp(['Phase plot saved'])
+                            try
+                                drawnow
+                                saveas(gcf, [phaseFolder,filesep,flyID,'_phasePlot'], 'png');
+                                saveas(gcf, [phaseResultsFolder,filesep,flyID,'_phasePlot'], 'png');
+                                disp(['Phase plot saved'])
+                            catch
+                                ['-# Phailure to save fase plots #-']
+                            end
                         end
 
                         %lain
@@ -2779,10 +2796,14 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             imagesc( temp{10}(:,:, temp{11}(3) ) )
                             title(['Max. frame (Vol #',num2str(temp{11}(3)),')'])
                             if savePhasePlots
-                                drawnow
-                                saveas(gcf, [phaseFolder,filesep,flyID,'_transientPlot'], 'png');
-                                saveas(gcf, [phaseResultsFolder,filesep,flyID,'_transientPlot'], 'png');
-                                disp(['Phase transient plot saved'])
+                                try
+                                    drawnow
+                                    saveas(gcf, [phaseFolder,filesep,flyID,'_transientPlot'], 'png');
+                                    saveas(gcf, [phaseResultsFolder,filesep,flyID,'_transientPlot'], 'png');
+                                    disp(['Phase transient plot saved'])
+                                catch
+                                    ['-# Phailure to save fase plots #-']
+                                end
                             end
 
                             clear temp
