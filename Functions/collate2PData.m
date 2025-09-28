@@ -15,6 +15,10 @@ arguments
     options.doRolling double = 0
     options.alternateUseCase double = [] %Whether to act normally (empty), use averaged data (0), use unaligned data (1), or use 1 plane of 3D data (3),
     options.reqZ = {} %When alternateUseCase 3 (Single Z-plane), specifies which Z plane/s to use (Note that flyback frames are included here, so be careful)
+    options.SGThresh double = 55 %Original value default, not used if dynamicSG requested
+    options.dynamicSG double = 0 %Whether to use empirically calculated filter width values rather than default of 55 (aka ~10s at 5vols/s)
+    options.dynamicSGEqn double = [0.0430,-9.6875,649] %2nd order polynomial that converts frame size (e.g. 128) -> approx. FPS, thus following the structure of Y = ax^2 + bx + c; Only used if dynamicSQ requested
+    options.dynamicSGTimeWidth double = 10 %Time in approx. seconds that dynamic SG width should be (Above eqn used to calculate frame size -> ~framerate)
 end
 %}
 %{
@@ -246,6 +250,19 @@ for fly = 1:length(chosenFlies)
         ylabel(['Intensity'])
         
         % apply a savitsky-golay filter to remove larger trends in data
+        if ~options.dynamicSG
+            SGThresh = options.SGThresh;
+        else
+            %Quick frames->vol calcs
+            if currentBlock.FlybackFrames ~= 0
+                framesInVolStack = currentBlock.Steps + currentBlock.FlybackFrames;
+            else
+                framesInVolStack = currentBlock.Steps; %Should always be 1 if flyback frames are 0 tbh
+            end
+            SGThresh = floor( polyval( options.dynamicSGEqn, currentBlock.pixelX )/framesInVolStack*options.dynamicSGTimeWidth ); %Calculate per block, since size may change
+            disp(['Dynamic SG filter width calculated at: ',num2str(SGThresh),' frames'])
+            disp([num2str(currentBlock.pixelX),'px framesize, ',num2str(framesInVolStack),' frames/vol, ',num2str(options.dynamicSGTimeWidth),'s requested width'])
+        end
         BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,55);
         
         % plot after filtering
