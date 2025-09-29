@@ -8,7 +8,7 @@ arguments
     recordPath string = "\\uq.edu.au\uq-inst-gateway1\PHDMVDP002-Q1471\TEMP STORE\2P_record.xlsx" %Full path to fly record
     upMode double = 1 %Update mode (1 - Analysis success, 2 - Experiment details [Unfinished])
     options.analysisState double = 0; %For upMode 1, what state to update record to (0 - Incomplete/Failed analysis, 1 - Completed analysis)
-    options.lastSearchRow double = 1024; %How many rows of Excel to try read (Note this *must* be longer than excel row length)
+    options.lastSearchRow double = 2048; %How many rows of Excel to try read (Note this *must* be longer than excel row length)
     options.stateColumn char = 'AF' %Which column of excel relates to AnalysisSuccess property
 end
 %}
@@ -64,6 +64,9 @@ stateColumn = options.stateColumn;
                 %QA fly not found
                 if isempty(flyNumRows)
                     ['## Alert: Fly not found in specified range of excel ##']
+                    %allFliesBlocks(:,1)
+                    ['Last search row: ',num2str(lastSearchRow)]
+                    ['Thus, last searchable fly: ',num2str(allFliesBlocks(lastSearchRow-1,1))]
                     e.Quit; e.delete;
                     crash = yes
                 end
