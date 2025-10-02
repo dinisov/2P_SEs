@@ -4,6 +4,7 @@ addpath('C:\Users\uqmvan13\2p\Dinis Scripts\Global functions\');
 addpath('C:\Users\uqmvan13\2p\Dinis Scripts\Indexes and legends\');
 %addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\');
 addpath('.\Functions\');
+addpath('C:\Users\uqmvan13\2p\Matt Scripts\');
 
 close all; clear;
 
@@ -52,8 +53,8 @@ gridSize = [64 64];
 flyList = unique(flyRecord.Fly);
 
 %chosenFlies = [354:357]; %Matt
-chosenFlies = [347,348,349]; %Matt
-chosenBlocks = {[2],[2,3],[3]}; %Leave empty if not using
+chosenFlies = [384:387]; %Matt
+chosenBlocks = {}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
 chosenZ = {}; %Same format as chosenBlocks (Specified for all)
 
@@ -87,11 +88,12 @@ end
 % transient movies; component fits; fit movies; t-tests; oddballs; LvsR; PCA; global transient
 %analysisToggle = [1 1 1 0 1 0 1 1];
 %analysisToggle = [1 0 0 0 0 0 1 0];
-analysisToggle = [1 1 0 0 0 0 1 0];
+analysisToggle = [1 0 0 0 0 0 1 0];
 separateByState = 0; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
 doRolling = 0; %Whether to also do rolling analysis
     %Note: Requires MATLAB >=2021
 
+startTime = datetime('now');
 %for fly = chosenFlies %Does not work with chosenBlocks/etc specification for some reason
 for flyInd = 1:length(chosenFlies)
     fly = chosenFlies(flyInd)
@@ -115,3 +117,6 @@ for flyInd = 1:length(chosenFlies)
         processFlies(flyRecord, fly, theseChosenBlocks, theseChosenZs, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling, recordPath);
     end
 end
+endTime = datetime('now');
+MET = seconds(endTime-startTime);
+disp([char(10),'---------------------------------',char(10),'Total analysis time: ',num2str(MET/60),'m'])
