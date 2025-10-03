@@ -1,5 +1,5 @@
-%%function flyPCA2D(R, chosenFlies, outputDirectory, options)
-%{
+function flyPCA2D(R, chosenFlies, outputDirectory, options)
+%{{
 arguments
     R struct
     chosenFlies double
@@ -304,7 +304,6 @@ for fly = 1:length(R)
                    close;
 
                    % overlay plot on brain
-                   g11
                    plotBrainPCA(reshape(-coeff(:,i),imageSize),trimmedBrainImg,'on');
                    %saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '_overlay.png']));
                    saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(blockNum) '_overlay.png']));
@@ -408,4 +407,4 @@ function sign_ephys = sortOrientation(scores,ephys)
 
 end
 
-%%end
+end
