@@ -1,4 +1,5 @@
-function flyPCA2D(R, chosenFlies, outputDirectory, options)
+%%function flyPCA2D(R, chosenFlies, outputDirectory, options)
+%{
 arguments
     R struct
     chosenFlies double
@@ -6,6 +7,7 @@ arguments
     options.showModel double = 1
     options.pcaType string = {'sequence'}
 end
+%}
 
 if options.showModel
 load('six_hertz.mat','six_hertz');
@@ -173,9 +175,16 @@ for fly = 1:length(R)
         
         %%trimmedBrainImg = brainImage(2*trim*16+1:end-(2*trim*16),2*trim*16+1:end-(2*trim*16));
         if asymmTrim == 0
-            trimmedBrainImg = brainImage(2*trim*16+1:end-(2*trim*16),2*trim*16+1:end-(2*trim*16));
+            %trimmedBrainImg = brainImage(2*trim*16+1:end-(2*trim*16),2*trim*16+1:end-(2*trim*16)); %No clue why trim multiplied by 16
+            trimmedBrainImg = brainImage(trim+1:end-trim,trim+1:end-trim);
         else
-            trimmedBrainImg = brainImage(trim(1)*16+1:end-(trim(3)*16),trim(4)*16+1:end-(trim(2)*16)); %Adjusted to be four-coordinate
+            %trimmedBrainImg = brainImage(trim(1)*16+1:end-(trim(3)*16),trim(4)*16+1:end-(trim(2)*16)); %Adjusted to be four-coordinate
+            trimmedBrainImg = brainImage(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2)); %Adjusted to be four-coordinate
+        end
+        %QA
+        if isempty(trimmedBrainImg)
+            ['-# Alert: Brain image for overlay trimmed out of existence #-']
+            %Not crashworthy, but not great
         end
         
         data = struct;
@@ -295,6 +304,7 @@ for fly = 1:length(R)
                    close;
 
                    % overlay plot on brain
+                   g11
                    plotBrainPCA(reshape(-coeff(:,i),imageSize),trimmedBrainImg,'on');
                    %saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(b) '_overlay.png']));
                    saveas(gcf,fullfile(thisFlyDirectory,['c' num2str(i) '_fly_' num2str(chosenFlies(fly)) '_' num2str(blockNum) '_overlay.png']));
@@ -398,4 +408,4 @@ function sign_ephys = sortOrientation(scores,ephys)
 
 end
 
-end
+%%end
