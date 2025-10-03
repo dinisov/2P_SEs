@@ -6,7 +6,7 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
 %Mk 8 - Photodiode (initial) support
 %Mk 8.5 - Better photodiode support, minor graphs for SEs data
 %Mk 9 - Support for singular Z
-%Mk 10 - Improved sync, phase plots, etc
+%Mk 10 - Improved (inc. destructive) sync, phase plots, etc
 
 %function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
@@ -57,6 +57,8 @@ arguments
     options.shiftImTime double = 0 %Whether to shift detected imaging start time backwards/forwards and by how much (seconds)
     options.ifiRectificationMode double = 0 %Mode for IFI error rectification (0 - Legacy [< Aug 25], 1 - Experimental [Slicing of data/etc] )
     options.outputDirectory string = "C:\Users\uqmvan13\2p\2P_RESULTS_4"
+    options.pixRestrictPhasePlots double = 1 %Whether to apply pixel restriction in phase visualisation plot (Does not affect data in any way)
+    options.destructivePhaseShift double = 1 %Whether to shift (0) or destroy (1) indices when arbitrary phase shifting
 end
 functionAlity = 1;
 %}
@@ -86,7 +88,7 @@ options.postHocCorrectInferTimes = 1;
 %options.disregardNonBattery = 0;
 options.cleanPhotData = 1;
 options.doBendyTransientGraph = 1;
-options.overwriteShortcut = 1;
+options.overwriteShortcut = 0;
 options.simulationRun = 1;
 options.unsiphonedSEs = 0;
 options.doBatteryIFICheck = 0; 
@@ -94,6 +96,8 @@ options.savePhasePlots = 1;
 options.shiftImTime = 0;
 options.ifiRectificationMode = 0;
 options.outputDirectory = "C:\Users\uqmvan13\2p\2P_RESULTS_4";
+options.pixRestrictPhasePlots = 1;
+options.destructivePhaseShift = 1;
 options
 %}
 
@@ -125,6 +129,8 @@ savePhasePlots = options.savePhasePlots;
 shiftImTime = options.shiftImTime;
 ifiRectificationMode = options.ifiRectificationMode;
 outputDirectory = options.outputDirectory;
+pixRestrictPhasePlots = options.pixRestrictPhasePlots;
+destructivePhaseShift = options.destructivePhaseShift;
 
 %Quick check for important options
 if shiftImTime ~= 0
@@ -265,17 +271,22 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
     
         %syncStruct.AI.piezoData = h5read(fileName, '/AI/PiezoMonitor'); %Use in future?
         syncStruct.CI.frameData = h5read(fileName, '/CI/FrameCounter');
+        disp(['Loaded 1 of 3'])
         %syncStruct.DI.bleachComData = h5read(fileName, '/DI/BleachComplete');
         syncStruct.DI.bleachOutData = h5read(fileName, '/DI/BleachOut');
+        disp(['Loaded 2 of 3'])
         %syncStruct.DI.frameInData = h5read(fileName, '/DI/FrameIn');
         syncStruct.DI.frameOutData = h5read(fileName, '/DI/FrameOut');
+        disp(['Loaded 3 of 3'])
         %syncStruct.DI.pmtData = h5read(fileName, '/DI/PMTShutter');
         %syncStruct.Freq.freqFitData = h5read(fileName, '/Freq/FitHz');
         %syncStruct.Freq.freqHzData = h5read(fileName, '/Freq/Hz');
         %syncStruct.Global.globData = h5read(fileName, '/Global/GCtr');
         try
             syncStruct.AI.FrameSpike = h5read(fileName, '/AI/FrameSpike');
+            disp(['Loaded 1 of 2 DAQ'])
             syncStruct.AI.Iterator = h5read(fileName, '/AI/Iterator');
+            disp(['Loaded 2 of 2 DAQ'])
             hasDaqData = 1;
             disp(['-- TS DAQ data retrieved --'])
         catch
@@ -284,6 +295,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         end
         try
             syncStruct.AI.Photodiode = h5read(fileName, '/AI/Photodiode');
+            disp(['Loaded 1 of 1 photodiode'])
             hasPhotData = 1;
             disp(['-- TS Photodiode data retrieved --'])
         catch
@@ -2572,8 +2584,25 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         %Stim
                         errorbar( nanmean(temp2,1), nanstd(temp2,[],1) )
                         %}
+
+                        if pixRestrictPhasePlots 
+                            [pixelUse] = varPixStandalone(dataStimTrim,-1,1,... %Note: -1 not a true dataMode, but should be fine?
+                                'thresh',2,'pixelMinCount',12,'figTitleStr',[flyID,' - '],'doPlots',1, ...
+                                'invertRestriction',0, 'arbitraryRestrictCoords', [], 'bootlegEdgeRemoval', 1); 
+                        end
+
                         %Average stim and collection plot
-                        temp = squeeze( nanmean( dataStimTrim, [1,2] ) );
+                        %Serial Experiments
+                        %temp = squeeze( nanmean( dataStimTrim, [1,2] ) );
+                        temp = dataStimTrim;
+                        if pixRestrictPhasePlots
+                            shadowCopy = repmat( pixelUse,1,1, size(temp,3) ); %Will make huge matrix, but necessary for speed?
+                            %temp( pixelUse == 0, : ) = NaN; %Original method; Maybe slow?
+                            temp( shadowCopy == 0 ) = NaN;
+                            clear shadowCopy
+                        end
+                        %nansum(pixelUse == 1)
+                        temp = squeeze( nanmean( temp, [1,2] ) );
                         %temp2 = temp( stimSeqCorrInds );
                         temp2 = [];
                         temp2 = nan( size(collInds,1), floor(nanmax(diff(collInds(:,end)))*1.25) );
@@ -2618,6 +2647,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         end
                         %title([strrep(flyID,'_',' '),' - Coll period average transient'])
                         titleStr = ['Fly #',num2str(thisBlock.flyNum),'-',num2str(thisBlock.blockNum),' - ',strrep(flyID,'_',' '),' - Coll period average transient'];
+                        if pixRestrictPhasePlots
+                            titleStr = [titleStr,char(10),'(Pixel restricted)'];
+                        end
                         if exist('arbPhaseShift')
                             titleStr = [titleStr,char(10),'(And phase-shifted [',num2str(arbPhaseShift),'] version)'];
                             legend([{'Orig.'},{'Phase shifted'}])
@@ -2706,32 +2738,52 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         %Apply phase shift equally to all collection indices
                             %Do this immediately prior to actual collection
                         %phaseShifted = 0; %Default no (Moved above in case of unsiphoned)
+                        %bronski
                         if exist('arbPhaseShift') && ~isempty(arbPhaseShift)
-                            collInds = collInds + arbPhaseShift;
-                                %Note: Does not shift stimulus inds, by design
-                            disp(['Phase shift applied'])
-                            [temp5,~] = nanmax( collInds, [], 2);
-                            [temp6,~] = nanmin( collInds, [], 2);
-                            if any(temp5 > size(dataStimTrim,3))
-                                collInds( find(temp5 > size(dataStimTrim,3)), : ) = []; %Delete first collection period
-                                deRandomSeq( 1:blockLength ) = []; %And corresponding stim period
-                                disp(['(Trial/s ',num2str(find(temp5 > size(dataStimTrim,3))),' had to be ditched due to overrun)'])
-                            end
-                            if any(temp6 < 1)
-                                collInds( find(temp6 < 1), : ) = [];
-                                deRandomSeq( end-blockLength+1:end ) = [];
-                                disp(['(Trial/s ',num2str(find(temp6 < 1)),' had to be ditched due to underrun)'])
+                            if ~destructivePhaseShift %Non-destructive phase shift
+                                collInds = collInds + arbPhaseShift;
+                                    %Note: Does not shift stimulus inds, by design
+                                disp(['Phase shift applied'])
+                                [temp5,~] = nanmax( collInds, [], 2);
+                                [temp6,~] = nanmin( collInds, [], 2);
+                                if any(temp5 > size(dataStimTrim,3))
+                                    collInds( find(temp5 > size(dataStimTrim,3)), : ) = []; %Delete first collection period
+                                    deRandomSeq( 1:blockLength ) = []; %And corresponding stim period
+                                    disp(['(Trial/s ',num2str(find(temp5 > size(dataStimTrim,3))),' had to be ditched due to overrun)'])
+                                end
+                                if any(temp6 < 1)
+                                    collInds( find(temp6 < 1), : ) = [];
+                                    deRandomSeq( end-blockLength+1:end ) = [];
+                                    disp(['(Trial/s ',num2str(find(temp6 < 1)),' had to be ditched due to underrun)'])
+                                end
+                                disp(['Phase shift applied']) 
+                            else
+                                %Pre-QA
+                                if arbPhaseShift >= size(collInds,2)
+                                    ['## Alert: Requested destructive phase shift (',num2str(arbPhaseShift),') larger than collection inds (',size(collInds,2),') ##']
+                                    crash = yes
+                                end
+                                temp = size(collInds,2);
+                                if arbPhaseShift > 0
+                                    collInds(:,1:arbPhaseShift) = []; %DEstrOy; StArt
+                                else
+                                    collInds(:,end-arbPhaseShift:end) = []; %DEstrOy; EnD
+                                end
+                                disp(['Destructive phase shift applied (',num2str(temp),'->',num2str(size(collInds,2)),')'])    
+                                nomInter = size(collInds,2); %Redefine post destruction 
                             end
                             phaseShifted = 1;
                         end
 
                         %Now to collect frames
                         deImInds = reshape( collInds', 1, size(collInds,1)*nomInter ); %A run-on list of what volumes relate to stimulation
+                        %deImInds = reshape( collInds', 1, size(collInds,1)*size(collInds,2) ); %Switch to array size for both, because of possibility of destructive phase shifting
                             %Note that collInds holds the original, segmented version of volume positions
                         postStimData = dataStimTrim( :,:, deImInds ); %Only valid as long as dataStimTrim timing synchronous with other matrices
                             %Note: Unless imaging was 1:1 framerate with display, this will not necessarily match deRandomSeq in size
                         %QA for correct phase-size
-                        if mod( size( postStimData, 3), nomInter ) ~= 0 || mod( size( deRandomSeq, 2), blockLength ) ~= 0
+                        if ( mod( size( postStimData, 3), nomInter ) ~= 0 || mod( size( deRandomSeq, 2), blockLength ) ~= 0 ) %&& ...
+                                %( (exist('arbPhaseShift') && ~isempty(arbPhaseShift) && ~destructivePhaseShift ) || (exist('arbPhaseShift') && isempty(arbPhaseShift)) ) %Boolean unnecessary
                             ['## Alert: Potential phase loss in post-stim data and/or derived random sequence ##']
                             ['Imaging size: ',num2str(size( postStimData ))]
                             ['Random seq size: ',num2str( size(deRandomSeq,2) )]
@@ -2745,6 +2797,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         if includesBlanks && blankHandleMode == 2
                             disp(['(And ',num2str(length(blankTrialIDs)),' blank trials)'])
                         end
+
+                        %Quick report on durations
+                        temp = volTimes(1,collInds); %Time based on inferTimes(?)
+                        temp = reshape(temp, size(collInds,1), size(collInds,2));
+                        temp = temp - temp(:,1);
+                        ostensibleWindowTimes = nanmean(temp,1); %Approximate 'real' times of vols/frames in collection window
+                        disp(['Average coll. duration: ',num2str(nanmean([temp(:,end)],1)),'s'])
 
                         %Interim plot if requested
                         if doBendyTransientGraph
@@ -2782,9 +2841,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             else
                                 title(['Block design transient plot - ',strrep(flyID,'_',' '),' (Phase shifted)',' (','#',num2str(thisBlock.flyNum),'-',num2str(thisBlock.blockNum),')'])
                             end
-                            xlabel(['Volume'])
+                            %xlabel(['Volume'])
                             ylabel(['Pixel intensity (a.u.)'])
                             xlim([1,size(temp{6},2)])
+                            %Apply calculated real time to graph
+                            exAxis = get(gca,'XTick');
+                            temp{12} = linspace( ostensibleWindowTimes(1), ostensibleWindowTimes(end), numel(exAxis) ); %NOTE: THIS TIME BASED ON LINSPACE AND MAY BE INACCURATE FOR MULTIPLE REASONS
+                            exLabels = [];
+                            for i = 1:size(temp{12},2)
+                                exLabels{i} = [num2str(exAxis(i)),'v / ',num2str(round( temp{12}(i),2)),'s'];
+                            end
+                            xticklabels(exLabels)
+                            xlabel(['Volume / Time '])
 
                             subplot( 2,3, [4] )
                             imagesc( temp{10}(:,:, temp{11}(1) ) )
@@ -2895,6 +2963,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                           BLOCKS( thisFlyRowInd ).volTimes = postStimTimes; %Times
                           BLOCKS( thisFlyRowInd ).imagingInds = deImInds; %Vol #s collected
                           BLOCKS( thisFlyRowInd ).nVol = nomInter;
+                          BLOCKS( thisFlyRowInd ).windowTimes = ostensibleWindowTimes;
                           BLOCKS( thisFlyRowInd ).stimulus = 'bendy_block';
                           %BLOCKS( thisFlyRowInd ).blankBlocks = 0; %Need to add support later for blank blocks
                           BLOCKS( thisFlyRowInd ).blankBlocks = includesBlanks; %Need to add support later for blank blocks
