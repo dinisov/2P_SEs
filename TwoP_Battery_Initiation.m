@@ -8,21 +8,26 @@ close all; clear;
 % %addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\');
 addpath('.\Functions\');
 addpath('C:\Users\uqmvan13\2p\Dinis Scripts\Global functions\');
+addpath('C:\Users\uqmvan13\2p\Matt Scripts\');
 
 %%
 
-%RDMDirectory = 'I:\RFDG2021-Q4413\Andre\2p_Data\\'; %Andre
-%sequenceDirectory = 'I:\RFDG2021-Q4413\Andre';
-%dataDirectory = fullfile(RDMDirectory);
-%outputDirectory = '../2P Results Andre';
-%flyRecord = readtable("I:\RFDG2021-Q4413\Andre\2p_Record\Andre_2P_record.xlsx");
+%{
+RDMDirectory = 'I:\RFDG2021-Q4413\Andre\2p_Data\\'; %Andre
+sequenceDirectory = 'I:\RFDG2021-Q4413\Andre';
+dataDirectory = fullfile(RDMDirectory);
+outputDirectory = '../2P Results Andre';
+flyRecord = readtable("I:\RFDG2021-Q4413\Andre\2p_Record\Andre_2P_record.xlsx");
+%}
 
+%{{
 RDMDirectory = 'I:\RFDG2021-Q4413\2P_Data\'; %Matt
 sequenceDirectory = 'I:\RFDG2021-Q4413\Matt';
 dataDirectory = fullfile(RDMDirectory,'Gcamp7s_CC/');
 outputDirectory = '../2P_RESULTS_4';
 recordPath = "I:\RFDG2021-Q4413\2P Record\2P_record.xlsx";
 flyRecord = readtable(recordPath);
+%}
 
 %%
 
@@ -38,8 +43,13 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [379,380,382,383]; %[96:103]; %[85, 86, 87, 89, 91, 104, 106:110, 138:140]; %[112:118]; %[119, 120, 121, 122, 123, 124, 125, 131, 132]; %[85, 86, 87, 89, 91, 92, 93, 94]; %[85, 86, 87, 89, 91, 92, 93, 94, 104, 106:110]; %[85, 86, 87, 89, 91, 92, 93, 94]; %[83, 85, 86, 88, 89, 91, 92]; %was 37, 76 [+85, 87]
-chosenBlocks = {}; %{[1:3], [1:3], [1:3], [1:3], [1:3], [2:4], [1:3], [1:3]}; %repmat({1}, 1, size(chosenFlies, 2)); %{[2], [2], [2], [2], [2], [2], [2]}; %{[1],[1],[1],[1],[2],[1],[1],[1],[1]}; %{[2:4], [2:4], [3,4], [2:4], [3:5], [2,3], [2,3], [3,4], [2:4]}; %{[1], [1], [1], [1], [1], [1], [1], [1]}; %{[1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1]};
+%chosenFlies = [85, 86, 87, 89, 91, 104, 106, 108:110, 138:140]; %Top of Head/Andre thesis flies
+%chosenFlies = [343,344,345]; %Comparable back of head flies (SEs only; No battery)
+chosenFlies = [347,348,349]; %Misc. flies
+%[96:103]; %[85, 86, 87, 89, 91, 104, 106:110, 138:140]; %[112:118]; %[119, 120, 121, 122, 123, 124, 125, 131, 132]; %[85, 86, 87, 89, 91, 92, 93, 94]; %[85, 86, 87, 89, 91, 92, 93, 94, 104, 106:110]; %[85, 86, 87, 89, 91, 92, 93, 94]; %[83, 85, 86, 88, 89, 91, 92]; %was 37, 76 [+85, 87]
+%chosenBlocks = repmat({1}, 1, size(chosenFlies, 2)); %{[1:3], [1:3], [1:3], [1:3], [1:3], [2:4], [1:3], [1:3]}; %repmat({1}, 1, size(chosenFlies, 2)); %{[2], [2], [2], [2], [2], [2], [2]}; %{[1],[1],[1],[1],[2],[1],[1],[1],[1]}; %{[2:4], [2:4], [3,4], [2:4], [3:5], [2,3], [2,3], [3,4], [2:4]}; %{[1], [1], [1], [1], [1], [1], [1], [1]}; %{[1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1]};
+%chosenBlocks = {[1,2,3],[1,2,3],[1,3]}
+chosenBlocks = {[1],[1],[2]}
 chosenZ = {};
 
 %QA for(and from) Andre
@@ -76,7 +86,7 @@ close all
 %fake
 % [FLIES] = syncMaster_legacy( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1, 'disregardRollingDesign', 0, 'disregardBattery', 0 );
 [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
-    'disregardRollingDesign', 0, 'disregardBattery', 0, 'overwriteShortcut', 0, 'unsiphonedSEs', 0 );
+    'disregardRollingDesign', 0, 'disregardBattery', 0, 'overwriteShortcut', 0, 'unsiphonedSEs', 1 );
 
 
 %
