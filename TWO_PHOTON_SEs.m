@@ -53,8 +53,8 @@ gridSize = [64 64];
 flyList = unique(flyRecord.Fly);
 
 %chosenFlies = [354:357]; %Matt
-chosenFlies = [384:387]; %Matt
-chosenBlocks = {}; %Leave empty if not using
+chosenFlies = [394]; %Matt
+chosenBlocks = {[2]}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
 chosenZ = {}; %Same format as chosenBlocks (Specified for all)
 

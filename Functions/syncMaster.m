@@ -2697,7 +2697,31 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             disp([num2str(length(blankTrialIDs)),' blank trials found in final sequence; Siphoning outline'])
 
                             blankCollInds = collInds( blankTrialIDs, : );
-                            deImBlankInds = reshape( collInds( blankTrialIDs, : )', 1, size(collInds( blankTrialIDs, : ),1)*nomInter ); %Based on deImInds as done below, obviously
+
+                            %Phase shift, if applicable
+                            if exist('arbPhaseShift') && ~isempty(arbPhaseShift)
+                                if ~destructivePhaseShift
+                                    blankCollInds = blankCollInds + arbPhaseShift;
+                                    %QA borrowed from below
+                                    [temp5,~] = nanmax( blankCollInds, [], 2);
+                                    [temp6,~] = nanmin( blankCollInds, [], 2);
+                                    if any(temp5 > size(dataStimTrim,3))
+                                        blankCollInds( find(temp5 > size(dataStimTrim,3)), : ) = [];
+                                    end
+                                    if any(temp6 < 1)
+                                        blankCollInds( find(temp6 < 1), : ) = [];
+                                    end
+                                else
+                                    if arbPhaseShift > 0
+                                        blankCollInds(:,1:arbPhaseShift) = []; %DEstrOy; StArt
+                                    else
+                                        blankCollInds(:,end-arbPhaseShift:end) = []; %DEstrOy; EnD
+                                    end
+                                end
+                            end
+
+                            %deImBlankInds = reshape( collInds( blankTrialIDs, : )', 1, size(collInds( blankTrialIDs, : ),1)*nomInter ); %Based on deImInds as done below, obviously
+                            deImBlankInds = reshape( blankCollInds', 1, size(blankCollInds,1)*size(blankCollInds,2) ); %Based on deImInds as done below, obviously
                             %postBlankData = dataStimTrim( :,:, deImBlankInds );
                             blankStack = dataStimTrim( :,:, deImBlankInds );
                             blankInds = deImBlankInds;
@@ -2705,11 +2729,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             blankTimes = volTimes( :, deImBlankInds ); %Not checked for same size as dataStimTrim
 
                             %QA
-                            if mod( size( blankStack, 3), nomInter ) ~= 0
+                            if ~(exist('arbPhaseShift') && ~isempty(arbPhaseShift)) && mod( size( blankStack, 3), nomInter ) ~= 0
                                 ['## Alert: Potential phase loss in post-stim blank data ##']
                                 crash = yes
                             end
-
+                 
                             %Remove blanks from 'real' data
                             stimSeq( blankTrialIDs , : ) = [];
                             collInds( blankTrialIDs , : ) = [];
@@ -2719,6 +2743,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             errorbar( nanmean(temp(blankCollInds),1), nanstd(temp(blankCollInds),[],1) / sqrt(size(blankCollInds,1)) )
                             title([strrep(flyID,'_',' '),' - Blank coll period average transient'])
                             xlabel(['Time (vol)'])
+                            %{
+                            %Deprecated with inline phase shift of blanks now
                             if exist('arbPhaseShift')
                                 try %Too lazy to write properly
                                     hold on
@@ -2728,6 +2754,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                     disp([('(Failure to append phase shifted blank data to testatory plot)')])
                                 end
                             end
+                            %}
+
+                            numBlanks = length(blankTrialIDs);
+                            blankNVol = size(blankCollInds,2); 
+                            disp([num2str(numBlanks),' blank events collected, nVol of ',num2str(blankNVol)])
 
                         end
     
@@ -2792,10 +2823,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         postStimTimes = volTimes( :, deImInds );
     
                         %Report
-                        disp(['Final number of imaging events: ',num2str(size( postStimData,3 )/nomInter)]) %Add potential max # imaging events here
-                        disp(['Final number of stimulus events: ',num2str(size( deRandomSeq,2 )/blockLength)]) %Add potential total (btData) here
+                        numImaging = size( postStimData,3 )/nomInter;
+                        numStimulus = size( deRandomSeq,2 )/blockLength;
+                        disp(['Final number of imaging events: ',num2str(numImaging)]) %Add potential max # imaging events here
+                        disp(['Final number of stimulus events: ',num2str(numStimulus)]) %Add potential total (btData) here
                         if includesBlanks && blankHandleMode == 2
-                            disp(['(And ',num2str(length(blankTrialIDs)),' blank trials)'])
+                            %numBlanks = length(blankTrialIDs);
+                            disp(['(And ',num2str(numBlanks),' blank trials)'])
                         end
 
                         %Quick report on durations
@@ -2968,6 +3002,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                           %BLOCKS( thisFlyRowInd ).blankBlocks = 0; %Need to add support later for blank blocks
                           BLOCKS( thisFlyRowInd ).blankBlocks = includesBlanks; %Need to add support later for blank blocks
                           BLOCKS( thisFlyRowInd ).fauxBlockDesign = 1; %Just to keep track
+                          BLOCKS( thisFlyRowInd ).ancillary.imagingEvents = numImaging; %Might crash if situation abnormal?
+                          BLOCKS( thisFlyRowInd ).ancillary.stimulusEvents = numStimulus;
+                          if includesBlanks && blankHandleMode == 2
+                              BLOCKS( thisFlyRowInd ).ancillary.blankEvents = numBlanks; 
+                              BLOCKS( thisFlyRowInd ).nVolBlanks = blankNVol; %Note: If destructive phase shifting used, this value may differ from nVol/nomInter (This may cause issues)
+                          end
+
                           disp(['Faux-block design created'])
                           %clear postStimData deRandomSeq nomInter
                       end

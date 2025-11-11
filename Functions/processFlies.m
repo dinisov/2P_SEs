@@ -4,8 +4,12 @@ function processFlies(flyRecord, chosenFlies, chosenBlocks, chosenZ, gridSize, d
 disp([char(10),'-------------------------------------'])
 %% collate, reduce, filter and concatenate pre-aligned data
 
+%FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory,...
+%    'alternateUseCase', 0, 'reqZ', chosenZ); %Moved Matt additions to options
 FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory,...
-    'alternateUseCase', 0, 'reqZ', chosenZ); %Moved Matt additions to options
+    'alternateUseCase', 0, 'reqZ', chosenZ,...
+    'dynamicSG',1,'dynamicSGTimeWidth',10); %Moved Matt additions to options
+        %Note: Dynamic SG may not function correctly for legacy 512x512 data
 
 %% update records
 recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',0)
@@ -15,15 +19,18 @@ try
     %[FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
     %    'disregardRollingDesign', 0, 'overwriteShortcut', 1, 'unsiphonedSEs', 0, 'disregardBattery', 1);
     [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
-        'disregardRollingDesign', 0, 'overwriteShortcut', 1, 'unsiphonedSEs', 0, 'disregardBattery', 1);
+        'disregardRollingDesign', 0, 'overwriteShortcut', 0, 'unsiphonedSEs', 0, 'disregardBattery', 0,...
+        'outputDirectory',outputDirectory,...
+        'shiftImTime',0);
 catch
     ['## syncMaster error; Continuing with next fly ##']
     return %Skips rest of blocks for this fly
 end
 %And check for accidental battery inclusion
 if isfield( FLIES.BLOCKS, 'stimulus') && ~isempty( strfind( [FLIES.BLOCKS.stimulus], 'battery' ) )
-    ['## Alert: Battery blocks erroneously included in analysis ##']
-    crash = yes
+    ['## Alert: Battery blocks erroneously(?) included in analysis ##']
+    %crash = yes
+    return
 end
 
 %% analyse SEs

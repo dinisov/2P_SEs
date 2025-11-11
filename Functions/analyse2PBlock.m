@@ -50,8 +50,15 @@ function R = analyse2PBlock(block)
 
     % calculate mean of blank stack
     if ~isempty(block.blankImageStack)
-        meanBlankTransient = mean(reshape(block.blankImageStack,[size(block.blankImageStack,1)...
-            size(block.blankImageStack,2) block.nVol size(block.blankImageStack,3)/block.nVol]),4);
+        %meanBlankTransient = mean(reshape(block.blankImageStack,[size(block.blankImageStack,1)...
+        %    size(block.blankImageStack,2) block.nVol size(block.blankImageStack,3)/block.nVol]),4); %Original; Susceptible to destructive phase shifting
+        if isfield( block,'nVolBlanks' )
+            meanBlankTransient = mean(reshape(block.blankImageStack,[size(block.blankImageStack,1)...
+                size(block.blankImageStack,2) block.nVolBlanks size(block.blankImageStack,3)/block.nVolBlanks]),4); %Use blank nVol rather than stock nVol (May have flow-on effects)           
+        else
+            meanBlankTransient = mean(reshape(block.blankImageStack,[size(block.blankImageStack,1)...
+                size(block.blankImageStack,2) block.nVol size(block.blankImageStack,3)/block.nVol]),4);  %Crashes here probably cos phase shift etc
+        end
         R.meanBlankTransient = meanBlankTransient;
     else
         R.meanBlankTransient = [];
