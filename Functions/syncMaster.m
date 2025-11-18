@@ -269,6 +269,66 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         disp(['-- Loading H5 data --'])
         tic
     
+        %temp = {};
+        temp = cell(6);
+        hasDaqData = [];
+        hasPhotData = [];
+        parfor hi = 1:6
+            switch hi
+                case 1
+                    temp{hi} = h5read(fileName, '/CI/FrameCounter');
+                    disp(['Loaded 1 of 3'])
+                case 2
+                    temp{hi} = h5read(fileName, '/DI/BleachOut');
+                    disp(['Loaded 2 of 3'])
+                case 3
+                    temp{hi} = h5read(fileName, '/DI/FrameOut');
+                    disp(['Loaded 3 of 3'])
+                case 4
+                    try
+                        temp{hi} = h5read(fileName, '/AI/FrameSpike');
+                        disp(['Loaded 1 of 2 DAQ'])
+                    end
+                case 5
+                    try
+                        temp{hi} = h5read(fileName, '/AI/Iterator');
+                        disp(['Loaded 2 of 2 DAQ'])
+                    end
+                case 6
+                    try
+                        temp{hi} = h5read(fileName, '/AI/Photodiode');
+                        disp(['Loaded 1 of 1 photodiode'])
+                    end
+            end
+        end
+        poolobj = gcp('nocreate');
+        delete(poolobj);
+
+        syncStruct.CI.frameData = temp{1};
+        syncStruct.DI.bleachOutData = temp{2};
+        syncStruct.DI.frameOutData = temp{3};
+        if ~isempty(temp{4}) && ~isempty(temp{5})
+            syncStruct.AI.FrameSpike = temp{4};
+            syncStruct.AI.Iterator = temp{5};
+            disp(['-- TS DAQ data retrieved --'])
+            hasDaqData = 1;
+        else
+            ['-# Could not retrieve TS DAQ data #-']
+            hasDaqData = 0;
+        end
+        if ~isempty(temp{6})
+            syncStruct.AI.Photodiode = temp{6};
+            disp(['-- TS Photodiode data retrieved --'])
+            hasPhotData = 1;
+        else
+            ['-# Could not retrieve photodiode data #-']
+            hasPhotData = 0;
+        end
+        clear temp
+
+
+        %Old, non-parallel system
+        %{
         %syncStruct.AI.piezoData = h5read(fileName, '/AI/PiezoMonitor'); %Use in future?
         syncStruct.CI.frameData = h5read(fileName, '/CI/FrameCounter');
         disp(['Loaded 1 of 3'])
@@ -302,6 +362,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             ['-# Could not retrieve photodiode data #-']
             hasPhotData = 0;
         end
+        %}
     
         toc
         %plastic
@@ -1889,10 +1950,14 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     end
                 end
                 if isShortcutting ~= 1
-                ['Imaging started ', num2str( inferTimes( frameOnsetIndices(1) ) ),'s after TS start']
-                ['Imaging ended apparently after ', num2str( inferTimes( frameOnsetIndices(end) ) / 60 ),'m']
-                ['PTB self-reported ended after ',num2str(btData(end,6)/60),'m']
-                ['(TS ended after ', num2str( inferTimes( end ) / 60 ),'m)']
+                    disp(['Imaging started ', num2str( inferTimes( frameOnsetIndices(1) ) ),'s after TS start'])
+                    disp(['Imaging ended apparently after ', num2str( inferTimes( frameOnsetIndices(end) ) / 60 ),'m'])
+                    disp(['PTB self-reported ended after ',num2str(btData(end,6)/60),'m'])
+                    disp(['(TS ended after ', num2str( inferTimes( end ) / 60 ),'m)'])
+                    if inferTimes( frameOnsetIndices(end) ) < btData(end,6)
+                        [char(10),'## Informative: PTB ran ',num2str((btData(end,6)) - (inferTimes( frameOnsetIndices(end) ))),'s longer than imaging ##']
+                            %Theoretically can just post-hoc trim stimulus data, but probably not worth the effort for the intermittent times this occurs
+                    end
                 end
                 crash = yes
             end
