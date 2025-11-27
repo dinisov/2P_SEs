@@ -14,13 +14,15 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 finalSize = [128 128];
 
+showDebugInfo = 0; %Whether to show verbose info about image size/etc
+
 %%
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
 % chosenBlocks = {[1 3],1,2,[1 2],2,1,3,2,2,2,[2 3]};
 
-chosenFlies = [357];
-chosenBlocks = {[1]}; % leave empty if reducing all blocks for one fly
+chosenFlies = [408];
+chosenBlocks = {[3]}; % leave empty if reducing all blocks for one fly
     %MUST BE IN FORMAT {[blocks]}
 colourSkip = [0]; %Which colour/s to not skip (1-Green, 2-Red)
     % 0 OR [1,2] - Do all, [1] - Do green, [2] - Do red
@@ -35,6 +37,9 @@ for fly = 1:length(chosenFlies)
     
     % the blocks corresponding to this fly
     thisFlyBlocks = blocks(blocks.Fly == chosenFlies(fly),:);
+    if showDebugInfo
+        thisFlyBlocks
+    end
 
     if ~isempty(chosenBlocks) && ~isempty(chosenBlocks{fly})
         thisFlyBlocks = thisFlyBlocks(ismember(thisFlyBlocks.Block,chosenBlocks{fly}),:);
@@ -49,6 +54,9 @@ for fly = 1:length(chosenFlies)
     for b = chosenBlocks{fly}
         %currentBlock = thisFlyBlocks(b,:);
         currentBlock = thisFlyBlocks( find( thisFlyBlocks.Block == b ) ,:); %New
+        if showDebugInfo
+            currentBlock
+        end
         
         %currentBlock
         
@@ -68,6 +76,9 @@ for fly = 1:length(chosenFlies)
             crash = yes
             %Need to confirm order of dims
         end
+        if showDebugInfo
+            finalSizeActual
+        end
         
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate]; %Borrowed from pre_process
 
@@ -75,11 +86,16 @@ for fly = 1:length(chosenFlies)
 
         %disp(currentFlyDirectory);
         disp(['Fly: ',flyID]);
+        if showDebugInfo
+            currentRDMDirectory
+        end
+        
         
         codeStartTime = posixtime(datetime('now'));
         if ismember(colourSkip,0) || ismember(colourSkip,1)
+            disp('Now processing green channel')
             %loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSize, 1); %currentBlock corresponds to currentFly
-            loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSizeActual, 1, 'green'); %currentBlock corresponds to currentFly
+            loadReduceSave(currentRDMDirectory, 'green_channel.raw', currentBlock, finalSizeActual, 1, 'green',showDebugInfo); %currentBlock corresponds to currentFly
         else
             disp(['-# Skipping green reduction by request #-'])
         end
@@ -88,7 +104,8 @@ for fly = 1:length(chosenFlies)
             if ~isempty( temp )
                 if ismember(colourSkip,0) || ismember(colourSkip,2)
                     disp(['Reducing and saving red channel data as well'])
-                    loadReduceSave(currentRDMDirectory, 'red_channel.raw', currentBlock, finalSizeActual, 1, 'red');      
+                    disp('Now processing red channel')
+                    loadReduceSave(currentRDMDirectory, 'red_channel.raw', currentBlock, finalSizeActual, 1, 'red',showDebugInfo);      
                 else
                     disp(['-# Skipping red reduction by request #-'])
                 end
@@ -104,9 +121,12 @@ for fly = 1:length(chosenFlies)
     end
 end
 
-function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments, colour)
+function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments, colour, showDebugInfo)
     if ~exist('colour', 'var') || ( isempty(colour) )
         colour = 'green'; %Default
+    end
+    if ~exist('showDebugInfo', 'var') || ( isempty(showDebugInfo) )
+        showDebugInfo = 0; %Default
     end
         
     %memUsed = nan(7,1);
@@ -123,6 +143,10 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments, colour)
 
     imageSize = [fly.pixelX fly.pixelY];
     nFrames = fly.realFrames;
+    if showDebugInfo
+        imageSize
+        nFrames
+    end
 
     if fragments == 1
         %Original
@@ -145,6 +169,10 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments, colour)
         %size(data)
         %rearrange
         %data = permute(reshape(data, [imageSize nFrames]),[2 1 3]);
+        if showDebugInfo
+            ['Raw data size: ',num2str(size(data))]
+            ['Requested new dims: ',num2str([imageSize nFrames])]
+        end
         try
             data = permute(reshape(data, [imageSize nFrames]),[2 1 3]);
         catch ME
@@ -152,6 +180,9 @@ function loadReduceSave(RDMDirectory, file, fly, finalSize,fragments, colour)
                 ['## Alert: Error in resizing raw data ##']
                 ['Raw data size: ',num2str(size(data))]
                 ['Requested new dims: ',num2str([imageSize nFrames])]
+                if ( size(data,1) ==  imageSize(1)*imageSize(2)*nFrames*0.5 ) || ( size(data,1) ==  imageSize(1)*imageSize(2)*nFrames*2 )
+                    ['Raw data exactly 1/2 or 2* size of new dims; Is nChannels set correctly?']
+                end
                 crash = yes
             else
                 ['## Unexpected error in resizing ##']

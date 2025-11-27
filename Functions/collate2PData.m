@@ -70,6 +70,11 @@ for fly = 1:length(chosenFlies)
 
         disp(flyID)
         currentBlock
+        %QA
+        if isempty(currentBlock)
+            ['-# Alert: Fly/Block (',num2str(fly),'/',num2str(b),') combination not apparently existing #-']
+            crash = yes
+        end
 
         BLOCKS(b).flyNum = chosenFlies(fly);
         BLOCKS(b).flyID = flyID;
@@ -175,8 +180,10 @@ for fly = 1:length(chosenFlies)
         
         %Get behavioural data (if requested)
         if separateByState == 1
-            if exist([currentDirectory,filesep,'behavSequence.mat']) ~= 0
-                load([currentDirectory,filesep,'behavSequence.mat']);
+            %if exist([currentDirectory,filesep,'behavSequence.mat']) ~= 0
+            if exist(fullfile(currentDirectory,filesep,'behavSequence.mat')) ~= 0
+                %load([currentDirectory,filesep,'behavSequence.mat']);
+                load(fullfile(currentDirectory,filesep,'behavSequence.mat'));
                 if isfield(savStruct,'acInac')
                     behavSequence = savStruct.acInac.thisInacBinaryInterp';
                     disp(['-- Behavioural data loaded --'])

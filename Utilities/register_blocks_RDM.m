@@ -16,10 +16,10 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 imageSize = [-1 -1]; % <value> -> Requested size, -1 -> Automatically derive size from loaded data 
 
-chosenFlies = [324];
+chosenFlies = [404,405,406];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = {[3]};
+chosenBlocks = {[1,2,3],[1,2,3],[1,2,3,4,5]};
     %FORMAT MUST BE {[<block/s>]} 
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
@@ -167,7 +167,7 @@ function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMod
     
         disp(['Averaged image dimensions: ', num2str( size(avg_z_colour) )])
 
-        if overrideAlign == 1 || ( isempty(overrideAlign) && block.Align )
+        if ( ~isempty( overrideAlign ) && overrideAlign == 1 ) || ( isempty(overrideAlign) && block.Align )
 
             % z-average aligned
             avg_z_colour_aligned = zeros(size(avg_z_colour)); %Replaces "avg_z_green_aligned"

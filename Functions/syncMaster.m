@@ -11,6 +11,11 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
 %function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
 
+%Note: state separation implicitly handled (by in fact, not being handled at all)
+
+%To add:
+%   - Bidirectional destructive phase adjustment (i.e. End removal as well as start removal)
+
 %To do: Check support for follow-on analysis of true bendy rolling data
 
 %           - Integrate andre branch timing mechanics (Use FrameData together with inferTimes?)

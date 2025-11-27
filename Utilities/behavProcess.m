@@ -3,21 +3,25 @@
 close all
 clear
 
-vidDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\Matt\Videos'; %Note lack of terminal backslash
+%vidDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\Matt\Videos'; %Note lack of terminal backslash
+vidDirectory = 'I:\RFDG2021-Q4413\Andre\VIdeos';
     %Based on vidDirectory
     
-blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
+%blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
+blocks = readtable("I:\RFDG2021-Q4413\Andre\2p_Record\Andre_2P_record");
 
-chosenFlies = [222:224];
+chosenFlies = [85,86,87,88,89,90,91,92,138,139,140];
     %Note: Corresponding vids/CSVs must be terminated with "mov" and start with "fly<number>" where <number> is the fly number on the day 
 
 %%
 
-syncWithSequence = 1; %Whether to synchronise this data with available sequence data
+syncWithSequence = 1; %Whether to synchronise this data with available sequence data (Note: Currently available only for Raspberry Pi LED experiments)
 if syncWithSequence == 1
-    mainDirectory = '\\uq.edu.au\uq-inst-gateway1\\RFDG2021-Q4413\2P_Data\Gcamp7s_CC';
+    %mainDirectory = '\\uq.edu.au\uq-inst-gateway1\\RFDG2021-Q4413\2P_Data\Gcamp7s_CC';
+    mainDirectory = 'I:\RFDG2021-Q4413\Andre\2p_Data';
         %Formerly dataDirectory
-    sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\Matt\Data_LEDs';
+    %sequenceDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\Matt\Data_LEDs';
+    sequenceDirectory = 'I:\RFDG2021-Q4413\Andre\Data_LEDs';
     durationMethod = 2; %Whether to use 1 - Experiment frames/flyback/etc parameters (Least accurate), 2 - tif file DateModified (Better accurate),
                                         %or 3 - RaspberryPi theoretical experiment calculations (Superior accuracy)[Not implemented yet], to calculate recording duration
 end
@@ -141,12 +145,15 @@ for fly = 1:length(chosenFlies)
         figure
         subplot(3,1,1)
         plot(acUpper,'k')
+        ylim([-0.5,1.5])
         title(['Original activity binary'])
         subplot(3,1,2)
         plot(acUpperProc, 'r')
+        ylim([-0.5,1.5])
         title(['Processed activity binary'])
         subplot(3,1,3)
         plot( inacBinaryProc ,'b')
+        ylim([-0.5,1.5])
         title(['Final sleep binary'])
         set(gcf,'Name',['Fly #',num2str(chosenFlies(fly)),' - ',currentDate,' - fly ',num2str(flyOnDay),' behav binaries'])
         
@@ -268,8 +275,42 @@ for fly = 1:length(chosenFlies)
             %    BLOCKS(b).randomSequence = randomSequence.randomSequence-1;
             %else
             %BLOCKS(b).randomSequence = csvread(fullfile(sequenceDirectory,'Data_LEDs',[flyID '.csv'])).';
-            randomSequence = csvread(fullfile(sequenceDirectory,[flyID '.csv'])).';
+            if currentBlock.BlockLength == -1 || contains(currentBlock.displayType,'bendy')
+                %Load randomSequence from MAT files
+                matDirectory = fullfile(mainDirectory,currentDate,'MAT');
+                %Read BT to get last element of randomSequence (More necessary for SEs than batter)
+                expName = flyID;
+                expNameMAT = strrep( expName, 'fly', 'f' );
+                expNameMAT = strrep( expNameMAT, 'exp', 'b' );
+                expNameMAT = strsplit(expNameMAT,'_');
+                MATDate = datestr( datetime(expNameMAT{3},'InputFormat','ddMMMyy'), 'ddmmyy' );
+                targetBTName = strcat( MATDate, '_', expNameMAT{1}, '_', expNameMAT{2},'_btData' );
+                %btFile =dir( strcat(dataFolder, filesep, '**/', targetBTName, '.csv') );
+                btFile = dir( [fullfile(matDirectory,targetBTName),'.csv'] );
+                %QA
+                if isempty( btFile )
+                    ['## BT data not found! ##']
+                    crash = yes
+                end
+                btData = csvread( [btFile.folder,filesep,btFile.name] );
+                %Values correspond to (As of v8.1):
+                % 1 - BTtime, 2 - pMarkTime, 3 - dWLE, 4 - btHash, 5 - i, 6 - currentTime, 7 - repCount, 8 - randomSequence(i), 9 - onOff
+                %Actually load MAT data
+                targetMATName = strcat( MATDate, '_', expNameMAT{1}, '_', expNameMAT{2},'_MAT' );
+                load( fullfile(matDirectory,targetMATName) ); %Loads as matSave
+                randomSequence = matSave.randomSequence;
+                %Find last element actually displayed
+                lastBT = btData(end,5);
+                randomSequence = randomSequence(1:lastBT);
+            elseif currentBlock.BlockLength ~= -1
+                randomSequence = csvread(fullfile(sequenceDirectory,[flyID '.csv'])).';
+            else
+                ['## Unknown sequence data case ##']
+                crash = yes
+            end
             %end
+            disp(['Determined randomSequence length: ',num2str(size(randomSequence,2))])
+            disp(['randomSequence elements: ',num2str(unique(randomSequence))])
             
             nBadTrials = 0;
             nBadBlankTrials = 0;

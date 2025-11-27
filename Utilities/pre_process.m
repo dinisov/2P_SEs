@@ -16,9 +16,9 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record.xlsx");
 % blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
-chosenFlies = [360,361];
+chosenFlies = [407,408];
 
-chosenBlocks = {[2],[1,2,3]};
+chosenBlocks = {[1,2,3,4,5],[1,2,3]};
 
 for fly = 1:length(chosenFlies)
     
