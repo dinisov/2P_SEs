@@ -39,8 +39,8 @@ fullFieldNorm = 1; % option to compare all ROIs using a consistent F0 (from the 
 baselineCorrect = 1; %option to shift baseline's by mean for each condition (only used in cross-fly analyses)
 doSmooth = 1; %choice to smooth data (stored in allIExtras)
 
-behavSep = 0; % choice to split analysis by behavioural state
-useBT = 1; % option to use behaviour generated form BTData, if off will use pixelSubtraction (may be changed eventually if choice made in an upstream script)
+behavSep = 1; % choice to split analysis by behavioural state
+useBT = 0; % option to use behaviour generated from BTData, if off will use pixelSubtraction (may be changed eventually if choice made in an upstream script)
 behavStates = [0,1]; %list of states to probe for, -1 indicates no sep (might become dynamic eventually, or even string-based, but just # that relates to behavSequence for now)
 stateNames = dictionary(-1, 'no behaviour separation', 0, 'active', 1,'inactive'); %will likely change, but I'm picturing a dynamic stateName dictionary which changes based on behaviour File info
 
@@ -2067,6 +2067,14 @@ for currentState = behavStates
         end
 
         % woopah
+        
+        %Check if there are actually multiple blocks/flies to do
+        %%if numel(chosenFlies) < 2 || size(batStruct.blocks,2) < 2 %NOTE: ACCURACY OF SECOND SIZE CALL NOT CHECKED
+        %%    ['-# Only one fly OR only one block; Halting #-']
+        %%    return
+        %%end
+
+
         %% Cross fly Analysis
         blockNums = [batStruct.blocks.block];
         if conditionChoice(1)

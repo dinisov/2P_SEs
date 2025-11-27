@@ -12,7 +12,7 @@ addpath('C:\Users\uqmvan13\2p\Matt Scripts\');
 
 %%
 
-%{
+%{{
 RDMDirectory = 'I:\RFDG2021-Q4413\Andre\2p_Data\\'; %Andre
 sequenceDirectory = 'I:\RFDG2021-Q4413\Andre';
 dataDirectory = fullfile(RDMDirectory);
@@ -20,7 +20,7 @@ outputDirectory = '../2P Results Andre';
 flyRecord = readtable("I:\RFDG2021-Q4413\Andre\2p_Record\Andre_2P_record.xlsx");
 %}
 
-%{{
+%{
 RDMDirectory = 'I:\RFDG2021-Q4413\2P_Data\'; %Matt
 sequenceDirectory = 'I:\RFDG2021-Q4413\Matt';
 dataDirectory = fullfile(RDMDirectory,'Gcamp7s_CC/');
@@ -45,11 +45,15 @@ flyList = unique(flyRecord.Fly);
 
 %chosenFlies = [85, 86, 87, 89, 91, 104, 106, 108:110, 138:140]; %Top of Head/Andre thesis flies
 %chosenFlies = [343,344,345]; %Comparable back of head flies (SEs only; No battery)
-chosenFlies = [347,348,349]; %Misc. flies
+chosenFlies = [85,86,87,88,89,92,138,139,140]; %Misc. flies w/ battery only; "Havana"
 %[96:103]; %[85, 86, 87, 89, 91, 104, 106:110, 138:140]; %[112:118]; %[119, 120, 121, 122, 123, 124, 125, 131, 132]; %[85, 86, 87, 89, 91, 92, 93, 94]; %[85, 86, 87, 89, 91, 92, 93, 94, 104, 106:110]; %[85, 86, 87, 89, 91, 92, 93, 94]; %[83, 85, 86, 88, 89, 91, 92]; %was 37, 76 [+85, 87]
+
 %chosenBlocks = repmat({1}, 1, size(chosenFlies, 2)); %{[1:3], [1:3], [1:3], [1:3], [1:3], [2:4], [1:3], [1:3]}; %repmat({1}, 1, size(chosenFlies, 2)); %{[2], [2], [2], [2], [2], [2], [2]}; %{[1],[1],[1],[1],[2],[1],[1],[1],[1]}; %{[2:4], [2:4], [3,4], [2:4], [3:5], [2,3], [2,3], [3,4], [2:4]}; %{[1], [1], [1], [1], [1], [1], [1], [1]}; %{[1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1]};
 %chosenBlocks = {[1,2,3],[1,2,3],[1,3]}
-chosenBlocks = {[1],[1],[2]}
+%chosenBlocks = {}
+chosenBlocks = {[1:5], [1,2], [1], [2:5], [1:4], [1:2], [1:2], [1:2], [1]}; %Technically unnecessary, since battery only; "Havana"
+%               85       86    87   88     89     92     138    139    140      "Havana"
+
 chosenZ = {};
 
 %QA for(and from) Andre
@@ -62,7 +66,7 @@ flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
 groupedBlocks = 0;
 %analysisToggle = [1 0 0 0 0 0 1 0];
-separateByState = 0; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
+separateByState = 1; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
 doRolling = 0;
 
 %%
@@ -78,7 +82,7 @@ disp([char(10),'-------------------------------------'])
 %FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, groupedBlocks, separateByState,doRolling, 0);
 %FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, 'alternateUseCase', 0, 'reqZ', chosenZ);
 FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory,...
-    'alternateUseCase', 0, 'reqZ', chosenZ,...
+    'alternateUseCase', 0, 'reqZ', chosenZ, 'separateByState',separateByState,...
     'dynamicSG',1,'dynamicSGTimeWidth',10);
 
 close all
