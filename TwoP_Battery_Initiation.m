@@ -45,6 +45,7 @@ flyList = unique(flyRecord.Fly);
 
 %chosenFlies = [85, 86, 87, 89, 91, 104, 106, 108:110, 138:140]; %Top of Head/Andre thesis flies
 %chosenFlies = [343,344,345]; %Comparable back of head flies (SEs only; No battery)
+<<<<<<< HEAD
 %chosenFlies = [86,87,88,89,92,85,138,139,140]; %Misc. flies w/ battery only, 89 placed middle for debug; "Havana"
 %chosenFlies = [88,89,85]; %Misc. flies w/ battery only; "Havana-supercutdown"
 %[96:103]; %[85, 86, 87, 89, 91, 104, 106:110, 138:140]; %[112:118]; %[119, 120, 121, 122, 123, 124, 125, 131, 132]; %[85, 86, 87, 89, 91, 92, 93, 94]; %[85, 86, 87, 89, 91, 92, 93, 94, 104, 106:110]; %[85, 86, 87, 89, 91, 92, 93, 94]; %[83, 85, 86, 88, 89, 91, 92]; %was 37, 76 [+85, 87]
@@ -53,10 +54,15 @@ flyList = unique(flyRecord.Fly);
 %chosenFlies = [390, 391, 392, 397, 398, 400]; %Matt BoH; "Korhal"
 %chosenFlies = [318, 319, 320, 321, 322, 323]; %Matt misc. 
 chosenFlies = [192]; %Andre misc
+=======
+chosenFlies = [85,86,87,88,89,92,138,139,140]; %Misc. flies w/ battery only; "Havana"
+%[96:103]; %[85, 86, 87, 89, 91, 104, 106:110, 138:140]; %[112:118]; %[119, 120, 121, 122, 123, 124, 125, 131, 132]; %[85, 86, 87, 89, 91, 92, 93, 94]; %[85, 86, 87, 89, 91, 92, 93, 94, 104, 106:110]; %[85, 86, 87, 89, 91, 92, 93, 94]; %[83, 85, 86, 88, 89, 91, 92]; %was 37, 76 [+85, 87]
+>>>>>>> ed15ff53ef9fdbe7bd105c4d9de96cdc4dd96f49
 
 %chosenBlocks = repmat({1}, 1, size(chosenFlies, 2)); %{[1:3], [1:3], [1:3], [1:3], [1:3], [2:4], [1:3], [1:3]}; %repmat({1}, 1, size(chosenFlies, 2)); %{[2], [2], [2], [2], [2], [2], [2]}; %{[1],[1],[1],[1],[2],[1],[1],[1],[1]}; %{[2:4], [2:4], [3,4], [2:4], [3:5], [2,3], [2,3], [3,4], [2:4]}; %{[1], [1], [1], [1], [1], [1], [1], [1]}; %{[1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1], [1]};
 %chosenBlocks = {[1,2,3],[1,2,3],[1,3]}
 %chosenBlocks = {}
+<<<<<<< HEAD
 %chosenBlocks = {[2], [1], [3:4], [1:3], [1],[1:5], [1:2], [1:2], [1]}; %Technically unnecessary, since battery only; "Havana"
 %               86   87   88     89     92    85    138    139    140      "Havana"
 %chosenBlocks = {[3],[1],[1]}; %Havana-supercutdown
@@ -65,6 +71,10 @@ chosenFlies = [192]; %Andre misc
 %chosenBlocks = {[1],[1],[1],[1],[1],[1]}; %"Korhal"
 %chosenBlocks = {[1],[1],[1],[1],[1],[1]}; %Matt misc.
 chosenBlocks = {[3]};
+=======
+chosenBlocks = {[1:5], [1,2], [1], [2:5], [1:4], [1:2], [1:2], [1:2], [1]}; %Technically unnecessary, since battery only; "Havana"
+%               85       86    87   88     89     92     138    139    140      "Havana"
+>>>>>>> ed15ff53ef9fdbe7bd105c4d9de96cdc4dd96f49
 
 chosenZ = {};
 
@@ -78,7 +88,11 @@ flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
 groupedBlocks = 0;
 %analysisToggle = [1 0 0 0 0 0 1 0];
+<<<<<<< HEAD
 separateByState = 0; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
+=======
+separateByState = 1; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
+>>>>>>> ed15ff53ef9fdbe7bd105c4d9de96cdc4dd96f49
 doRolling = 0;
 
 %%
