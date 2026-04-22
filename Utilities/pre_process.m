@@ -2,11 +2,11 @@ close all;
 
 if ~exist('IJM','var')
     clear;
-    addpath('D:\group_vanswinderen\Dinis\Fiji.app\scripts');
+    addpath('C:\Users\uqmvan13\2p\Fiji.app\scripts');
     ImageJ;
 end
 
-maxFrames = 600000; %Used by fiji
+maxFrames = 9000000; %Used by fiji
 
 mainDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\';
 
@@ -16,9 +16,9 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record.xlsx");
 % blocks = blocks(~logical(blocks.Exclude),:);
 
 %%
-chosenFlies = [275,276,277,278];
+chosenFlies = [407,408];
 
-chosenBlocks = {[1,2,3],[1,2,3],[1,2],[1,2,5,6]};
+chosenBlocks = {[1,2,3,4,5],[1,2,3]};
 
 for fly = 1:length(chosenFlies)
     
@@ -31,12 +31,18 @@ for fly = 1:length(chosenFlies)
     
         currentDate = char(datetime(thisFlyBlocks.Date(1),'Format','dMMMyy'));
 
-        nBlocks = height(thisFlyBlocks);
+        %nBlocks = height(thisFlyBlocks);
 
         for b = chosenBlocks{fly}
 
             %currentBlock = thisFlyBlocks(b,:); %Old
             currentBlock = thisFlyBlocks( find( thisFlyBlocks.Block == b ) ,:); %New
+
+            %Check for probably fly record error
+            if isempty(currentBlock)
+                ['## Alert: No block/s detected for block=',num2str(b),', fly #',num2str(chosenFlies(fly)),' ##']
+                crash = yes
+            end
             
             flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
             currentDirectory = fullfile(mainDirectory,currentDate,flyID);
@@ -51,6 +57,10 @@ for fly = 1:length(chosenFlies)
            if totalFrames > maxFrames
             ['## Alert: Frames to load < apparent total # of frames ##']
             crash = yes
+           end
+           if currentBlock.nChannels == 99
+               ['## Alert: Likely error in nChannels specification ##']
+               crash = yes
            end
     
            if ~exist([currentDirectory '/green_channel.raw'],'file')

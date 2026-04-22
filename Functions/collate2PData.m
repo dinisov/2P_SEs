@@ -1,9 +1,49 @@
-function FLIES = collate2PData(flyRecord, chosenFlies, gridSize, dataDirectory, sequenceDirectory, ~, separateByState, doRolling)
+function FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory, options) %New
 %collate2PData Summary of this function goes here
 %   Detailed explanation goes here
 
+%{{
+%Function form
+arguments
+    flyRecord table
+    chosenFlies double
+    chosenBlocks cell
+    gridSize double
+    dataDirectory string
+    sequenceDirectory string
+    options.separateByState double = 0
+    options.doRolling double = 0
+    options.alternateUseCase double = [] %Whether to act normally (empty), use averaged data (0), use unaligned data (1), or use 1 plane of 3D data (3),
+    options.reqZ = {} %When alternateUseCase 3 (Single Z-plane), specifies which Z plane/s to use (Note that flyback frames are included here, so be careful)
+    options.SGThresh double = 55 %Original value default, not used if dynamicSG requested
+    options.dynamicSG double = 0 %Whether to use empirically calculated filter width values rather than default of 55 (aka ~10s at 5vols/s)
+    options.dynamicSGEqn double = [0.0430,-9.6875,649] %2nd order polynomial that converts frame size (e.g. 128) -> approx. FPS, thus following the structure of Y = ax^2 + bx + c; Only used if dynamicSQ requested
+    options.dynamicSGTimeWidth double = 10 %Time in approx. seconds that dynamic SG width should be (Above eqn used to calculate frame size -> ~framerate)
+end
+%}
+%{
+%Non-function form
+options.separateByState = 0;
+options.doRolling = 0;
+options.alternateUseCase = 3;
+options.reqZ = chosenZ;
+%}
+
+
 % structure with necessary info
 FLIES = struct;
+
+%Arguments
+separateByState = options.separateByState;
+doRolling = options.doRolling;
+alternateUseCase = options.alternateUseCase;
+reqZ = options.reqZ;
+
+%Pre-check for some circumstances
+if alternateUseCase == 3 && isempty(reqZ)
+    ['## Alert: Singular Z requested, but Z planes of interest apparently empty! ##']
+    crash = yes
+end
 
 for fly = 1:length(chosenFlies)
     
@@ -14,15 +54,27 @@ for fly = 1:length(chosenFlies)
     
     currentDate = char(datetime(thisFlyBlocks.Date(1),'Format','dMMMyy'));
     
-    blockNumbers = thisFlyBlocks.Block.';
+    if isempty(chosenBlocks)
+        blockNumbers = thisFlyBlocks.Block.';
+    else
+        blockNumbers = chosenBlocks{fly};
+        disp(['Using manual block specification (',num2str(blockNumbers),' for this fly)'])
+    end
     
     for b = blockNumbers
 
-        currentBlock = thisFlyBlocks(blockNumbers==b,:);
+        %currentBlock = thisFlyBlocks(blockNumbers==b,:)
+        currentBlock = thisFlyBlocks(thisFlyBlocks.Block==b,:); %Note: This modification may have unintended consequences
         flyID = ['fly' num2str(currentBlock.FlyOnDay) '_exp' num2str(currentBlock.Block) '_' currentDate];
         currentDirectory = fullfile(dataDirectory,currentDate,flyID);
 
-        disp(flyID);
+        disp(flyID)
+        currentBlock
+        %QA
+        if isempty(currentBlock)
+            ['-# Alert: Fly/Block (',num2str(fly),'/',num2str(b),') combination not apparently existing #-']
+            crash = yes
+        end
 
         BLOCKS(b).flyNum = chosenFlies(fly);
         BLOCKS(b).flyID = flyID;
@@ -37,6 +89,15 @@ for fly = 1:length(chosenFlies)
                 disp(['NaN/empty trim coords'])
             end
         end
+        %Append phase shift if applicable
+        if any( strcmp('ArbSyncVolShift',currentBlock.Properties.VariableNames) ) %Check if field existing
+            if ~isnan(currentBlock.ArbSyncVolShift)
+                BLOCKS(b).ArbSyncVolShift = currentBlock.ArbSyncVolShift;
+                disp(['Arbitrary phase shift specified (',num2str(BLOCKS(b).ArbSyncVolShift),' vols)'])
+            else
+                disp(['No phase shift specified'])
+            end
+        end
         
         %Two rolling flags
         if doRolling == 1
@@ -49,10 +110,33 @@ for fly = 1:length(chosenFlies)
         else
             BLOCKS(b).isRolling = 0;
         end
+
+        %Singular Z if applicable
+        if ~isempty(reqZ) 
+            if iscell(reqZ)
+                thisReqZ = reqZ{fly}( find( blockNumbers == b ) ); %Note: Will behave strange if same block called twice
+                disp(['Using individual value for singular Z for this fly-block (Z=',num2str(thisReqZ),')'])
+            elseif numel(reqZ) == 1 && ~iscell(reqZ)
+                thisReqZ = reqZ;
+                disp(['Using one value for singular Z across all flies/blocks (Z=',num2str(thisReqZ),')'])
+            end
+        end
         
         % load 128x128 data
         disp('Loading green channel');
-        tic; load(fullfile(currentDirectory,'avg_z_green_aligned')); toc;
+        %if isempty(useUnaligned) || useUnaligned == 0
+        if isempty(alternateUseCase) || alternateUseCase == 0
+            tic; load(fullfile(currentDirectory,'avg_z_green_aligned')); toc;
+        elseif alternateUseCase == 1
+            disp(['-# Using unaligned data for analysis #-'])
+            tic; load(fullfile(currentDirectory,'avg_z_green_unaligned')); toc;
+        elseif alternateUseCase == 3
+            disp(['-# Using single Z-plane data for analysis #-'])
+            tic; load(fullfile(currentDirectory,'green_channel_aligned')); toc;
+        else
+            ['Unspecified alternate use case']
+            crash = yes
+        end
 
 %         disp('Loading red channel');
 %         tic; load(fullfile(currentDirectory,'avg_z_red_aligned')); toc;
@@ -66,8 +150,19 @@ for fly = 1:length(chosenFlies)
             BLOCKS(b).greenChannel = imresize3(rData,[gridSize size(rData,3)],'box');
             clear('rData');
         else
-            BLOCKS(b).greenChannel = imresize3(avg_z_green_aligned,[gridSize size(avg_z_green_aligned,3)],'box');
-%         BLOCKS(b).redChannel = imresize3(avg_z_red_aligned,[gridSize size(avg_z_red_aligned,3)],'box');
+            %if isempty(useUnaligned) || useUnaligned == 0
+            if isempty(alternateUseCase) || alternateUseCase == 0 %Use aligned average
+                BLOCKS(b).greenChannel = imresize3(avg_z_green_aligned,[gridSize size(avg_z_green_aligned,3)],'box');
+            elseif alternateUseCase == 1 %Use unaligned
+                BLOCKS(b).greenChannel = imresize3(avg_z_green_unaligned,[gridSize size(avg_z_green_unaligned,3)],'box');
+            elseif alternateUseCase == 3 %Use 1 plane of aligned
+                BLOCKS(b).greenChannel = imresize3( squeeze(green_channel_aligned(:,:,thisReqZ,:)),[gridSize size(green_channel_aligned,4)],'box'); %Note slightly different size call
+                    %Squeeze necessary to prevent crash
+                disp(['Using only requested Z-plane ',num2str(thisReqZ),' of ',num2str(size(green_channel_aligned,3)),...
+                    ' (',num2str(currentBlock.Steps),' real, ',num2str(currentBlock.FlybackFrames),' flyback)'])
+                BLOCKS(b).singularZ = thisReqZ;
+            end
+            %         BLOCKS(b).redChannel = imresize3(avg_z_red_aligned,[gridSize size(avg_z_red_aligned,3)],'box');
         end
         toc;
         
@@ -85,8 +180,10 @@ for fly = 1:length(chosenFlies)
         
         %Get behavioural data (if requested)
         if separateByState == 1
-            if exist([currentDirectory,filesep,'behavSequence.mat']) ~= 0
-                load([currentDirectory,filesep,'behavSequence.mat']);
+            %if exist([currentDirectory,filesep,'behavSequence.mat']) ~= 0
+            if exist(fullfile(currentDirectory,filesep,'behavSequence.mat')) ~= 0
+                %load([currentDirectory,filesep,'behavSequence.mat']);
+                load(fullfile(currentDirectory,filesep,'behavSequence.mat'));
                 if isfield(savStruct,'acInac')
                     behavSequence = savStruct.acInac.thisInacBinaryInterp';
                     disp(['-- Behavioural data loaded --'])
@@ -153,13 +250,34 @@ for fly = 1:length(chosenFlies)
         BLOCKS(b).blankBlocks = currentBlock.BlankBlocks-nBadBlankTrials;
         
         % plot before filtering
-        figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        figure; 
+        plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        title(['Pre SG-filtered raw data - ',strrep(flyID,'_',' ')])
+        xlabel(['Frame no.'])
+        ylabel(['Intensity'])
         
         % apply a savitsky-golay filter to remove larger trends in data
+        if ~options.dynamicSG
+            SGThresh = options.SGThresh;
+        else
+            %Quick frames->vol calcs
+            if currentBlock.FlybackFrames ~= 0
+                framesInVolStack = currentBlock.Steps + currentBlock.FlybackFrames;
+            else
+                framesInVolStack = currentBlock.Steps; %Should always be 1 if flyback frames are 0 tbh
+            end
+            SGThresh = floor( polyval( options.dynamicSGEqn, currentBlock.pixelX )/framesInVolStack*options.dynamicSGTimeWidth ); %Calculate per block, since size may change
+            disp(['Dynamic SG filter width calculated at: ',num2str(SGThresh),' frames'])
+            disp([num2str(currentBlock.pixelX),'px framesize, ',num2str(framesInVolStack),' frames/vol, ',num2str(options.dynamicSGTimeWidth),'s requested width'])
+        end
         BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,55);
         
         % plot after filtering
-        figure; plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        figure; 
+        plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
+        title(['Post SG-filtered raw data - ',strrep(flyID,'_',' ')])
+        xlabel(['Frame no.'])
+        ylabel(['Intensity'])
     
         BLOCKS(b).blankImageStack = [];
         

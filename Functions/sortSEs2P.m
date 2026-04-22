@@ -84,6 +84,9 @@ options.nBack = 5; %Forced default
     for vol = 1:nVol
         %sort images according to sequence
         for n = 0:(sequenceLength/nStimuli-mod((nStimuli+4),8))% using mod is a hack; check later for vaues different from 1 or 5 (unlikely to be used)
+                %For block design the second value here will be the number of blocks(?), whilst for rolling it will be the sequenceLength / 4 (More or less)
+                    %Note: Even with rolling this will be still calculated in a block-like nature (No 1-by-1 iteration/overlap) [I think]
+                        %i.e. Even if the sequence was continuous, at length 1385, it will yield 277 'blocks'
             % decimal value of binary sequence of length n_back
             %seq = bin2dec(num2str(randomSequence((n*nStimuli + 1):(n*nStimuli + nBack)))) + 1;
             seq = bin2dec(num2str(randomSequence((n*nStimuli + 1):(n*nStimuli + options.nBack)))) + 1;
@@ -209,6 +212,7 @@ options.nBack = 5; %Forced default
         %Reduce rollSeq to only non-empty elements
         %hard
     end
+    %varien
     
     
     

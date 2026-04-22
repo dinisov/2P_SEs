@@ -4,9 +4,18 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
 %Mk 6 - Support for battery, and blanks during bendy block design
 %Mk 7 - Better support for DAQ data, highspeed recording support
 %Mk 8 - Photodiode (initial) support
+%Mk 8.5 - Better photodiode support, minor graphs for SEs data
+%Mk 9 - Support for singular Z
+%Mk 10 - Improved (inc. destructive) sync, phase plots, etc
+%Mk 11 - Rolling design upgrades
 
 %function BLOCKS = syncMaster(BLOCKS, flyRecord, options)
 %Script/Function for synchronising newtype (2025+) 2p data synchronised with BT/ThorSync
+
+%Note: state separation implicitly handled (by in fact, not being handled at all)
+
+%To add:
+%   - Bidirectional destructive phase adjustment (i.e. End removal as well as start removal)
 
 %To do: Check support for follow-on analysis of true bendy rolling data
 
@@ -22,7 +31,6 @@ function FLIES = syncMaster(FLIES, flyRecord, options)
 
     %Also, ability to analyse LED data as if rolling?
 
-
 %{{
 arguments
     %BLOCKS struct
@@ -31,7 +39,7 @@ arguments
     options.dataDirectory string = "I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\"
     options.doPlot double = 1
     options.doVid double = 0
-    options.rollingAnalysis double = -1
+    options.rollingAnalysis double = -1 %Deprecated, probably
     options.dataSource double = -1 %Whether to use data from function call (-1) or to look external for registered data (1)
     options.allowRandomSequenceEmpty double = 0 %Whether to allow randomSequence to end up empty
     options.disregardRollingDesign double = 0 %Whether to discard bendy rolling design blocks (e.g. When comparing LEDs to bendy block design)
@@ -42,29 +50,61 @@ arguments
     options.useShortcut double = 1 %Whether to actually use said shortcut
     options.daqFramespikeVoltage double = 1 %Approximate voltage for the FrameSpike voltage in DAQ/TS
     options.blankHandleMode double = 2 %How to deal with blanks when includeBlanks used (1 - Siphon blanks separately, 2 - Treat as normal and siphon at end [Safer])
-    options.disregardBattery double = 1 %Whether to discard battery blocks at end, on account of SEs analysis incompatibility
+    options.disregardBattery double = 0 %Whether to discard battery blocks at end, on account of SEs analysis incompatibility
     options.postHocCorrectInferTimes double = 1 %If DAQ data is present, uses DAQ/PTB timings to adjust inferTimes (Since inferTimes is interpolated, not true clock)
+    %options.disregardNonBattery double = 0 %Whether to discard NON-battery blocks at end, for simpler battery analysis; Not really functional/useful due to fact that entire analysis has to process before this procs
+    options.cleanPhotData double = 1 %Whether to apply esoteric photodiode cleaning operations
+    options.doBendyTransientGraph double = 1 %Whether to do an improvised transient (+ phot) graph for bendy block design data
+    options.overwriteShortcut double = 0 %Whether to forcibly overwrite shortcut files (Useful after syncMaster changes)
+    options.simulationRun double = 0 %Whether to skip the writing of data to FLIES.BLOCKS structure (Prevents bleedover when debugging)
+    options.unsiphonedSEs double = 0 %Whether to *not* do any data siphoning/etc for SEs, and just calculate volTimes/etc and leave data trimmed
+    options.doBatteryIFICheck double = 0 %Whether to force IFI checks to be done on framespike data for battery (Standard for block design, omitted usually for battery cos freq. condition)
+    options.savePhasePlots double = 1 %Whether to force draw/save of phase plots where applicable
+    options.shiftImTime double = 0 %Whether to shift detected imaging start time backwards/forwards and by how much (seconds)
+    options.ifiRectificationMode double = 0 %Mode for IFI error rectification (0 - Legacy [< Aug 25], 1 - Experimental [Slicing of data/etc] )
+    options.outputDirectory string = "C:\Users\uqmvan13\2p\2P_RESULTS_4"
+    options.pixRestrictPhasePlots double = 1 %Whether to apply pixel restriction in phase visualisation plot (Does not affect data in any way)
+    options.destructivePhaseShift double = 1 %Whether to shift (0) or destroy (1) indices when arbitrary phase shifting
 end
+functionAlity = 1;
 %}
 %{
+if exist('functionAlity')
+    ['## Error: Both function and non-function params specified ##']
+    crash = yes
+end
 %BLOCKS = FLIES(fly).BLOCKS;
 FLIES = FLIES;
 flyRecord = flyRecord;
 options.dataDirectory = dataDirectory;
-options.doPlot = 1
-options.doVid = 0
-options.rollingAnalysis = -1
-options.dataSource = -1
-options.allowRandomSequenceEmpty = 0
-options.disregardRollingDesign = 0
-options.btInterpolationMethod = 'intelligent' 
-options.nBack = 5
-options.saveShortcut = 0
-options.useShortcut = 0
-options.daqFramespikeVoltage = 1
-options.blankHandleMode = 2
-options.disregardBattery = 0
-options.postHocCorrectInferTimes = 1
+options.doPlot = 1;
+options.doVid = 0;
+options.rollingAnalysis = -1;
+options.dataSource = -1;
+options.allowRandomSequenceEmpty = 0;
+options.disregardRollingDesign = 0;
+options.btInterpolationMethod = 'intelligent';
+options.nBack = 5;
+options.saveShortcut = 0;
+options.useShortcut = 0;
+options.daqFramespikeVoltage = 1;
+options.blankHandleMode = 2;
+options.disregardBattery = 0;
+options.postHocCorrectInferTimes = 1;
+%options.disregardNonBattery = 0;
+options.cleanPhotData = 1;
+options.doBendyTransientGraph = 1;
+options.overwriteShortcut = 0;
+options.simulationRun = 1;
+options.unsiphonedSEs = 0;
+options.doBatteryIFICheck = 0; 
+options.savePhasePlots = 1;
+options.shiftImTime = 0;
+options.ifiRectificationMode = 0;
+options.outputDirectory = "C:\Users\uqmvan13\2p\2P_RESULTS_4";
+options.pixRestrictPhasePlots = 1;
+options.destructivePhaseShift = 1;
+options
 %}
 
 
@@ -84,7 +124,24 @@ useShortcut = options.useShortcut;
 daqFramespikeVoltage = options.daqFramespikeVoltage; %Called into being even if not applicable
 blankHandleMode = options.blankHandleMode;
 disregardBattery = options.disregardBattery;
+%disregardNonBattery = options.disregardNonBattery;
+cleanPhotData = options.cleanPhotData;
+doBendyTransientGraph = options.doBendyTransientGraph;
+overwriteShortcut = options.overwriteShortcut;
+simulationRun = options.simulationRun;
+unsiphonedSEs = options.unsiphonedSEs;
+doBatteryIFICheck = options.doBatteryIFICheck;
+savePhasePlots = options.savePhasePlots;
+shiftImTime = options.shiftImTime;
+ifiRectificationMode = options.ifiRectificationMode;
+outputDirectory = options.outputDirectory;
+pixRestrictPhasePlots = options.pixRestrictPhasePlots;
+destructivePhaseShift = options.destructivePhaseShift;
 
+%Quick check for important options
+if shiftImTime ~= 0
+    ['-# Caution: Imaging start time requested to be arbitrarily shifted (',num2str(shiftImTime),'s) #-']
+end
 
 %Pre-loop preparation
 flagParamSaveList = who;
@@ -128,6 +185,12 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             disp(['-# Rolling analysis not applicable for ',flyID,' #-'])
             continue
         end
+
+        %Identify ahead of time whether arbitrary phase shift will need to be applied
+        if isfield( thisBlock, 'ArbSyncVolShift' ) && ~isempty(thisBlock.ArbSyncVolShift)
+            arbPhaseShift = thisBlock.ArbSyncVolShift;
+            disp(['Arbitrary phase shift requested (',num2str(arbPhaseShift),' volumes)'])
+        end
     
         %Identify folder to look for ThorSync (h5) data in
         %dataFolder = "I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\30Jan25"
@@ -164,7 +227,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         %------------------------------
     
         isShortcutting = 0;
-        if useShortcut == 1
+        if useShortcut == 1 && overwriteShortcut ~= 1
             %shortFile = dir( [hFolder,filesep,'h5Shortcut.mat'] );
             shortFileList = dir( strcat(dataFolder,filesep,'SHORT',filesep,'*h5Shortcut.mat') );
             shortFile = [];
@@ -183,6 +246,20 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 isShortcutting = 1
                 disp(['-- Shortcut file successfully loaded --'])
             end
+
+            %Quick QA for whether shortcut file still applicable
+            if exist('arbPhaseShift') && ~isfield( shortStruct,'arbPhaseShift' )
+                %['-# Alert: Phase shift (now) requested in record, but was not used when shortcut file generated #-']
+                %crash = yes %Theoretically overkill, but probably good practice
+                disp(['-# Caution: Phase shift (now) requested in record, but was not used when shortcut file generated; Amending #-'])
+                shortStruct.arbPhaseShift = arbPhaseShift;
+                save( [strcat(dataFolder,filesep,'SHORT',filesep,shortFile)], 'shortStruct' )
+                    %Note: Theoretically bad to do this here, in case script crashes (And thus, the 'apparent' phase shift was never truly applied)
+                    %But it's probably fine, since on the next attempted run, it will load the phase shift and try again
+            end
+        elseif overwriteShortcut == 1
+            saveShortcut = 1;
+            disp(['-# Overwriting shortcut files by request #-'])
         end
     
         if useShortcut == 0 || isShortcutting == 0
@@ -198,19 +275,84 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         disp(['-- Loading H5 data --'])
         tic
     
-        syncStruct.AI.piezoData = h5read(fileName, '/AI/PiezoMonitor');
+        %temp = {};
+        temp = cell(6);
+        hasDaqData = [];
+        hasPhotData = [];
+        parfor hi = 1:6
+            switch hi
+                case 1
+                    temp{hi} = h5read(fileName, '/CI/FrameCounter');
+                    disp(['Loaded 1 of 3'])
+                case 2
+                    temp{hi} = h5read(fileName, '/DI/BleachOut');
+                    disp(['Loaded 2 of 3'])
+                case 3
+                    temp{hi} = h5read(fileName, '/DI/FrameOut');
+                    disp(['Loaded 3 of 3'])
+                case 4
+                    try
+                        temp{hi} = h5read(fileName, '/AI/FrameSpike');
+                        disp(['Loaded 1 of 2 DAQ'])
+                    end
+                case 5
+                    try
+                        temp{hi} = h5read(fileName, '/AI/Iterator');
+                        disp(['Loaded 2 of 2 DAQ'])
+                    end
+                case 6
+                    try
+                        temp{hi} = h5read(fileName, '/AI/Photodiode');
+                        disp(['Loaded 1 of 1 photodiode'])
+                    end
+            end
+        end
+        poolobj = gcp('nocreate');
+        delete(poolobj);
+
+        syncStruct.CI.frameData = temp{1};
+        syncStruct.DI.bleachOutData = temp{2};
+        syncStruct.DI.frameOutData = temp{3};
+        if ~isempty(temp{4}) && ~isempty(temp{5})
+            syncStruct.AI.FrameSpike = temp{4};
+            syncStruct.AI.Iterator = temp{5};
+            disp(['-- TS DAQ data retrieved --'])
+            hasDaqData = 1;
+        else
+            ['-# Could not retrieve TS DAQ data #-']
+            hasDaqData = 0;
+        end
+        if ~isempty(temp{6})
+            syncStruct.AI.Photodiode = temp{6};
+            disp(['-- TS Photodiode data retrieved --'])
+            hasPhotData = 1;
+        else
+            ['-# Could not retrieve photodiode data #-']
+            hasPhotData = 0;
+        end
+        clear temp
+
+
+        %Old, non-parallel system
+        %{
+        %syncStruct.AI.piezoData = h5read(fileName, '/AI/PiezoMonitor'); %Use in future?
         syncStruct.CI.frameData = h5read(fileName, '/CI/FrameCounter');
+        disp(['Loaded 1 of 3'])
         %syncStruct.DI.bleachComData = h5read(fileName, '/DI/BleachComplete');
         syncStruct.DI.bleachOutData = h5read(fileName, '/DI/BleachOut');
+        disp(['Loaded 2 of 3'])
         %syncStruct.DI.frameInData = h5read(fileName, '/DI/FrameIn');
         syncStruct.DI.frameOutData = h5read(fileName, '/DI/FrameOut');
+        disp(['Loaded 3 of 3'])
         %syncStruct.DI.pmtData = h5read(fileName, '/DI/PMTShutter');
         %syncStruct.Freq.freqFitData = h5read(fileName, '/Freq/FitHz');
         %syncStruct.Freq.freqHzData = h5read(fileName, '/Freq/Hz');
         %syncStruct.Global.globData = h5read(fileName, '/Global/GCtr');
         try
             syncStruct.AI.FrameSpike = h5read(fileName, '/AI/FrameSpike');
+            disp(['Loaded 1 of 2 DAQ'])
             syncStruct.AI.Iterator = h5read(fileName, '/AI/Iterator');
+            disp(['Loaded 2 of 2 DAQ'])
             hasDaqData = 1;
             disp(['-- TS DAQ data retrieved --'])
         catch
@@ -219,12 +361,14 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         end
         try
             syncStruct.AI.Photodiode = h5read(fileName, '/AI/Photodiode');
+            disp(['Loaded 1 of 1 photodiode'])
             hasPhotData = 1;
             disp(['-- TS Photodiode data retrieved --'])
         catch
             ['-# Could not retrieve photodiode data #-']
             hasPhotData = 0;
         end
+        %}
     
         toc
         %plastic
@@ -260,6 +404,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         inferTimes = linspace( 0, size( syncStruct.CI.frameData , 2 ) / sampRate, size( syncStruct.CI.frameData , 2 ) );
             %Linearly space time from 1st to last element of frameData
             %The division of total frame count by sampling rate is weak to (TS) framedrops/etc, but no better option present
+        disp(['Self reported TS duration: ',num2str(round( inferTimes(end), 2 )),'s (',num2str(length(inferTimes)),' samples)'])
         end
     
         %Read experiment information file from ThorImage
@@ -275,6 +420,16 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         imStartTime = expStruct.Date.uTimeAttribute;
             %Note: This is confirmed to be when Start button was pressed, not when imaging commenced
                 %i.e. Disparity of 1 - 30s
+        %Arbitarily shift time if required
+            %Applicable primarily to data acquired 27/8/25 - ???, where one of either imaging PC or laptop are shifted 6 mins in time
+        if shiftImTime ~= 0
+            %ruelle
+            imStartTime = imStartTime + shiftImTime;
+            disp(['-# Imaging start time arbitrarily shifted by ',num2str(shiftImTime),'s #-'])
+            disp([datestr( datetime( imStartTime-shiftImTime, 'ConvertFrom', 'posix', 'TimeZone', '+10' ) ),...
+                ' -> ',...
+                datestr( datetime( imStartTime, 'ConvertFrom', 'posix', 'TimeZone', '+10' ) )])
+        end
     
         if useShortcut == 0 || isShortcutting == 0        
         %ThorImage (apparently)
@@ -378,6 +533,12 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             if isfield( matParamStruct.matSave, 'blockDesign' ) && matParamStruct.matSave.blockDesign == 1
                 bendyBlockDesign = 1; %Block
                 disp(['Bendy panel block design detected'])
+                %Quick report wrt rolling analysis
+                if thisBlock.doRolling
+                    disp(['#########',char(10),char(10),char(10),...
+                        '-# Cautionary: Block design detected but rolling analysis requested #-',...
+                        char(10),char(10),char(10),'#########'])
+                end
             else
                 bendyBlockDesign = 0; %Rolling
                 disp(['Bendy panel rolling design (presumably) detected'])
@@ -426,9 +587,31 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 %It is intended to be used to QA ptbEndTime in case of not ending because repetitive, not a true comparison
               %QA
               if abs( ptbEndTime - estimatedPTBEndTime ) > 0.05 * ( estimatedPTBEndTime - imStartTime )  %"Did PTB end more than 5% +- Arduino time?"
+                    %Note: ptbEndTime here comes from last reported btData (posix) time, while estimatedPTBEndTime comes from Arduino low time (+ Exp.xml posix start time)
                   ['## Alert: PTB self-reported end time differs significantly from Arduino estimated end time ##']
+                  ['(',num2str(abs( ptbEndTime - estimatedPTBEndTime )),'s)']
+                  ['btData self report duration: ',num2str( round(ptbEndTime - ptbStartTime) ),'s']
+                  ['Arduino apparent duration:', num2str(round( inferTimes( bleachEndInd ) )),'s']
+                  ['TS calculated duration: ',num2str(round( inferTimes(end), 2 )),'s']
+                  [char(10)]
+                  ['Imaging reported start time: ',datestr( datetime( imStartTime , 'ConvertFrom', 'posix', 'TimeZone', '+10' ) )]
+                  ['btData reported start time: ',datestr( datetime( ptbStartTime , 'ConvertFrom', 'posix', 'TimeZone', '+10' ) )]
+                  ['Click -> Proceed time (apparently) thus: ',num2str(seconds( datetime( ptbStartTime , 'ConvertFrom', 'posix', 'TimeZone', '+10' ) - datetime( imStartTime , 'ConvertFrom', 'posix', 'TimeZone', '+10' ) )),'s']
                   crash = yes %Not technically critical, but probably worrying
               end
+              %Secondary QA, mostly to counter possible issues from arbitrarily shifting imaging start time
+              if ptbStartTime < imStartTime
+                  ['## Alert: PTB start time (apparently) precedes imaging start time ##']
+                  [datestr( datetime( ptbStartTime, 'ConvertFrom', 'posix', 'TimeZone', '+10' ) ),...
+                      '(PTB) vs ',...
+                      datestr( datetime( imStartTime, 'ConvertFrom', 'posix', 'TimeZone', '+10' ) ),'(Imaging)']
+                  if imShiftTime ~= 0
+                      ['Note: This may be because of an induced arbitrary shift in imaging start time (',num2str(shiftImTime),'s)']
+                  end
+                  crash = yes %Probably a bad thing
+              end
+
+              %wrld
     
               %Find out if rolling experiment (unless battery)
               if rollingAnalysis == -1 && isfield( matParamStruct.matSave, 'blockDesign' ) && ~batteryDesign
@@ -504,7 +687,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 %NOTE: Current system optimised towards local peak of framespike, whereas 'true' timing of stimulus onset probably lies at onset of voltage increase
             if hasPTB && ~isequal( matParamStruct.matSave.stimuli, 'battery' )
                 [framePKS, frameLOCS] = findpeaks( syncStruct.AI.FrameSpike, 'MinPeakHeight', 0.5*daqFramespikeVoltage,...
-                   'MinPeakDistance', ( sampRate / matParamStruct.matSave.frequency )*0.66 ); %Look for peaks separated by at 66% of a flip
+                   'MinPeakDistance', ( sampRate / matParamStruct.matSave.frequency )*0.45 ); %Look for peaks separated by at 45% of a flip; Adjusted down to account for some rare instances where framespike shifted forwards in time
+                   %'MinPeakDistance', ( sampRate / matParamStruct.matSave.frequency )*0.66 ); %Look for peaks separated by at 66% of a flip
             else
                 [framePKS, frameLOCS] = findpeaks( syncStruct.AI.FrameSpike, 'MinPeakHeight', 0.5*daqFramespikeVoltage, ...
                     'MinPeakWidth', 200); %Use an empirical spike width based on pilot data (Probably good up to 60Hz framespikes)
@@ -523,9 +707,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             if ~isnan( daqFrameSpikeCount ) && daqFrameSpikeCount ~= size(frameLOCS,2)+1
                     %Only 80% confident the initialisation framespike is counted as one...
                 ['## Alert: Disparity between post-hoc reported framespike count and detected framespike count ##']
-                if ~batteryDesign
-                crash = yes
-                end
+                ['(',num2str(daqFrameSpikeCount),' vs ',num2str(size(frameLOCS,2)+1),')']
+                %if ~batteryDesign
+                %crash = yes %Removed this so that later iterator QA can back up whether to crash
+                %end
             end
 
             %Plot
@@ -566,6 +751,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 title([strrep(expName,'_',' '),' - Last 10 framespike elements + Iterator'])
                 xlabel('Times (s)')
                 ylabel('Voltage (V)')
+                %Same as above but for an arbitrary position
+                %{
+                figure
+                theseInds = [frameLOCS(1185):frameLOCS(1205)];
+                plot( inferTimes(theseInds) , syncStruct.AI.FrameSpike(theseInds) )
+                hold on
+                scatter( inferTimes(frameLOCS(1185:1205)), framePKS(1185:1205) )
+                for i = 1185:1205
+                text( inferTimes(frameLOCS(i)), framePKS(i)*1.1, [num2str(i)], 'Color', 'r' )
+                end
+                plot( inferTimes(theseInds) , syncStruct.AI.Iterator(theseInds), 'r' )
+                %}
             end
 
             %Find iterator values
@@ -716,6 +913,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     ['-# Cannot do iterator plot with dissimilar length itLOCS/unwrapped values #-']
                 end
 
+                %QA to compare iterator against framespike
+                if abs( frameLOCS(1) - itLOCS(2) ) > nanmedian( diff(frameLOCS) ) * 0.75
+                    ['-# Alert: Apparent >n+1 gap between first framespike and supposedly following iterator change #-']
+                    crash = yes %Highly like if 'first' framespike detected is actually a little way into experiment or similar 
+                    %Goes hand in hand with framespike detection numbers being wrong
+                end
+
                 %Make simpler
                 lastIt = itProcRangeIndUnwrapped(end);
 
@@ -730,7 +934,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %shadow
 
             %OMEGA PLOT
-                %DANGER - 12:30 (As in, it takes 12.5m to generate this plot or change the limits)
+                %DANGER - 12:30 (As in, it takes 12.5m [Not really] to generate this plot or change the limits)
                 %{
             figure
             plot( inferTimes, syncStruct.AI.FrameSpike )
@@ -749,6 +953,199 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 %}
 
             %--------------------
+            %Check for IFI loss and correct first
+            temp2 = diff( frameLOCS ); %Inter-framespike index difference; Again, should be (relatively) stable
+            ifiLoss = 0;
+            errorSpikes = find( abs(temp2 - nanmean(temp2))  >  0.1*nanmean(temp2)  );
+            %if nanmax( abs(temp2) ) > nanmean(temp2) + 4*nanstd(temp2) %Note: Calcs may not cover symmetrical conditions of frameSpike shift
+            if ~isempty(errorSpikes)
+                %Note: No explicit inter-framespike interval rectification currently implemented, only phase loss
+                %errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) ); %SD-based system
+                %%errorSpikes = find( abs(temp2 - nanmean(temp2))  >  0.1*nanmean(temp2)  ); %Moved above for simplicity
+                errorSpikesMag = abs(temp2(errorSpikes)) - nanmean(temp2);
+                if exist('daqFrameSpikeCount')
+                    ['-# Alert: ',num2str(length(errorSpikes)),' significant deviation/s in inter-framespike interval detected (of ~',num2str(daqFrameSpikeCount),' total) #-']
+                else
+                    ['-# Alert: ',num2str(length(errorSpikes)),' significant deviation/s in inter-framespike interval detected #-']
+                end
+                if length(errorSpikes) < 10
+                    disp([num2str(errorSpikes)])
+                else
+                    disp([num2str(errorSpikes(1:5)),'...',num2str(errorSpikes(end-5:end))])
+                end
+                if ~batteryDesign || ( batteryDesign && doBatteryIFICheck )
+                    disp([ '(Error spike/s deviated by ',num2str(round(errorSpikesMag)),' TS frames from +-10% mean IFI threshold [',num2str(round(0.1*nanmean(temp2))),'])' ])
+                end
+                ifiLoss = 1;
+            end
+            if exist('errorSpikes') && size( errorSpikes, 2 ) > 0 && ( ~batteryDesign || ( batteryDesign && doBatteryIFICheck ) )
+                disp(['IFI loss in framespikes detected'])
+
+                %Plot
+                figure
+                if size( errorSpikes, 2 ) > 10
+                    eroInds = errorSpikes( floor([1:length(errorSpikes)/10:length(errorSpikes)]) );
+                    ['-# Excessive number of error spikes; Using 10 across range #-']
+                    disp(num2str(eroInds))
+                else
+                    eroInds = 1:size( errorSpikes, 2 );
+                end
+                a = 1;
+                for eros = eroInds%1:size( errorSpikes, 2 ) 
+                    %subplot( 1, size( errorSpikes, 2 ) , eros  )
+                    subplot( 1, size( eroInds, 2 ) , a  )
+                    thisErrorSpike = errorSpikes(eros);
+                    spikeRange = [ thisErrorSpike-2, thisErrorSpike+2 ];
+                    %spikeRange( spikeRange < 0 ) = [];
+                    spikeRange( spikeRange < 0 ) = 1; %Use framespike 1, rather than null
+                    spikeRange( spikeRange > size(frameLOCS,2) ) = [];
+                    theseInds = frameLOCS(spikeRange(1)):frameLOCS(spikeRange(2));
+                    plot( [inferTimes( theseInds )],...
+                        [syncStruct.AI.FrameSpike( theseInds )] )
+                    hold on
+                    scatter( [inferTimes( frameLOCS( spikeRange(1):spikeRange(2) ) )],...
+                        [syncStruct.AI.FrameSpike( frameLOCS(spikeRange(1):spikeRange(2))) ] )
+                    scatter( [inferTimes( frameLOCS( thisErrorSpike ) )], [syncStruct.AI.FrameSpike( frameLOCS( thisErrorSpike ) )]+0.1, 'Color', [1,0,0] )
+                    plot( inferTimes(theseInds) , syncStruct.AI.Iterator(theseInds)*0.25, 'r' )
+                    scatter( [inferTimes( itLOCS( spikeRange(1)+1:spikeRange(2)+1 ) )],... %+1 necessary because iterator precedes framespike
+                        [syncStruct.AI.Iterator( itLOCS(spikeRange(1)+1:spikeRange(2)+1)) ]*0.25 )
+                    title(['IFI loss frameSpike (#',num2str(errorSpikes(eros)),') location'])
+                    xlabel(['Time (s)'])
+                    a = a + 1;
+                end
+
+                %vengabus
+
+                %Identify
+                errorLOCS = []; %Will store deleted LOCS for posterity
+                rectifiedErrorSpikes = []; %Will store errorSpikes that are no longer valid
+                    %Note: Currently not done with a while loop/etc, so there is no guarantee that framespikes following rectification will actually be valid
+                if ifiRectificationMode == 1
+                    necessarySliceInds = []; %Will be filled if applicable
+                end
+                for eros = 1:size( errorSpikes,2 )
+                    thisErrorSpike = errorSpikes(eros);
+                    disp(['Processing error spike ', num2str(eros),' (#',num2str(thisErrorSpike),')'])
+                    %Pre-QA
+                    if thisErrorSpike == 1
+                        ['## Alert: Unsafe to perform IFI rectification on first framespike ##']
+                        %I mean, theoretically it's no different, but in practice one would want to do it with care
+                        %crash = yes
+                        continue
+                    end
+                    if ifiRectificationMode == 0
+
+                        %Legacy rectification mode
+                        %if size( errorSpikes,2 ) >= 2 && eros <= size( errorSpikes,2 )-1 && thisErrorSpike+1 ==  errorSpikes(eros+1) %Original
+                        if size( errorSpikes,2 ) >= 2 && eros <= size( errorSpikes,2 )-1 && thisErrorSpike+1 ==  errorSpikes(eros+1) && ...
+                                ( abs(nanmedian( syncStruct.AI.FrameSpike( frameLOCS(thisErrorSpike):frameLOCS(thisErrorSpike+1) ) ) - nanmedian(framePKS)) < 4*nanstd( framePKS ) || ...
+                                  isempty( find(syncStruct.AI.FrameSpike( frameLOCS(thisErrorSpike):frameLOCS(thisErrorSpike+1) ) < nanmedian(framePKS)) ) )
+                        %"More than 1 error spike AND not last AND this error spike is directly followed (in frameLOCS) by another error spike" AND ...
+                        %       ( signal between this error and next framespike is likely stuck at high OR...
+                        %         signal never drops below median framespike value )
+                                %This is designed for the case where the framespike writing lagged out and took ~100+ms to write and unwrite, thus leading to an aberrantly broad framespike
+                                    %Note: This is not designed to deal with 3+ error spikes in quick succession
+                                %errorLOCS = thisErrorSpike;
+                                errorLOCS = [errorLOCS,thisErrorSpike];
+                                frameLOCS( thisErrorSpike ) = []; %"Delete the first of the aberrantly double-detected framespikes"
+                                framePKS( thisErrorSpike ) = [];
+                                if numel(eros) >= 2
+                                    rectifiedErrorSpikes = [rectifiedErrorSpikes,errorSpikes(eros+1)];
+                                end
+                                disp(['-# Framespike #', num2str(thisErrorSpike),' deleted to rectify phase #-'])
+                                    %Note: Currently as written the actual framespike deleted here doesn't matter **theoretically**
+                                        %This is because aside from Framespike 1 and last, the physical position of individual framespikes is not used for anything
+                                            %Secondary note: This is not true wrt phase, and so it is possible that picking one of an aberrant double could be better/worse for preserving phase
+                        elseif ismember( thisErrorSpike, rectifiedErrorSpikes )
+                            disp(['-# Error spike already rectified #-'])
+                            continue
+                        elseif abs( (frameLOCS( thisErrorSpike+1 ) - frameLOCS( thisErrorSpike )) - (itLOCS( thisErrorSpike+2 ) - itLOCS( thisErrorSpike+1 )) ) < 0.05*nanmean(temp2)
+                        %"Framespike delayed (or broad), but phase with iterator maintained"
+                            %Note: This case may have to be broadened for 'normal' phase loss (i.e. use itLocs +1 and 0 respectively, or vice versa)
+                            %Secondary note: More nuanced iterator non-phase-loss detection may be possible
+                            disp(['-# IFI stutter and iterator stutter appear identical; Not rectifying #-'])
+                                %Phase loss checks will be important to ensure this does not cause issues
+                            continue
+                        elseif ( frameLOCS( thisErrorSpike+1 ) - frameLOCS( thisErrorSpike ) ) < 0.75*nanmean(temp2) && ...
+                                abs(frameLOCS(thisErrorSpike) - itLOCS( thisErrorSpike )) >= 0.25*nanmean(temp2) && ...
+                                abs(frameLOCS(thisErrorSpike+1) - itLOCS( thisErrorSpike+1 )) < 0.25*nanmean(temp2)
+                        %"Spike too close to postceder AND this framespike is more than 5% away from iterator change AND next framespike is within 5% of iterator change"
+                            %Note: This will almost certainly fail with triple detection on a broad framespike (as opposed to double detection)
+                            errorLOCS = [errorLOCS,thisErrorSpike];
+                            frameLOCS( thisErrorSpike ) = []; %"Delete the first of the aberrantly double-detected framespikes"
+                            framePKS( thisErrorSpike ) = [];
+                            if numel(eros) >= 2
+                                rectifiedErrorSpikes = [rectifiedErrorSpikes,errorSpikes(eros+1)];
+                            end
+                            disp(['-# Framespike #', num2str(thisErrorSpike),' probably double-detection; Deleted to rectify phase #-'])
+
+                        elseif abs( errorSpikesMag(eros) ) > 1.25*nanmean(temp2)
+                            ['## likely missed framespike; case not written yet ##']
+                            crash = yes
+                        elseif frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1) < 0.25*nanmean(temp2) || frameLOCS(thisErrorSpike+1) - frameLOCS(thisErrorSpike) < 0.25*nanmean(temp2)
+                            ['likely overdetection; Need to write case']
+                            crash = yes
+                        elseif frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1) < 1.1*nanmean(temp2) && frameLOCS(thisErrorSpike+1) - frameLOCS(thisErrorSpike) < 1.5*nanmean(temp2) && ...
+                                numel(intersect( [find(itLOCS > frameLOCS(thisErrorSpike))] , [find(itLOCS < frameLOCS(thisErrorSpike+1))] )) == 1
+                            %"Normal distance to preceding framespike AND postceding framespike is within 1.5 of normal AND no iterator phase loss detected"
+                            disp(['-# Framespike #', num2str(thisErrorSpike),' likely only minor delay; Not rectifying #-'])
+                            continue
+                        else %CHECK FOR PHASE?
+                            ['## case not written yet ##']
+                            %This will be something like a framespike being just really delayed or ahead in time; TBD what to do
+                            crash = yes
+                        end
+
+                    else
+
+                        %'Modern' rectification
+                        %Overdetection of a single/s spike (Uncommon?)
+                        if frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1) < 0.25*nanmean(temp2) || frameLOCS(thisErrorSpike+1) - frameLOCS(thisErrorSpike) < 0.25*nanmean(temp2)
+                            ['likely overdetection; Need to write case for modern rectification']
+                            to do yes
+                        end
+
+                        %Framespike(/PTB) stutter 
+                        needSlice = 0; %Flag initialisation
+                        if abs( (frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1)) - nanmean(temp2) ) < 0.1*nanmean(temp2) %"This spike not actually error distance from preceder"
+                            disp(['Error spike (#',num2str(thisErrorSpike),') not actually error distance from preceder'])
+                            continue
+                        else %"Spike is further from preceder than expected"
+                            disp(['Error spike significant distance from preceder; Slicing required'])
+                            needSlice = 1;
+                        end
+                        %Slice data/etc
+                        if needSlice == 1
+                            %frequen
+                            %Calculate amount of data needing to be sliced/coords
+                            thisStutterMag = floor( (frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1)) - nanmean(temp2) ); %How many frames above average this stuttered for
+                                %Risk of negative?
+                            thisStutterInds = [frameLOCS(thisErrorSpike-1)+1:frameLOCS(thisErrorSpike-1)+thisStutterMag]; %Coordinates to be sliced/deleted
+                                %Go forward from last spike, under assumption that is where stutter actually happening
+                            
+                            necessarySliceInds = [necessarySliceInds, thisStutterInds];
+
+                            disp([num2str(thisStutterMag),' TS samples require slicing for this error spike'])
+                        end
+
+
+                    end
+
+                %eros end    
+                end
+
+                %Slice data, if requested
+                if ifiRectificationMode == 1 && ~isempty(necessarySliceInds)
+                    disp([num2str(numel(necessarySliceInds)),' TS samples will be sliced total'])
+                    
+                    code abandoned due to complexity/unnecessity
+
+                end
+
+            end
+
+            %--------------------
+
             %Check for phase loss/other irregularities in data
             temp = []; %Index difference between framespikes and iterator changes; Should be stable
             for i = 1:nanmin( [size(frameLOCS,2), size( itLOCS,1)] ) %Note: itLOCS not 100% guaranteed 1:1 with itProcRangeIndUnwrapped
@@ -758,39 +1155,38 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             stdPhaseDiff = nanstd(temp);
             %temp = diff(temp); %Diff, better for mean/SDing
 
-            temp2 = diff( frameLOCS ); %Inter-framespike index difference; Again, should be (relatively) stable
-
             phaseLoss = 0;
             if any(temp < 0)%nanmax( abs(temp) ) > nanmean(temp) + 4*nanstd(temp)
                 ['-# Alert: Phase loss detected between framespike and iterator #-']
                 phaseLoss = 1;
             end
-            ifiLoss =0;
-            if nanmax( abs(temp2) ) > nanmean(temp2) + 4*nanstd(temp2) %Note: Calcs may not cover symmetrical conditions of frameSpike shift
-                ['-# Alert: Significant deviation/s in inter-framespike interval detected #-']
-                %Note: No explicit inter-framespike interval rectification currently implemented, only phase loss
-                errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) );
-                disp([num2str(errorSpikes)])
-                ifiLoss = 1;
-            end
 
             %Rectify
-            if phaseLoss && ifiLoss %FrameSpike positions both undertake/overtake iterator AND unequally spaced
+            if phaseLoss %&& ifiLoss %FrameSpike positions both undertake/overtake iterator AND unequally spaced
+                not modified yet wrt ifi prerectification
                 %errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) );
                 phaseLossSpike = errorSpikes( find( frameLOCS(errorSpikes) - itLOCS(errorSpikes)' < 0 ) );
                     %NOTE: CURRENTLY ONLY FINDS FIRST INSTANCE, SINCE NOT RECURSIVE
-                disp(['Apparent phase loss frameSpike: #',num2str(phaseLossSpike),...
+                disp(['Apparent phase loss frameSpike/s: #',num2str(phaseLossSpike),...
                     ' (~',num2str(floor( inferTimes( frameLOCS( phaseLossSpike) ) )),'s)'])
                 phaseLossSpikeInd = frameLOCS( phaseLossSpike );
 
                 %Plot
                 figure
-                plot( [inferTimes( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )] )
-                hold on
-                scatter( [inferTimes( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )] )
-                scatter( [inferTimes( frameLOCS(phaseLossSpike) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike) )]+0.1, 'Color', [1,0,0] )
-                title(['Phase loss frameSpike (#',num2str(phaseLossSpike),') location'])
-                xlabel(['Time (s)'])
+                for phasmo = 1:size( phaseLossSpikeInd,2 )
+                    subplot( 1, size( phaseLossSpikeInd,2 ), phasmo )
+                    %plot( [inferTimes( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )] )
+                    plot( [inferTimes( frameLOCS(phaseLossSpike(phasmo)-2) : frameLOCS(phaseLossSpike(phasmo)+2) )],...
+                        [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)-2) : frameLOCS(phaseLossSpike(phasmo)+2) )] )
+                    hold on
+                    %scatter( [inferTimes( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )] )
+                    %scatter( [inferTimes( frameLOCS(phaseLossSpike) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike) )]+0.1, 'Color', [1,0,0] )
+                    scatter( [inferTimes( frameLOCS(phaseLossSpike(phasmo)-2:phaseLossSpike(phasmo)+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)-2:phaseLossSpike(phasmo)+2) )] )
+                    scatter( [inferTimes( frameLOCS(phaseLossSpike(phasmo)) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)) )]+0.1, 'Color', [1,0,0] )
+                    %title(['Phase loss frameSpike (#',num2str(phaseLossSpike),') location'])
+                    title(['Phase loss frameSpike (#',num2str(phaseLossSpike(phasmo)),') location'])
+                    xlabel(['Time (s)'])
+                end
 
                 %Check if phase loss spike within believable proximity to intended 'true' position
                 if itLOCS(phaseLossSpike+1) - phaseLossSpikeInd < meanPhaseDiff+2*stdPhaseDiff && ...
@@ -854,10 +1250,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             if ~batteryDesign
                 disp(['Number of detected framespikes: ',num2str(nSpikes),'; Target based on btData (Script ver ',num2str(progVerNum),'): ',num2str(targetINum),' or ',num2str(targetINum-1)])
                     %-1 possibility comes from situations where iterator halfway through an element when script ended, thus leaving iterator at +1 but framespike not having happened yet
-            else
-                disp(['Number of detected framespikes: ',num2str(nSpikes),'; Target based on btData (Script ver ',num2str(progVerNum),'): ',num2str(targetINum),' or ',num2str(targetINum-1)])
+            %else
+            %    disp(['Number of detected framespikes: ',num2str(nSpikes),'; Target based on btData (Script ver ',num2str(progVerNum),'): ',num2str(targetINum),' or ',num2str(targetINum-1)])
             end
-            %if (batteryDesign == 0 && nSpikes == btData(end,5)-1 ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
+            %if (batteryDesign == 0 o&& nSpikes == btData(end,5)-1 ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
             %if (batteryDesign == 0 && nSpikes == targetINum ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
             if (batteryDesign == 0 && (nSpikes == targetINum || nSpikes == targetINum-1) ) || ( batteryDesign == 1 )
                     %Note: As of v8.2, it may be the norm for btData at end to match nSpikes without - 1
@@ -941,7 +1337,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     end
                     %---------
                     %mushroom
-
+                    disp(char(10))
                     %QA for pre-drift between inferTimes and btData
                     preDrift = (inferTimes( frameLOCS(lastUseful) ) - inferTimes( frameLOCS(1) )) - (btData( flipOnsetIndices(lastUseful), 6) - btData( flipOnsetIndices(1), 6));
                     disp(['Initial apparent drift magnitude: ',num2str(preDrift),'s']) %"Tokyo Drift"
@@ -1031,7 +1427,15 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     %Check for approximate timing between first flipOnset and first non-opto iteration (Should work even if no opto)
                     if abs( btData( flipOnsetIndices(1) , 6 ) - inferTimes( itLOCS(1) ) ) > 5 %Allow 5 startup PTB time effectively
                         ['-# Alert: Potential error in first (DAQ) iteration <--> first BT flip detection timing #-'] %Probably most likely if first itLOCS is at start of PTB whilst flipOnset is post-opto, or vice versa
-                        crash = yes
+                        if exist( 'omittedFrameLOCPK' )
+                            ['First btData time: ',num2str(btData(1,6))]
+                            ['Initialisation framespike inferTime: ',num2str(inferTimes( omittedFrameLOCPK(1) ))]
+                        end
+                        if ~batteryDesign
+                            crash = yes
+                        else
+                            ['-# Allowing to proceed because battery design #-']
+                        end
                     end
 
                     %New
@@ -1083,8 +1487,12 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     %}
                     %QA
                     if estPTBInferTimeStart > 10
-                        ['## Alert: PTB estimated to have started >10s after TS initiation; Error? ##'] %Likely to either be a very lagged PTB start or an error in framespike/frameLOCS attribution
-                        crash = yes
+                        ['## Alert: PTB estimated to have started >10s (',num2str(estPTBInferTimeStart),'s) after TS initiation; Error? ##'] %Likely to either be a very lagged PTB start or an error in framespike/frameLOCS attribution
+                        if ~batteryDesign
+                            crash = yes
+                        else
+                            disp(['(Again; Allowing to proceed because battery)'])
+                        end
                     end
 
                 end
@@ -1106,6 +1514,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
             else %Note: Not tested with v8.2 new position of Data_Array saving
                 ['I M P E R F E C T I O N']
+                if exist('errorSpikes') && size( errorSpikes, 2 )
+                    ['Note: Pre-error rectification framespike count: ',num2str(daqFrameSpikeCount)]
+                end
+
                 crash = yes
 
                 %If this actually happens, add code to allow for (hopefully) minor disparities
@@ -1143,7 +1555,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             bestGuessCommenceTime = shortStruct.bestGuessCommenceTime;
             guessMode = shortStruct.guessMode;
         end
-        disp(['Best guess commencement time (from ',guessIndex{guessMode},'): ', ...
+        disp([char(10),'Best guess commencement time (from ',guessIndex{guessMode},'): ', ...
             datestr(datetime( bestGuessCommenceTime , 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10'))])
                 %Note: Relates to estimated experiment start time, not just PTB or imaging
     
@@ -1207,7 +1619,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         disp(['Estimated imaging end time (',guessIndex{guessMode},' -> Last frame high): ', ...
             datestr( datetime( bestGuessCommenceTime + tsLastFrameTime, 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
     
-        disp([ 'Estimated arduino duration: ', num2str((tsLastArduinoTime)/60),'m' ])
+        %disp([ 'Estimated arduino duration: ', num2str((tsLastArduinoTime)/60),'m' ])
+        disp([ 'Estimated arduino duration: ', num2str((tsLastArduinoTime)/60),'m (',num2str(tsLastArduinoTime),'s)'])
         %disp(['Estimated arduino end time (Exp self report -> Last bleach high): ', ...
         %    datestr( datetime( imStartTime + (inferTimes( bleachEndInd )), 'ConvertFrom', 'posixtime', 'TimeZone', 'UTC+10' ) ) ])
         disp(['Estimated arduino end time (',guessIndex{guessMode},' -> Last bleach high): ', ...
@@ -1321,14 +1734,152 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
         %% Photodiode stuff
         %Quick allocation for battery design currently
-        if ~isShortcutting && batteryDesign && hasPhotData
+        if ~isShortcutting && hasPhotData %&& batteryDesign 
         %Incorporate photodiode data
-                %NOTE: INEFFICIENT
+                %NOTE: INEFFICIENT; PROBABLY REPLACE WITH INTERPOLATED/SMALLER VERSION SOON
             %if hasPhotData
             photData = syncStruct.AI.Photodiode;
             %end
-        elseif isShortcutting && batteryDesign && hasPhotData
+        elseif isShortcutting && hasPhotData %&& batteryDesign 
             photData = shortStruct.photData;
+            if isfield( shortStruct, 'photProc' )
+                photProc = shortStruct.photProc;
+            end
+        end
+
+        if ~isShortcutting && hasPhotData && cleanPhotData
+            %destroyer
+            disp([char(10),'Cleaning photodiode data'])
+
+            %gachiakuta
+
+            %Advanced phot rectification
+                %Non-functional
+            %{
+            temp = -photData;
+
+            temp(1:69418) = nan;
+            temp(51441900:end) = nan;
+
+
+            minPeriodGap = (( numel( matParamStruct.matSave.daqRange ) / matParamStruct.matSave.frequency ) * sampRate ) * 0.9;
+
+
+            [PKS,LOCS,W] = findpeaks( temp , 'MinPeakDistance', minPeriodGap );
+
+            temprange = [ nanmean( mink( temp, 15 ) ) , nanmean( maxk( temp, 15 ) ) ];
+
+
+            %Saw
+            blirg = -sawtooth( [0:1/minPeriodGap*5.2:pi*numel(PKS)] ); %5.2 arb?
+
+            blerg = normalize( blirg , 'Range', temprange );
+
+            templerg = temp - blerg;
+
+            %Or
+            blorg = nan( 1, numel(temp) );
+            for bInd = 2:size(LOCS,2)
+                coords = LOCS(bInd-1) : LOCS(bInd);
+                %blorg( coords ) = -0.01*bInd;
+                %recfunc = linspace( temprange(2) , temprange(1), numel(coords) );
+                cutcoords = floor( linspace( nanmin(coords), nanmax(coords), 100 ) );
+                cutdata = temp( cutcoords );
+                p = polyfit( cutcoords, cutdata, 2 );
+                f = polyval(p,coords);
+                
+                blorg(coords) = f;
+            end
+
+            plot( )
+
+
+
+
+
+
+
+
+            %}
+            
+            photTemp = photData;
+            photTemp( photTemp < 0.3 ) = 0; %Hopefully remove all iterator shared signal (Note: Will delete low luminosity true phot events)
+            photTemp( photTemp >= 0.3 ) = 1;
+
+            %Smoothing method
+            smoothVal = 100;
+            photTemp = smooth(photTemp, smoothVal ); %Empirical numbers
+                %Note: This is a bit unconventional, smoothing a binary trace
+            photTemp( photTemp ~= 0 ) = 1;
+            photTemp( photTemp ~= 1 ) = 0;
+
+            photLabel = bwlabel( photTemp ); %Find post-smoothed stimulus events
+
+            %'Fix' artificial lead/lag induced by smoothing
+            disp(['Fixing artificial lead/lag in phot data'])
+            tic
+            flatFails = 0;
+            for i = 1:nanmax( photLabel )
+                if nansum( photLabel == i ) > smoothVal 
+                    startEnd = [ find( photLabel == i , 1, 'first' ), find( photLabel == i , 1, 'last' ) ]; %Find putative start/end of this stimulus event
+                    coords = [ startEnd(1):startEnd(1)+floor(0.5*smoothVal), startEnd(2)-floor(0.5*smoothVal):startEnd(2) ]; %Identify artificial lead/lag coords
+                    coords( coords < 1 ) = []; coords( coords > length(photTemp) ) = []; %Clean
+                    photTemp( coords ) = 0; %Flatten
+                else
+                    flatFails = flatFails + 1;
+                    if ~batteryDesign
+                        ['-# error: cannot flatten smoothing lead/lag for apparent stim. event #',num2str(i),' due to small size (',num2str(nansum( photLabel == i )),') #-']
+                    end
+                end
+            end
+            toc
+            if batteryDesign && flatFails > 0
+                ['-# battery design encountered ',num2str(flatFails),' failures to flatten lead/lag (',num2str(nanmax( photLabel )),' total detected events)']
+            end
+
+            %darkness
+
+            %Gap ligation method on original photodiode data
+                %Deprecated because v. slow
+            %{  
+            %Find min. valid gap
+            if hasPTB
+                if ~batteryDesign
+                    %maxFreq = matParamStruct.matSave.frequency; %Use stimuli to decide gap
+                    maxFreq = matParamStruct.matSave.panelFrequency; %Use panel frequency to decide gap
+                else
+                    not coded yet; %Ask andre
+                end
+            else
+                %maxFreq = 6; %Assume default 6Hz
+                maxFreq = 60; %Assume default 60Hz
+            end
+            minValidGap = sampRate / maxFreq;
+    
+            %Label gaps
+            invPhotLabel = bwlabel( ~photTemp );
+            crimson
+            %For loop ligate gaps
+                %VERY SLOW (Like, 1h per block)
+            tic
+            ligatedPhotGaps = zeros( 1, nanmax(invPhotLabel) );
+            parfor i = 1:1000%nanmax( invPhotLabel ) 
+                if nansum( invPhotLabel == i ) < 1.1*minValidGap
+                    %disp([num2str(nansum( invPhotLabel == i ))])
+                    %photTemp( invPhotLabel == i ) = 1;
+                    ligatedPhotGaps(i) = 1;
+                end
+            end
+            disp([num2str(nansum(ligatedPhotGaps)),' gaps in phot trace ligated (',num2str(toc),'s)'])
+            %}
+
+            %Prepare for wider use
+            photProc = photTemp;
+
+            %Some potentially useful post-hoc reporting
+            temp = bwlabel( photProc );
+            disp(['Phot indicates ',num2str(nanmax(temp)),' stimulus events'])            
+
         end
     
             %% Save data, to increase speed for subsequent runs
@@ -1364,6 +1915,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             shortStruct.hasPhotData = hasPhotData;
             if hasPhotData
                 shortStruct.photData = photData;
+                if exist('photProc')
+                    shortStruct.photProc = photProc; %Yet larger shortcut files...
+                end
+            end
+
+            if exist('arbPhaseShift')
+                shortStruct.arbPhaseShift = arbPhaseShift;
             end
     
             %save( [hFolder,filesep,'h5Shortcut.mat'], 'shortStruct' )
@@ -1375,9 +1933,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             end
             save( [shortFolder,filesep,shortStruct.h5Name,'_h5Shortcut.mat'], 'shortStruct' )
             %sword
+            disp(['Shortcut data saved'])
     
         end
-    
+        %fighti    
     
         %% Tether image to known reference frame
     
@@ -1398,12 +1957,19 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     ['-# Alert: Failure to identify imaging start #-']
                 elseif isempty( imStimEnd )
                     ['-# Alert: Failure to identify imaging end #-']
-                    ['Apparent PTB duration: ', num2str((inferTimes( lastImStimFrameInd )/60) ),'m']
+                    if exist('inferTimes')
+                        ['Apparent PTB duration: ', num2str((inferTimes( lastImStimFrameInd )/60) ),'m']
+                    end
                 end
                 if isShortcutting ~= 1
-                ['Imaging started ', num2str( inferTimes( frameOnsetIndices(1) ) ),'s after TS start']
-                ['Imaging ended apparently after ', num2str( inferTimes( frameOnsetIndices(end) ) / 60 ),'m']
-                ['(TS ended after ', num2str( inferTimes( end ) / 60 ),'m)']
+                    disp(['Imaging started ', num2str( inferTimes( frameOnsetIndices(1) ) ),'s after TS start'])
+                    disp(['Imaging ended apparently after ', num2str( inferTimes( frameOnsetIndices(end) ) / 60 ),'m'])
+                    disp(['PTB self-reported ended after ',num2str(btData(end,6)/60),'m'])
+                    disp(['(TS ended after ', num2str( inferTimes( end ) / 60 ),'m)'])
+                    if inferTimes( frameOnsetIndices(end) ) < btData(end,6)
+                        [char(10),'## Informative: PTB ran ',num2str((btData(end,6)) - (inferTimes( frameOnsetIndices(end) ))),'s longer than imaging ##']
+                            %Theoretically can just post-hoc trim stimulus data, but probably not worth the effort for the intermittent times this occurs
+                    end
                 end
                 crash = yes
             end
@@ -1414,6 +1980,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             imFrameList = [1:tsImFrameCount]; %All frames, irrespective of Z (or imaging)
             %imFrameListZ = reshape(imFrameList, (thisFlyRecord.Steps + thisFlyRecord.FlybackFrames), size( avg_z_green_aligned , 3 )); %Z in rows, Vol # in cols
             imFrameListZ = reshape(imFrameList, (thisFlyRecord.Steps + thisFlyRecord.FlybackFrames), size( thisImData , 3 )); %Z in rows, Vol # in cols
+            %g11
     
             %Find first and last usable volume
             %Start
@@ -1435,11 +2002,28 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             adjImStimEnd = imStimEnd; %Use last stim frame as end, regardless of vol position
                 %This simplifies some sequence calcs
             %Express in volume reference
-            [~,adjImStimStartVol] = find( imFrameListZ == adjImStimStart );
-            [~,adjImStimEndVol] = find( imFrameListZ == adjImStimEnd );
+            [~,adjImStimStartVol] = find( imFrameListZ == adjImStimStart ); %Note that in 1 Z-plane situations these will actually be the same it seems
+            [~,adjImStimEndVol] = find( imFrameListZ == adjImStimEnd ); %Note that in 1 Z-plane situations these will actually be the same it seems
             clear adjImStimEnd adjImStimStart %Clear these to remind of fact that they may be inaccurate if end volumes adjusted because NaNs etc
             disp(['Adjusted imaging volumes of stimulation interest: ', num2str(adjImStimStartVol),' : ', num2str(adjImStimEndVol),...
                 ' (',num2str(adjImStimEndVol-adjImStimStartVol+1),' total)' ])
+                %Note: For multi-Z plane imaging, this section may desync imStimStart/adjImStimStartVol/etc [Vol ref.] and firstImStimFrameInd [TS ref] by up to a vol's worth of time (Probably) 
+
+            %Testatory figure of transient against phot (if existing)
+            %{
+            if hasPhotData
+                dataCoords = [imStimStart:imStimEnd];
+                photCoords = [firstImStimFrameInd:lastImStimFrameInd];
+                blirg = squeeze(nanmean(FLIES.BLOCKS.greenChannel(:,:,dataCoords),[1,2]));
+                newc = interp1([1:size(blirg,1)], [1:size(blirg,1)] , linspace(1,size(blirg,1), size(photCoords,2) ) )'; %Interpolated original volume number
+                blirg = interp1([1:size(blirg,1)], blirg , linspace(1,size(blirg,1), size(photCoords,2) ) )'; %Bit inefficient to bring trans data up to phot size but eh
+                figure
+                plot( blirg )
+                hold on
+                plot( (photData(photCoords)*10)+130)
+                title( ['Interpolated transient + phot'] )
+            end
+            %}
     
             %Interpolate sequence element across (usable) volume space
             %Old
@@ -1458,6 +2042,14 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             btRowPosInterpZ = nan( size(imFrameListZ,1), size(imFrameListZ,2) ); %Will hold info about which row of btData corresponds with frames, not i value
             btRowPosInterpZ( imStimStart: imStimEnd) = interp1([1:size(btData,1)], [1:size(btData,1)] , linspace(1,size(btData,1), imStimEnd-imStimStart+1 ), 'previous' )';
             btRowPosInterpZ = btRowPosInterpZ( : , adjImStimStartVol:adjImStimEndVol );
+
+            %Check if data coming from forced singular Z plane
+            if isfield( thisBlock, 'singularZ' ) && ~isempty( thisBlock.singularZ )
+                disp(['Singular Z plane detected; Adjusting seq/vol interpolation for Z=',num2str(thisBlock.singularZ)])
+                btSeqPosInterpZ = btSeqPosInterpZ( thisBlock.singularZ, : );
+                btRowPosInterpZ = btRowPosInterpZ( thisBlock.singularZ, : );
+
+            end
 
     
             %Pick a method to identify preceding stimuli by
@@ -1499,6 +2091,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         %The most common cause for this is imaging not being (much) faster than stimulation
                 ['-# Warning: Sequence elements apparently lost due to aliasing/imaging framerate #-']
             end
+
+            %kirara
     
              %Find actual stimuli delivered (via randomSequence)   
              if ~batteryDesign %Not battery (Rolling, Block, etc)
@@ -1548,6 +2142,58 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
               volTimesDesc{3} = 'TS index of vol';
               %end
               %motherbase
+
+              %volTimes 'bootleg' adjustment
+              %volTimesAdj = volTimes;
+              %volTimesAdj(3,:) = volTimesAdj(3,:) - firstImStimFrameInd; %Manually shift TS reference back by 
+              
+
+              %Second testatory figure of transient against phot (if existing)
+              %{{
+              if hasPhotData && ~isShortcutting
+
+                  %Pre calcs
+                  %dataCoords = [imStimStart:imStimEnd]; %Using dataStimTrim this time, which is based on adjImStartVol
+                  photCoords = [firstImStimFrameInd:lastImStimFrameInd]; %Note: As above, less guaranteed synchronicity with adjusted timings (Due to no equivalent adjustment to TS start/end timings)
+                  blirg = squeeze(nanmean(dataStimTrim,[1,2]));
+                  blirg = interp1([1:size(blirg,1)], blirg , linspace(1,size(blirg,1), size(photCoords,2) ) )'; %Bit inefficient to bring trans data up to phot size but eh
+                  btlerg = btData( volTimes(2,:) , 5 );
+
+                  %Old
+                    %Misleading, as it plots Ca2+/phot data on 1:len indices, then randomSeq on volTimes indices, which are off by 1st element ~index
+                    %{
+                  figure
+                  plot( blirg ) %Mean transient data
+                  hold on
+                  plot( (photData(photCoords)*10)+130) %Phot data
+                  scatter( volTimes(3,:),  (btlerg*0.1)+134 ) %i value (1 in 10 dilution)
+                  plot( volTimes(3,:), btData( volTimes(2,:) , 8 )+137 ) %Random sequence status
+                  title( ['Interpolated transient + phot + 1/10th i + stim (Index)'] )
+                    %}
+
+                  %New
+                  phoTimes = inferTimes(photCoords);
+                  figure
+                  plot( phoTimes, blirg' )
+                  hold on
+                  plot( phoTimes, (photData(photCoords)*10)+130)
+                  plot( volTimes(1,:), btData( volTimes(2,:) , 8 )+135 ) %Use original TS reference (Time)
+                  %title( ['Interpolated transient + phot (TS time ref)'] )
+                  title( [strrep(flyID,'_',' '),' - interpolated transient + phot (TS time ref)'] )
+
+              end
+              %}
+
+              %strobe
+
+              %Testatory plot
+              figure
+              subplot(2,1,1)
+              plot( squeeze( nanmean(dataStimTrim, [1,2] ) ) )
+              hold on
+              plot( imStimTerp+nanmean(dataStimTrim, 'all' )-7 )
+              title('data and imStimTerp pre blank intro trim')
+
     
               %Siphon out blanks
                     %Start by extracting pre-experiment blank baseline (If existing)
@@ -1578,9 +2224,19 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   %medBTSeqInterpZ( baseInds ) = [];
                   %modeBTSeqInterpZ( baseInds ) = [];
                   methodBTSeqInterpZ( baseInds ) = [];
+
+                  volTimes( :, baseInds ) = []; %Might break things
     
                   disp(['Blank pre-experiment baseline of ',num2str(numel(baseInds)),' elements collected; Data/sequence trimmed'])
               end
+
+              %Finish plot
+              subplot(2,1,2)
+              plot( squeeze( nanmean(dataStimTrim, [1,2] ) ) )
+              hold on
+              plot( imStimTerp+nanmean(dataStimTrim, 'all' )-7 )
+              title('data and imStimTerp post blank intro trim')
+
               %Follow up by collecting during-sequence blanks (if existing)
                     %(Only for inline blank handling though)
               if includesBlanks && blankHandleMode == 1
@@ -1656,64 +2312,109 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       ['-# Caution: Imaging frames (',num2str(length(methodBTSeqInterpZ) ),') outnumbered by stimulus elements (',num2str( length( randomSeqActual )/nBack),') #-']
                   end
     
-                  %stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) );
-                  stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) );
-    
-                  %Calculate nVol, for later use
-                  %nVol = floor( size(imageStack,3)/ ( length(randomSequence) / options.nBack ) ); %Stolen from sortSEs2P initial implementation
-                  nStimuli = options.nBack;
-                  disp(['Using nBack of ', num2str(options.nBack),' to calculate acceptable volume counts'])
-                  nVol = floor( size(dataStimTrim,3)/ ( length(randomSeqActual) / nStimuli ) ); %Calculates theoretically optimal number of volumes in imaging time period
-                  while ceil( stimFrameInds( nStimuli ) - nVol ) < 0
-                      disp(['-# Caution: Initially calculated nVol of ',num2str(nVol),' may be too large; Reducing #-'])   
-                      nVol = nVol - 1;
+                  %The below section was an attempted reindicisation that may be unnecessary?
+                    %See wrt sortSEs2P
+                  %{{
+                  if ~unsiphonedSEs %'Normal', siphoned SEs
+
+                      %stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) );
+                      stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) ); %Basically calculates the approximate volume number at each element of the sequence (Assuming equal spacing I guess)
+        
+                      %'Old' nVol calcs, probably incorrect
+                        %These calcs presumed incorrect on account of rolling data not needing to be reindicised to be nBack elements (e.g. 5)
+                      %{{
+                      %Calculate nVol, for later use
+                      %nVol = floor( size(imageStack,3)/ ( length(randomSequence) / options.nBack ) ); %Stolen from sortSEs2P initial implementation
+                      nStimuli = options.nBack;
+                      disp(['Using nBack of ', num2str(options.nBack),' to calculate acceptable volume counts'])
+                      nVol = floor( size(dataStimTrim,3)/ ( length(randomSeqActual) / nStimuli ) ); %Calculates theoretically optimal number of volumes in imaging time period (Based on looking at linspaced volume index at index nBack)
+                      while ceil( stimFrameInds( nStimuli ) - nVol ) < 0
+                          disp(['-# Caution: Initially calculated nVol of ',num2str(nVol),' may be too large; Reducing #-'])   
+                          nVol = nVol - 1;
+                      end
+                      disp(['Calculated nVol: ',num2str(nVol)])
+                      %QA
+                      if nVol <= 0
+                          ['## Error in calculating nVol ##']
+                          crash = yes
+                      end
+        
+                      %Make data be exactly nVol * sequence long
+                      %  Are there situations where original size might want to be preserved?
+                      %stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) ); %Moved above to be more useful
+        
+                      %Check if mod math can be correctly applied
+                      if nStimuli ~= 5
+                          ['-# Alert: Mod calculations likely to be incorrect on account of non-standard nBack #-']
+                          crash = yes
+                      end
+                      %samPoints = [ 0 : (length(randomSeqActual)/nStimuli-mod((nStimuli+4),8)) ]; %More or less just a list from 0 to sequenceLength/nStimuli
+                      samPoints = [ 0 : (length(randomSeqActual)/nStimuli-mod((nStimuli+4),8)) ]; %More or less just a list from 0 to sequenceLength/nStimuli
+        
+                      %(The following block generates in effect discontinuous time, as a matter of optimal volume collection)
+                      lastVolFrameInds = stimFrameInds( samPoints*nStimuli + options.nBack); %Indices of last volume corresponding to each block (Note actually decimal, therefore needs to be ceiled/etc to function as inds)
+                      newFrameInds = nan( nVol, size(lastVolFrameInds,2) );
+                      for vol = 1:nVol
+                          newFrameInds( vol, : ) = ceil( lastVolFrameInds ) - nVol + vol; %nVol rows, n of blocks cols
+                      end
+                      newFrameInds = reshape( newFrameInds, 1, nVol*size(newFrameInds,2));
+                      %QA to ensure unique frames being grabbed
+                      if numel( unique( newFrameInds ) ) ~= numel( newFrameInds )
+                          ['## Alert: Same frame/s grabbed multiple times for bendy rolling reindicisation ##']
+                          crash = yes
+                          %May happen naturally with large volume numbers
+                      end
+                      %}
+                      %New, element-based reindicisation
+                      %{
+                      nStimuli = options.nBack;
+
+                      nVolPerEl = floor( size(dataStimTrim,3)/ length(randomSeqActual) );
+                      disp(['Calculated vol/s per element: ',num2str(nVolPerEl)])
+                      %QA
+                      if nVolPerEl < 1 %Not really an acceptable state of affairs; Can occur naturally if stimuli frequency high and imaging rate slow
+                          ['## Error: Insufficient volumes to be collected per rolling element ##']
+                          crash = yes
+                      end
+
+                      samPoints = [ 1 : length(randomSeqActual) ]; %Note: Unlike the above, old implementation, here samPoints correspond to each element of randomSeq
+                        %Also note linspace from 1, not from 0
+                      lastVolFrameInds = stimFrameInds( samPoints ); %Redundant, because yields stimFrameInds in its entirety?
+                      newFrameInds = nan( nVolPerEl, size(lastVolFrameInds,2) );
+                      for vol = 1:nVolPerEl
+                          newFrameInds( vol, : ) = ceil( lastVolFrameInds ) - nVolPerEl + vol; %nVol rows, n of blocks cols
+                      end
+
+                      unfinished, because seemingly redundant with functionality for rolling in sortSEs2P
+                      %}
+
+        
+                      dataStimTrim = dataStimTrim( :,:, newFrameInds ); %If this crashes, NaNs were probably in newFrameInds for some error reason
+                      imStimTerp = imStimTerp( newFrameInds );
+                      volTimes = volTimes( :, newFrameInds );
+                      %check validity of imStim/volT reindicising
+                      disp( ['Bendy rolling data reindicised to length ',num2str( size(dataStimTrim,3) ),' (',num2str( size(dataStimTrim,3) / nVol ),' "blocks") for analysis (',...
+                          num2str( ( 1 - ( size(dataStimTrim,3) / max(newFrameInds) ) ) * 100 ),'% Loss)'] )
+                      %Loss in this context is how much of the original imaging data could not be associated with 'blocks' 
+                        %It is likely to be highest when imaging rates are low and stimulus frequencies are high (i.e. 1 in 3 is 33%, but 1 in 8 is only 12.5%)
+
+                  else
+                      disp(['(No reindicisation for unsiphoned rolling data)'])
+                      dataStimTrim = dataStimTrim;
+                      imStimTerp = imStimTerp;
+                      volTimes = volTimes; %Symbolic
                   end
-                  disp(['Calculated nVol: ',num2str(nVol)])
-                  %QA
-                  if nVol <= 0
-                      ['## Error in calculating nVol ##']
-                      crash = yes
-                  end
+                  %}
     
-                  %Make data be exactly nVol * sequence long
-                  %  Are there situations where original size might want to be preserved?
-                  %stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) ); %Moved above to be more useful
-    
-                  %Check if mod math can be correctly applied
-                  if nStimuli ~= 5
-                      ['-# Alert: Mod calculations likely to be incorrect on account of non-standard nBack #-']
-                      crash = yes
-                  end
-                  %samPoints = [ 0 : (length(randomSeqActual)/nStimuli-mod((nStimuli+4),8)) ]; %More or less just a list from 0 to sequenceLength/nStimuli
-                  samPoints = [ 0 : (length(randomSeqActual)/nStimuli-mod((nStimuli+4),8)) ]; %More or less just a list from 0 to sequenceLength/nStimuli
-    
-                  lastVolFrameInds = stimFrameInds( samPoints*nStimuli + options.nBack); %Indices of last volume corresponding to each block (Note actually decimal, therefore needs to be ceiled/etc to function as inds)
-                  newFrameInds = nan( nVol, size(lastVolFrameInds,2) );
-                  for vol = 1:nVol
-                      newFrameInds( vol, : ) = ceil( lastVolFrameInds ) - nVol + vol; %nVol rows, n of blocks cols
-                  end
-                  newFrameInds = reshape( newFrameInds, 1, nVol*size(newFrameInds,2));
-                  %QA to ensure unique frames being grabbed
-                  if numel( unique( newFrameInds ) ) ~= numel( newFrameInds )
-                      ['## Alert: Same frame/s grabbed multiple times for bendy rolling reindicisation ##']
-                      crash = yes
-                      %May happen naturally with large volume numbers
-                  end
-    
-                  dataStimTrim = dataStimTrim( :,:, newFrameInds ); %If this crashes, NaNs were probably in newFrameInds for some error reason
-                  imStimTerp = imStimTerp( newFrameInds );
-                  volTimes = volTimes( :, newFrameInds );
-                  check validity of imStim/volT reindicising
-                  disp( ['Bendy rolling data reindicised to length ',num2str( size(dataStimTrim,3) ),' (',num2str( size(dataStimTrim,3) / nVol ),' "blocks") for analysis (',...
-                      num2str( ( 1 - ( size(dataStimTrim,3) / max(newFrameInds) ) ) * 100 ),'% Loss)'] )
-                  %Loss in this context is how much of the original imaging data could not be associated with 'blocks' 
-                    %It is likely to be highest when imaging rates are low and stimulus frequencies are high (i.e. 1 in 3 is 33%, but 1 in 8 is only 12.5%)
-    
-              end                
+              end  
+
+              %kc4k
 
               hasSiphoned = 0; %Flag to indicate whether blanks siphoned off
               stillRollable = 1; %Flag to indicate whether data can still be analysed rolling-style after blank removal
-              if batteryDesign ~= 1 && ( any( imStimTerp == 5 ) || bendyBlockDesign == 1 )
+              phaseShifted = 0; %Default no
+              if batteryDesign ~= 1 && ( any( imStimTerp == 5 ) || bendyBlockDesign == 1 ) && ~unsiphonedSEs
+              %"Not battery design AND blanks present or block design AND not siphoning SEs"
                   if bendyBlockDesign == 0 %"Blanks indicate true blank periods, intended for alternative analysis/etc"
                     %Note: This isn't really main rolling analysis here, just blank removal, unlike below for block design bendy
                         disp(['Rolling design; Siphoning blanks for alternative analysis'])
@@ -1823,6 +2524,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             %Note: This can still only be like, 25% or less of all inter-stimulus periods
                         disp(['Selected inter-stim period to collect: ', num2str(nomInter),' (',num2str(( nansum(interStimPeriods == nomInter) / numel(interStimPeriods) )*100),'% of original periods)'])
     
+                        %timeoflove
+
                         %Find indices of inter-stimulus periods
                         [~,intInds] = max(temp3,[],2); %First element of each respective inter-stim period
                         [~,outInds] = max(fliplr(temp3),[],2); %End of each inter-stim period, flipped reference frame
@@ -1832,11 +2535,27 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         collInds = intInds + repmat( [1:nomInter], size(intInds,1), 1 ) - 1; %Note: Original phase of inter-stimulus obviously obliterated here
                         disp([ 'Last frame of imaging to be collected: ', num2str(collInds(end)) ])
                         disp([ 'Total imaging size: ', num2str( size(dataStimTrim,3) ) ])
+
                         %Make sure last element of collection not outside data
                         if collInds(end) > size(dataStimTrim,3)
                             collInds(end,:) = []; %Remove one imaging period
                             disp(['Terminal collection period removed; New end: ', num2str(collInds(end)) ])
+                        end                       
+
+                        %Another testatory figure
+                        meanStimTrimTrans = nanmean(dataStimTrim, 'all' );
+                        figure
+                        plot( squeeze( nanmean(dataStimTrim, [1,2] ) ) )
+                        hold on
+                        plot( imStimTerp+meanStimTrimTrans-8 )
+                        for row = 1:size(collInds,1)
+                            line( [ collInds(row,1),collInds(row,end) ], [meanStimTrimTrans+5,meanStimTrimTrans+5], 'Color', 'g' )
+                            if row > 1
+                                line( [ collInds(row-1,end),collInds(row,1) ], [meanStimTrimTrans+6,meanStimTrimTrans+6], 'Color', 'r' )
+                            end
                         end
+                        xlim([1,collInds(5,end)]) %Free to resize
+                        title(['Meaned data + collection period (g) + stim period (r) + sequence (bottom) [First 5 trials window]'])
     
                         %Prepare a labelled form of randomSeqCorr for intelligent stimulus collection, if applicable
                         if isequal( btInterpolationMethod, 'intelligent' ) 
@@ -1897,6 +2616,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                     stimSeq( row, : ) = randomSeqForLabel( stimSeqCorrInds( row, : ) ); %Stimuli
                                case 'intelligent'
                                    thisStimEnd =  methodBTSeqInterpZ( stimInds(row,end) );
+                                   %stimSeqCorrInds( row, : ) = stimInds(row,:); %Note: In this incarnation, this is more of a feelgood approximation of stim volumes than perfect reporter
+                                        %Due to difference in how Intelligent mode collates stim identity
+                                        %Note: This is subsampled to nBack and thus less than useful?
                                    %Check for accidentally landing in inter-stimulus period
                                         %Note: A rolling phase adjustment might be useful, but would have to be justified from first principles (Why would phase become unaligned over time?)
                                    if randomSeqLabel( thisStimEnd ) == 0
@@ -1945,13 +2667,180 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                     %i.e. >1 stimuli occurred in the span of a single volume
                         end
 
+                        %Average stim  plot
+                        if savePhasePlots
+                            try
+                                %Check/Make folder to put figures into
+                                phaseFolder = strcat( dataFolder,filesep,'PHASE' );
+                                if exist(phaseFolder) ~= 7
+                                    mkdir( phaseFolder )
+                                    disp(['Phase figure folder made at ',phaseFolder])
+                                end
+                                phaseResultsFolder = strcat(outputDirectory,filesep,'Fly', num2str(thisBlock.flyNum), filesep,'Block', num2str(thisBlock.blockNum),filesep,'Phase');
+                                phaseResultsFolder = char(phaseResultsFolder);
+                                if ~exist(phaseResultsFolder,'dir')
+                                    mkdir(phaseResultsFolder);
+                                    disp(['Secondary phase figure folder made at ',phaseResultsFolder])
+                                end
+                            catch
+                                ['-# Phailure to generate pholder for fase plots #-']
+                            end
+                        end
+                        %(Old position)
+                        %{
+                        temp = squeeze( nanmean( dataStimTrim, [1,2] ) );
+                        %temp2 = temp( stimSeqCorrInds );
+                        temp2 = [];
+                        temp2 = nan( size(collInds,1), floor(nanmax(diff(collInds(:,end)))*1.25) );
+                        coords = [1:collInds(1,1)-1]; %Collect pre first collInds stim period
+                        temp2( 1, 1:length(coords) ) = temp(coords);
+                        for row = 2:size(collInds,1) 
+                            coords = [collInds(row-1,end)+1:collInds(row,1)-1]; %Collect pre first collInds stim period
+                            temp2( row, 1:length(coords) ) = temp(coords);
+                        end
+                        figure
+                        %plot( nanmean(temp2,1) );
+                        %Stim
+                        errorbar( nanmean(temp2,1), nanstd(temp2,[],1) )
+                        %}
+
+                        if pixRestrictPhasePlots 
+                            [pixelUse] = varPixStandalone(dataStimTrim,-1,1,... %Note: -1 not a true dataMode, but should be fine?
+                                'thresh',2,'pixelMinCount',12,'figTitleStr',[flyID,' - '],'doPlots',1, ...
+                                'invertRestriction',0, 'arbitraryRestrictCoords', [], 'bootlegEdgeRemoval', 1); 
+                        end
+
+                        %Average stim and collection plot
+                        %Serial Experiments
+                        %temp = squeeze( nanmean( dataStimTrim, [1,2] ) );
+                        temp = dataStimTrim;
+                        if pixRestrictPhasePlots
+                            shadowCopy = repmat( pixelUse,1,1, size(temp,3) ); %Will make huge matrix, but necessary for speed?
+                            %temp( pixelUse == 0, : ) = NaN; %Original method; Maybe slow?
+                            temp( shadowCopy == 0 ) = NaN;
+                            clear shadowCopy
+                        end
+                        %nansum(pixelUse == 1)
+                        temp = squeeze( nanmean( temp, [1,2] ) );
+                        %temp2 = temp( stimSeqCorrInds );
+                        temp2 = [];
+                        temp2 = nan( size(collInds,1), floor(nanmax(diff(collInds(:,end)))*1.25) );
+                        coords = [1:collInds(1,1)-1]; %Collect pre first collInds stim period
+                        temp2( 1, 1:length(coords) ) = temp(coords);
+                        for row = 2:size(collInds,1) 
+                            coords = [collInds(row-1,end)+1:collInds(row,1)-1]; %Collect pre first collInds stim period
+                            temp2( row, 1:length(coords) ) = temp(coords);
+                        end
+                        figure
+                        %plot( nanmean(temp2,1) );
+                        %Stim
+                        subplot(2,1,1)
+                        errorbar( nanmean(temp2,1), nanstd(temp2,[],1) / sqrt( size(temp2,1) ) )
+                        legend({'Stim'})
+                        %hold on
+                        %for row = 1:size(temp2,1)
+                        %    plot( temp2(row,:) )                      
+                        %end
+                        title([strrep(flyID,'_',' '),' - [Whole] Stim period average transient'])
+                        xlabel(['Time (vol)'])
+                        %Note that this plot uses inter-collInds for 'stim' collection, not technically any stim inds
+                        %Coll
+                        temp3 = temp(collInds);
+                        if exist('arbPhaseShift')
+                            coords = collInds + arbPhaseShift;
+                            [temp5,~] = nanmax( coords, [], 2);
+                            [temp6,~] = nanmin( coords, [], 2);
+                            if any(temp5 > size(temp,1))
+                                coords( find(temp5 > size(temp,1)), : ) = [];
+                            end
+                            if any(temp6 < 1)
+                                coords( find(temp6 < 1), : ) = [];
+                            end
+                            temp4 = temp(coords);
+                        end
+                        subplot(2,1,2)
+                        errorbar( nanmean(temp3,1), nanstd(temp3,[],1) / sqrt( size(temp3,1) ) )
+                        if exist('arbPhaseShift')
+                            hold on
+                            errorbar( nanmean(temp4,1), nanstd(temp4,[],1) / sqrt( size(temp4,1) ) )
+                        end
+                        %title([strrep(flyID,'_',' '),' - Coll period average transient'])
+                        titleStr = ['Fly #',num2str(thisBlock.flyNum),'-',num2str(thisBlock.blockNum),' - ',strrep(flyID,'_',' '),' - Coll period average transient'];
+                        if pixRestrictPhasePlots
+                            titleStr = [titleStr,char(10),'(Pixel restricted)'];
+                        end
+                        if exist('arbPhaseShift')
+                            titleStr = [titleStr,char(10),'(And phase-shifted [',num2str(arbPhaseShift),'] version)'];
+                            legend([{'Orig.'},{'Phase shifted'}])
+                        else
+                            legend({'Orig.'})
+                        end
+                        xlabel(['Time (vol)'])
+                        title(titleStr)
+                        if savePhasePlots
+                            try
+                                drawnow
+                                saveas(gcf, [phaseFolder,filesep,flyID,'_phasePlot'], 'png');
+                                saveas(gcf, [phaseResultsFolder,filesep,flyID,'_phasePlot'], 'png');
+                                disp(['Phase plot saved'])
+                            catch
+                                ['-# Phailure to save fase plots #-']
+                            end
+                        end
+
+                        %lain
+
+                        %QA plot for first/middle/last phot particularly
+                        if hasPhotData && size(collInds,1) > 30
+                            figure
+                            coords = floor(linspace( 1,size(photProc,1), 4 ));
+                            for i = 1:3
+                                subplot(1,3,i)
+                            %hold on
+                            %for i = 1:10
+                            %    plot( photProc(volTimes(3, stimInds(i,:) )) )  %Plot elements of photProc associated with each collection                                                                 
+                            %end
+                                theseCoords = floor([coords(i):coords(i)+10*sampRate]);
+                                plot(photProc(theseCoords),'Color','r')
+                                xlabel('Time (TS ref)')  
+                                title(['Phot example portion #',num2str(i)])
+                            end
+                        else
+                            ['-# Cannot do phot first/middle/last plot #-']
+                        end
+
                         %Interruption to siphon blanks if applicable and moded
                         if includesBlanks && blankHandleMode == 2
                             blankTrialIDs = find( nansum( stimSeq == -2, 2 ) == blockLength ); %Identify which trials were blank
                                 %Note: No explicit check for sequences that were mixed or aberrant blanks/ISI/etc
                             disp([num2str(length(blankTrialIDs)),' blank trials found in final sequence; Siphoning outline'])
 
-                            deImBlankInds = reshape( collInds( blankTrialIDs, : )', 1, size(collInds( blankTrialIDs, : ),1)*nomInter ); %Based on deImInds as done below, obviously
+                            blankCollInds = collInds( blankTrialIDs, : );
+
+                            %Phase shift, if applicable
+                            if exist('arbPhaseShift') && ~isempty(arbPhaseShift)
+                                if ~destructivePhaseShift
+                                    blankCollInds = blankCollInds + arbPhaseShift;
+                                    %QA borrowed from below
+                                    [temp5,~] = nanmax( blankCollInds, [], 2);
+                                    [temp6,~] = nanmin( blankCollInds, [], 2);
+                                    if any(temp5 > size(dataStimTrim,3))
+                                        blankCollInds( find(temp5 > size(dataStimTrim,3)), : ) = [];
+                                    end
+                                    if any(temp6 < 1)
+                                        blankCollInds( find(temp6 < 1), : ) = [];
+                                    end
+                                else
+                                    if arbPhaseShift > 0
+                                        blankCollInds(:,1:arbPhaseShift) = []; %DEstrOy; StArt
+                                    else
+                                        blankCollInds(:,end-arbPhaseShift:end) = []; %DEstrOy; EnD
+                                    end
+                                end
+                            end
+
+                            %deImBlankInds = reshape( collInds( blankTrialIDs, : )', 1, size(collInds( blankTrialIDs, : ),1)*nomInter ); %Based on deImInds as done below, obviously
+                            deImBlankInds = reshape( blankCollInds', 1, size(blankCollInds,1)*size(blankCollInds,2) ); %Based on deImInds as done below, obviously
                             %postBlankData = dataStimTrim( :,:, deImBlankInds );
                             blankStack = dataStimTrim( :,:, deImBlankInds );
                             blankInds = deImBlankInds;
@@ -1959,27 +2848,92 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             blankTimes = volTimes( :, deImBlankInds ); %Not checked for same size as dataStimTrim
 
                             %QA
-                            if mod( size( blankStack, 3), nomInter ) ~= 0
+                            if ~(exist('arbPhaseShift') && ~isempty(arbPhaseShift)) && mod( size( blankStack, 3), nomInter ) ~= 0
                                 ['## Alert: Potential phase loss in post-stim blank data ##']
                                 crash = yes
                             end
-
+                 
                             %Remove blanks from 'real' data
                             stimSeq( blankTrialIDs , : ) = [];
                             collInds( blankTrialIDs , : ) = [];
+
+                            %Testatory plot of blanks
+                            figure
+                            errorbar( nanmean(temp(blankCollInds),1), nanstd(temp(blankCollInds),[],1) / sqrt(size(blankCollInds,1)) )
+                            title([strrep(flyID,'_',' '),' - Blank coll period average transient'])
+                            xlabel(['Time (vol)'])
+                            %{
+                            %Deprecated with inline phase shift of blanks now
+                            if exist('arbPhaseShift')
+                                try %Too lazy to write properly
+                                    hold on
+                                    errorbar( nanmean(temp(blankCollInds+arbPhaseShift),1), nanstd(temp(blankCollInds),[],1) / sqrt(size(blankCollInds,1)) )
+                                    legend([{'Orig. blank'},{'Phase shifted blank'}])
+                                catch
+                                    disp([('(Failure to append phase shifted blank data to testatory plot)')])
+                                end
+                            end
+                            %}
+
+                            numBlanks = length(blankTrialIDs);
+                            blankNVol = size(blankCollInds,2); 
+                            disp([num2str(numBlanks),' blank events collected, nVol of ',num2str(blankNVol)])
 
                         end
     
                         %Reshape derived stimulus sequence
                         deRandomSeq = reshape(stimSeq', 1, size(stimSeq,1)*blockLength); %Transposition v important here for correct rowwise-ness
                          
+
+                        %Apply phase shift equally to all collection indices
+                            %Do this immediately prior to actual collection
+                        %phaseShifted = 0; %Default no (Moved above in case of unsiphoned)
+                        %bronski
+                        if exist('arbPhaseShift') && ~isempty(arbPhaseShift)
+                            if ~destructivePhaseShift %Non-destructive phase shift
+                                collInds = collInds + arbPhaseShift;
+                                    %Note: Does not shift stimulus inds, by design
+                                disp(['Phase shift applied'])
+                                [temp5,~] = nanmax( collInds, [], 2);
+                                [temp6,~] = nanmin( collInds, [], 2);
+                                if any(temp5 > size(dataStimTrim,3))
+                                    collInds( find(temp5 > size(dataStimTrim,3)), : ) = []; %Delete first collection period
+                                    deRandomSeq( 1:blockLength ) = []; %And corresponding stim period
+                                    disp(['(Trial/s ',num2str(find(temp5 > size(dataStimTrim,3))),' had to be ditched due to overrun)'])
+                                end
+                                if any(temp6 < 1)
+                                    collInds( find(temp6 < 1), : ) = [];
+                                    deRandomSeq( end-blockLength+1:end ) = [];
+                                    disp(['(Trial/s ',num2str(find(temp6 < 1)),' had to be ditched due to underrun)'])
+                                end
+                                disp(['Phase shift applied']) 
+                            else
+                                %Pre-QA
+                                if arbPhaseShift >= size(collInds,2)
+                                    ['## Alert: Requested destructive phase shift (',num2str(arbPhaseShift),') larger than collection inds (',size(collInds,2),') ##']
+                                    crash = yes
+                                end
+                                temp = size(collInds,2);
+                                if arbPhaseShift > 0
+                                    collInds(:,1:arbPhaseShift) = []; %DEstrOy; StArt
+                                else
+                                    collInds(:,end-arbPhaseShift:end) = []; %DEstrOy; EnD
+                                end
+                                disp(['Destructive phase shift applied (',num2str(temp),'->',num2str(size(collInds,2)),')'])    
+                                nomInter = size(collInds,2); %Redefine post destruction 
+                            end
+                            phaseShifted = 1;
+                        end
+
                         %Now to collect frames
                         deImInds = reshape( collInds', 1, size(collInds,1)*nomInter ); %A run-on list of what volumes relate to stimulation
+                        %deImInds = reshape( collInds', 1, size(collInds,1)*size(collInds,2) ); %Switch to array size for both, because of possibility of destructive phase shifting
                             %Note that collInds holds the original, segmented version of volume positions
                         postStimData = dataStimTrim( :,:, deImInds ); %Only valid as long as dataStimTrim timing synchronous with other matrices
                             %Note: Unless imaging was 1:1 framerate with display, this will not necessarily match deRandomSeq in size
                         %QA for correct phase-size
-                        if mod( size( postStimData, 3), nomInter ) ~= 0 || mod( size( deRandomSeq, 2), blockLength ) ~= 0
+                        if ( mod( size( postStimData, 3), nomInter ) ~= 0 || mod( size( deRandomSeq, 2), blockLength ) ~= 0 ) %&& ...
+                                %( (exist('arbPhaseShift') && ~isempty(arbPhaseShift) && ~destructivePhaseShift ) || (exist('arbPhaseShift') && isempty(arbPhaseShift)) ) %Boolean unnecessary
                             ['## Alert: Potential phase loss in post-stim data and/or derived random sequence ##']
                             ['Imaging size: ',num2str(size( postStimData ))]
                             ['Random seq size: ',num2str( size(deRandomSeq,2) )]
@@ -1988,13 +2942,98 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         postStimTimes = volTimes( :, deImInds );
     
                         %Report
-                        disp(['Final number of imaging events: ',num2str(size( postStimData,3 )/nomInter)]) %Add potential max # imaging events here
-                        disp(['Final number of stimulus events: ',num2str(size( deRandomSeq,2 )/blockLength)]) %Add potential total (btData) here
+                        numImaging = size( postStimData,3 )/nomInter;
+                        numStimulus = size( deRandomSeq,2 )/blockLength;
+                        disp(['Final number of imaging events: ',num2str(numImaging)]) %Add potential max # imaging events here
+                        disp(['Final number of stimulus events: ',num2str(numStimulus)]) %Add potential total (btData) here
                         if includesBlanks && blankHandleMode == 2
-                            disp(['(And ',num2str(length(blankTrialIDs)),' blank trials)'])
+                            %numBlanks = length(blankTrialIDs);
+                            disp(['(And ',num2str(numBlanks),' blank trials)'])
+                        end
+
+                        %Quick report on durations
+                        temp = volTimes(1,collInds); %Time based on inferTimes(?)
+                        temp = reshape(temp, size(collInds,1), size(collInds,2));
+                        temp = temp - temp(:,1);
+                        ostensibleWindowTimes = nanmean(temp,1); %Approximate 'real' times of vols/frames in collection window
+                        disp(['Average coll. duration: ',num2str(nanmean([temp(:,end)],1)),'s'])
+
+                        %Interim plot if requested
+                        if doBendyTransientGraph
+                            temp = [];
+                            temp{1} = squeeze( nanmean( dataStimTrim, [1,2] ) ); %Mean of imaging 
+                            temp{2} = temp{1}( collInds ); %2D array of means (Event, Time)
+                            temp{6} = nanmean(temp{2},1); %1D mean of transients
+                            temp{8} = nanstd( temp{2}, [], 1 ) / sqrt( size(temp{2},1) ); %1D SEM of transients
+                            if hasPhotData && cleanPhotData
+                                temp{3} = volTimes(3,:); %All TS timepoints associated with volumes
+                                temp{4} = temp{3}( collInds ); %2D array of TS timepoints relating to specific volumes
+                                temp{5} = photProc( temp{4} ); %2D array of phot data during specific volumes
+                                temp{7} = nanmean( temp{5}, 1 ); %normalize( nanmean( temp{5}, 1 ), 'Range', [nanmin( temp{6} ) - range( temp{6} ) , nanmin( temp{6} ) ] ); %1D mean of phot
+                                temp{9} = nanstd( temp{5}, [], 1 ) / sqrt( size(temp{5},1) ); %1D SEM of phot
+                            end
+                            temp{10} = [];
+                            for vol = 1:size( collInds,2 )
+                                temp{10}(:,:,vol) = nanmean( dataStimTrim(:,:, collInds(:,vol) ), 3 );
+                            end
+                            [~, temp{11}(1)] = nanmin( temp{6} ); temp{11}(2) = floor( size(temp{6},2) /2 ); [~, temp{11}(3)] = nanmax( temp{6} );
+
+                            %falling
+                            figure
+                            subplot( 2,3, [1:3] )
+                            errorbar( temp{6}, temp{8} )
+                            if hasPhotData && cleanPhotData
+                                hold on
+                                errorbar( temp{7}*range(temp{6}) + nanmin( temp{6} ) - 0.5*range(temp{6}), temp{9}*range(temp{6}) )
+                                legend([{'Transient'},{'Phot'}])
+                            else
+                                legend([{'Transient'}])
+                            end
+                            if ~exist('arbPhaseShift')
+                                title(['Block design transient plot - ',strrep(flyID,'_',' '),' (','#',num2str(thisBlock.flyNum),'-',num2str(thisBlock.blockNum),')'])
+                            else
+                                title(['Block design transient plot - ',strrep(flyID,'_',' '),' (Phase shifted)',' (','#',num2str(thisBlock.flyNum),'-',num2str(thisBlock.blockNum),')'])
+                            end
+                            %xlabel(['Volume'])
+                            ylabel(['Pixel intensity (a.u.)'])
+                            xlim([1,size(temp{6},2)])
+                            %Apply calculated real time to graph
+                            exAxis = get(gca,'XTick');
+                            temp{12} = linspace( ostensibleWindowTimes(1), ostensibleWindowTimes(end), numel(exAxis) ); %NOTE: THIS TIME BASED ON LINSPACE AND MAY BE INACCURATE FOR MULTIPLE REASONS
+                            exLabels = [];
+                            for i = 1:size(temp{12},2)
+                                exLabels{i} = [num2str(exAxis(i)),'v / ',num2str(round( temp{12}(i),2)),'s'];
+                            end
+                            xticklabels(exLabels)
+                            xlabel(['Volume / Time '])
+
+                            subplot( 2,3, [4] )
+                            imagesc( temp{10}(:,:, temp{11}(1) ) )
+                            title(['Min. frame (Vol #',num2str(temp{11}(1)),')'])
+                            subplot( 2,3, [5] )
+                            imagesc( temp{10}(:,:, temp{11}(2) ) )
+                            title(['Mid. frame (Vol #',num2str(temp{11}(2)),')'])
+                            subplot( 2,3, [6] )
+                            imagesc( temp{10}(:,:, temp{11}(3) ) )
+                            title(['Max. frame (Vol #',num2str(temp{11}(3)),')'])
+                            if savePhasePlots
+                                try
+                                    drawnow
+                                    saveas(gcf, [phaseFolder,filesep,flyID,'_transientPlot'], 'png');
+                                    saveas(gcf, [phaseResultsFolder,filesep,flyID,'_transientPlot'], 'png');
+                                    disp(['Phase transient plot saved'])
+                                catch
+                                    ['-# Phailure to save fase plots #-']
+                                end
+                            end
+
+                            clear temp
                         end
 
                         %Process blank data into something valid (if applicable)
+
+                        %to do: blank 'transient' plot (w/ phot)
+
                         %crawl
                         if includesBlanks && blankHandleMode == 1 && ~isempty(preBlankStack)
                             %elysium
@@ -2021,16 +3060,48 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             
                         end
     
+                  end %bendyBlockDesign end
+
+              elseif ~batteryDesign && unsiphonedSEs  %As indicated
+                  disp(['-# Not siphoning SEs data by request #-'])
+                    %NOTE: NOT TESTED FOR ROLLING
+              elseif batteryDesign %Ditto
+                  disp(['-- Battery design; Siphoning unnecessary --'])
+              elseif bendyBlockDesign == 0 && ~unsiphonedSEs && ~any( imStimTerp == 5 ) %Rolling, with siphoning, no blanks present
+                  disp(['-- Rolling design, siphoning requested but no blanks detected --'])
+              else
+                  ['## unknown case ##']
+                  crash = yes
+              end
+
+              %Collect appropriate processed photodiode data, now that volTimes is finished being modified presumably
+              if hasPhotData && cleanPhotData
+                  if ~batteryDesign && ~unsiphonedSEs
+                      if bendyBlockDesign == 0
+                          photProcVol = photProc( volTimes(3,:) )'; %Collect only phot data from imaging volumes
+                            %Note: Will crash if volTimes does not exist, which may occur
+                            %Secondary note: A better system might collect *all*
+                            %the phot data between imaging vols, rather than just
+                            %the point value
+                      else
+                          photProcVol = photProc( postStimTimes(3,:) )'; %Note different vol/time selection for bendy block                        
+                      end
+                  elseif batteryDesign || unsiphonedSEs
+                      photProcVol = photProc( volTimes(3,:) )'; %Ostensibly same as bendy rolling  
+                        %If this pings as an error, high likelihood legacy shortcut file being used in unexpected ways
                   end
               end
+
+              %--------------------------------------------------------------------------------------------
     
-    
+              %callgravity
+
               %Overwrite data (if function source)
               if dataSource == -1
                   %thisBlock.greenChannel = dataStimTrim; %Mostly unnecessary
                   %thisBlock.randomSequence = imStimTerp; %Mostly unnecessary
                   %BLOCKS(thisFlyRowInd,:) = thisBlock;
-                  if ~batteryDesign %Rolling, Block, etc
+                  if ~batteryDesign && ~unsiphonedSEs %Rolling, Block, etc
                       %abort
                       if bendyBlockDesign == 0 %Rolling
                           BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
@@ -2048,10 +3119,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                           BLOCKS( thisFlyRowInd ).volTimes = postStimTimes; %Times
                           BLOCKS( thisFlyRowInd ).imagingInds = deImInds; %Vol #s collected
                           BLOCKS( thisFlyRowInd ).nVol = nomInter;
+                          BLOCKS( thisFlyRowInd ).windowTimes = ostensibleWindowTimes;
                           BLOCKS( thisFlyRowInd ).stimulus = 'bendy_block';
                           %BLOCKS( thisFlyRowInd ).blankBlocks = 0; %Need to add support later for blank blocks
                           BLOCKS( thisFlyRowInd ).blankBlocks = includesBlanks; %Need to add support later for blank blocks
                           BLOCKS( thisFlyRowInd ).fauxBlockDesign = 1; %Just to keep track
+                          BLOCKS( thisFlyRowInd ).ancillary.imagingEvents = numImaging; %Might crash if situation abnormal?
+                          BLOCKS( thisFlyRowInd ).ancillary.stimulusEvents = numStimulus;
+                          if includesBlanks && blankHandleMode == 2
+                              BLOCKS( thisFlyRowInd ).ancillary.blankEvents = numBlanks; 
+                              BLOCKS( thisFlyRowInd ).nVolBlanks = blankNVol; %Note: If destructive phase shifting used, this value may differ from nVol/nomInter (This may cause issues)
+                          end
+
                           disp(['Faux-block design created'])
                           %clear postStimData deRandomSeq nomInter
                       end
@@ -2074,15 +3153,28 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                           BLOCKS( thisFlyRowInd ).blankImageTimes = blankTimes; %Might crash depending on handling mode?
                           disp(['Modified blank data (and inds) inserted into BLOCKS'])                          
                       end
-                  else %Battery
+                  elseif batteryDesign %Battery
                       BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
                       BLOCKS( thisFlyRowInd ).iSequence = iSeqTerp;
                       BLOCKS( thisFlyRowInd ).volTimes = volTimes;                    
                       BLOCKS( thisFlyRowInd ).stimulus = 'battery';
-                      if hasPhotData
-                          BLOCKS( thisFlyRowInd ).photData = photData; %Will blow out size a bit probably
-                      end
+                      %if hasPhotData
+                      %    BLOCKS( thisFlyRowInd ).photData = photData; %Will blow out size a bit probably
+                      %end
+                  elseif ~batteryDesign && unsiphonedSEs
+                      BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
+                      BLOCKS( thisFlyRowInd ).volTimes = volTimes;                    
+                      BLOCKS( thisFlyRowInd ).stimulus = 'bendy_block_unsiphoned';
                   end
+                  BLOCKS( thisFlyRowInd ).hasPhotData = hasPhotData;
+                  if hasPhotData
+                      BLOCKS( thisFlyRowInd ).photData = photData; %Will blow out size a bit probably
+                      if exist('photProcVol')
+                          BLOCKS( thisFlyRowInd ).photProcVol = photProcVol;
+                      end
+                      disp(['~~ Photodiode data saved to BLOCKS ~~'])
+                  end
+
                   if exist( 'preBaselineExists' ) && preBaselineExists %Pre-experiment blank baseline
                       BLOCKS( thisFlyRowInd ).preBaseline = blankBaseline;     
                       BLOCKS( thisFlyRowInd ).preBaseSeq = blankSeq;
@@ -2090,11 +3182,15 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   end
                   %BLOCKS( thisFlyRowInd ).volTimes = volTimes; %Note: Does not (presently) account for blank removal/etc
                   BLOCKS( thisFlyRowInd ).syncModified = 1;
+                  BLOCKS( thisFlyRowInd ).phaseShifted = phaseShifted;
+                  if shiftImTime ~= 0
+                      BLOCKS( thisFlyRowInd ).imagingStartTimeShift = shiftImTime;                 
+                  end
               end
     
               %QA for empty randomSequence data
                 %In theory there might be reasons for this to be the case, but none are good for following analysis
-              if ~batteryDesign && isempty( BLOCKS( thisFlyRowInd ).randomSequence ) && allowRandomSequenceEmpty == 0
+              if ~batteryDesign && isempty( BLOCKS( thisFlyRowInd ).randomSequence ) && ( allowRandomSequenceEmpty == 0 && ~unsiphonedSEs )
                   ['## Alert: Failure to acquire/generate randomSequence data for block ',num2str( BLOCKS(thisFlyRowInd).blockNum ),' ##']
                   crash = yes
               end
@@ -2170,12 +3266,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         end
     end
 
-    if dataSource == -1
+    if dataSource == -1 && ~simulationRun
         FLIES(fly).BLOCKS = BLOCKS;
         disp(['-- Modified BLOCKS reinserted into FLIES --'])
+    elseif simulationRun
+        ['-# Modified BLOCKS not reinserted, due to simulation #-']
     end
     
     disp(['-- Newtype data synchronised --'])
+
+    if shiftImTime ~= 0
+        ['-# Reminder: Imaging start time requested to be arbitrarily shifted (',num2str(shiftImTime),'s) #-']
+    end
 
 end
 

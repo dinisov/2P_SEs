@@ -14,8 +14,8 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 finalSize = [128 128];
 
-chosenFlies = [267];
-chosenBlocks = {[1,2]}; % leave empty if reducing all blocks for one fly
+chosenFlies = [999];
+chosenBlocks = {[6]}; % leave empty if reducing all blocks for one fly
     %MUST BE IN FORMAT {[blocks]}
     
 %%

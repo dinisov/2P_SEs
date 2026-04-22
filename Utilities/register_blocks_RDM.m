@@ -16,10 +16,10 @@ blocks = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 % the numbers here should be the original size divided by some power of 2
 imageSize = [-1 -1]; % <value> -> Requested size, -1 -> Automatically derive size from loaded data 
 
-chosenFlies = [299,300,301];
+chosenFlies = [404,405,406];
 
 % leave empty if aligning all blocks for one fly
-chosenBlocks = {[2,3],[1,2,3],[1,2,3,4]};
+chosenBlocks = {[1,2,3],[1,2,3],[1,2,3,4,5]};
     %FORMAT MUST BE {[<block/s>]} 
 
 % chosenFlies = [4 5 6 7 13 20 22 23 38 50 54];
@@ -29,6 +29,8 @@ chosenBlocks = {[2,3],[1,2,3],[1,2,3,4]};
 altnVolSelectionMode = 2; %(Only applies for bendy data [Indicated by negative nVol in flyRecord])
     %Whether to 1 - Select the first 1% of total volume counts (e.g. 6500 volumes -> 7 volumes) or 2 - Select 1%/18 volumes (Min) equally spaced
     %Parameter for how many max frames defined in function down below because CBF adding even more arguments
+
+overrideAlign = []; %Whether to override block Align specification (0 - No alignment, 1 - Align, Empty - No override)
     
 %%
 
@@ -52,9 +54,10 @@ for fly = 1:length(chosenFlies)
         end
         %alignBlock(thisFlyBlocks(b,:), imageSize, mainDirectory);
         %alignBlock(currentBlock, imageSizeActual, mainDirectory);
-        alignBlock(currentBlock, imageSizeActual, mainDirectory, 'green', altnVolSelectionMode);
+        alignBlock(currentBlock, imageSizeActual, mainDirectory, 'green', altnVolSelectionMode, overrideAlign);
         if currentBlock.nChannels == 2
-            alignBlock(currentBlock, imageSizeActual, mainDirectory, 'red'); %No check for existence
+            %alignBlock(currentBlock, imageSizeActual, mainDirectory, 'red'); %No check for existence
+            alignBlock(currentBlock, imageSizeActual, mainDirectory, 'red', altnVolSelectionMode, overrideAlign);
         end
     end
 
@@ -65,7 +68,7 @@ for fly = 1:length(chosenFlies)
 
 end
     
-function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMode)
+function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMode, overrideAlign)
 
     %For non-function operations
     %{
@@ -80,6 +83,7 @@ function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMod
     end
     if ~exist('altnVolSelectionMode', 'var') || ( isempty(altnVolSelectionMode) )
         altnVolSelectionMode = 1; %Default
+        disp(['-# nVol selection mode not specified; Using default #-'])
     end
     
     if altnVolSelectionMode == 2
@@ -87,8 +91,19 @@ function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMod
             %Note: Time spent registering is more a factor of image size and number of volumes than how many frames go into the mean image
     end
 
+    if ~exist('overrideAlign', 'var') || ( isempty(overrideAlign) )
+        overrideAlign = [];
+    else
+        disp(['Align action overriding requested (',num2str(overrideAlign),')'])
+    end
+
     % slices within each volume including flyback 
     nSlices = block.Steps + block.FlybackFrames;
+    %QA
+    if block.FlybackFrames == 99
+        ['## Alert: Extreme likelihood of standin flybackFrames value in flyRecord ##']
+        crash = yes
+    end
     
     %total number of volumes recorded
     nVolTotal = block.realFrames/nSlices;
@@ -114,9 +129,15 @@ function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMod
     %thisFile = dir( [fullfile(currentDirectory,'green_channel_*x*.mat')] );
     thisFile = dir( [fullfile(currentDirectory,[colour,'_channel_*x*.mat'])] );
 
+    if ( isempty(overrideAlign) & block.Align == 1 ) || overrideAlign == 1 %Might not work fully
+        oldFile = ['avg_z_',colour,'_aligned.mat'];
+    else
+        oldFile = ['avg_z_',colour,'_unaligned.mat'];
+    end
+
     %if exist(fullfile(currentDirectory,'green_channel_128x128.mat'),'file') && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
     %if ~isempty( thisFile ) && ~exist(fullfile(currentDirectory,'avg_z_green_aligned.mat'),'file')
-    if ~isempty( thisFile ) && ~exist(fullfile(currentDirectory,['avg_z_',colour,'_aligned.mat']),'file')
+    if ~isempty( thisFile ) && ~exist(fullfile(currentDirectory,oldFile),'file') %~exist(fullfile(currentDirectory,['avg_z_',colour,'_aligned.mat']),'file')
     
         % load red and green channels
         %disp('Loading green channel');
@@ -137,12 +158,16 @@ function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMod
         %[imageSize nSlices nVolTotal]
         colour_channel = reshape(colour_channel.rData,[imageSize nSlices nVolTotal]);
     %     rc_hstack = reshape(red_channel.rData,[imageSize nSlices nVolTotal]);
+    
+        disp(['Image size: ', num2str(imageSize),', nSlices: ', num2str(nSlices), ', nVolTotal: ', num2str(nVolTotal)])
 
         % average over the volume
         avg_z_colour = squeeze(mean(colour_channel,3)); %Replaces "avg_z_green"
     %     avg_z_red = squeeze(sum(rc_hstack,3));
+    
+        disp(['Averaged image dimensions: ', num2str( size(avg_z_colour) )])
 
-        if block.Align
+        if ( ~isempty( overrideAlign ) && overrideAlign == 1 ) || ( isempty(overrideAlign) && block.Align )
 
             % z-average aligned
             avg_z_colour_aligned = zeros(size(avg_z_colour)); %Replaces "avg_z_green_aligned"
@@ -180,7 +205,7 @@ function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMod
 
             %register green channel
             disp('Aligning stacks');
-            volMarkers = floor(linspace(1,nVolTotal,100)); %Used for progress reports
+            volMarkers = floor(linspace(1,nVolTotal,10)); %Used for progress reports
             tic;
             parfor vol = 1:nVolTotal
 
@@ -217,6 +242,19 @@ function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMod
             temp = struct;
             temp.([colour,'_channel_aligned']) = colour_channel_aligned; %'Rename'
             tic; save(fullfile(currentDirectory,[colour,'_channel_aligned']),'-struct', 'temp','-v7.3','-nocompression'); toc;
+        
+        else
+            
+            disp(['-# Not aligning, by request #-'])
+
+            disp(['Saving AVG ',colour,' channel UNaligned']);
+            temp = struct;
+            temp.(['avg_z_',colour,'_unaligned']) = avg_z_colour; %Use original
+            tic; save(fullfile(currentDirectory,['avg_z_',colour,'_unaligned']),'-struct','temp','-v7.3','-nocompression'); toc;
+            disp(['Saving full ',colour,' channel UNaligned']);
+            temp = struct;
+            temp.([colour,'_channel_unaligned']) = colour_channel; %Ditto
+            tic; save(fullfile(currentDirectory,[colour,'_channel_unaligned']),'-struct', 'temp','-v7.3','-nocompression'); toc;
 
         end
 
@@ -236,6 +274,7 @@ function alignBlock(block, imageSize, mainDirectory, colour, altnVolSelectionMod
     
     else
         disp(['-# Either no data found, or registered data already existing #-'])
+        disp(['Old data search: ',oldFile])
     end
     
 end

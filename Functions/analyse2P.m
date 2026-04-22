@@ -28,8 +28,13 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
             meanDataSeq = R(fly).BLOCK(b).meanDataSeq;
             meanBlankTransient = R(fly).BLOCK(b).meanBlankTransient;
             meanTransient = R(fly).BLOCK(b).meanTransient;
+            ancillary = struct; %Make empty, put stuff in momentarily, if applicable
+            if isfield( thisBlock, 'singularZ' )
+                ancillary.singularZ = thisBlock.singularZ;
+            end
 
-            save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient');
+            %save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient');
+            save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient', 'ancillary');
             %Check for behav state data
             if isfield( R(fly).BLOCK(b), 'dataSeqBehav' ) && ~isempty(R(fly).BLOCK(b).dataSeqBehav)
                 %disp(R(fly).BLOCK(b).dataSeqBehav)
@@ -51,10 +56,14 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
                     %save( [thisDir,filesep,'stateResults'],...
                     %    'thisState','dataSeqBehavReduced', 'meanDataSeqBehavReduced', '-v7.3'); %MATLAB version specification necessary in case dataSeq is large
                         %Note: meanDataSeqReduced is *vastly* smaller than dataSeqBehavReduced, so it might be good to save as separate
+                    %save( [thisDir,filesep,'stateResults'],...
+                    %    'meanBlankTransient','thisState','meanDataSeqBehav'); %Non-trial
+                    %save( [thisDir,filesep,'stateResultsExtendedReduced'],...
+                    %    'meanBlankTransient','thisState','dataSeqBehavReduced', '-v7.3'); %W/ trial
                     save( [thisDir,filesep,'stateResults'],...
-                        'meanBlankTransient','thisState','meanDataSeqBehav'); %Non-trial
+                        'meanBlankTransient','thisState','meanDataSeqBehav', 'ancillary'); %Non-trial
                     save( [thisDir,filesep,'stateResultsExtendedReduced'],...
-                        'meanBlankTransient','thisState','dataSeqBehavReduced', '-v7.3'); %W/ trial
+                        'meanBlankTransient','thisState','dataSeqBehavReduced', 'ancillary', '-v7.3'); %W/ trial
                     disp(['Saved data for behav state ',num2str(thisState),' to ',thisDir,' in ',num2str(toc),'s'])
                     %Make a little figure to see where this state occurred in time
                     if isfield( R(fly).BLOCK(b).dataSeqBehav(stat), 'behavSeq' )
@@ -87,12 +96,14 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
         end
         
         %THIS NEEDS WORK
+        %{
         if groupedBlocks
             disp(['Fly ' num2str(fly) ' grouped blocks']);
             R(fly).ALL = analyseSequentialEffectsTwoPhoton(thisFly.greenChannel,thisFly.randomSequence,thisFly.nVol);
             R(fly).ALL.brainImage = FLIES(1).BLOCKS(b).brainImage;
             save(fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],'All','results'),'results');%UNTESTED
         end
+        %}
     end
     toc;
 
