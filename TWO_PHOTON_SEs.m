@@ -59,8 +59,8 @@ flyList = unique(flyRecord.Fly);
     %Note: If using, block/s must be specified for *all* chosen flies
 %chosenZ = {}; %Same format as chosenBlocks (Specified for all)
 
-chosenFlies = [192]; %Andre
-chosenBlocks = {[3]};
+chosenFlies = [198]; %Andre
+chosenBlocks = {[2]};
 chosenZ = {};
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);

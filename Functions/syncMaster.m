@@ -62,13 +62,16 @@ arguments
     options.savePhasePlots double = 1 %Whether to force draw/save of phase plots where applicable
     options.shiftImTime double = 0 %Whether to shift detected imaging start time backwards/forwards and by how much (seconds)
     options.ifiRectificationMode double = 0 %Mode for IFI error rectification (0 - Legacy [< Aug 25], 1 - Experimental [Slicing of data/etc] )
-    options.outputDirectory string = "C:\Users\uqmvan13\2p\2P_RESULTS_4"
+    options.outputDirectory string = "C:\Users\uqmvan13\ANALYSIS\2p\2P_RESULTS_5"
     options.pixRestrictPhasePlots double = 1 %Whether to apply pixel restriction in phase visualisation plot (Does not affect data in any way)
     options.destructivePhaseShift double = 1 %Whether to shift (0) or destroy (1) indices when arbitrary phase shifting
+    options.forceNoIterator double = 0 %Whether to forcibly ignore iterator data, existing or not, (1); Linked with Mk10+ parameter 'useIterator' (If either false, it will not be used)
 end
 functionAlity = 1;
 %}
 %{
+%This block exists in the event that syncMaster is to be run not as a function, by disabling the header and footer elements
+    %It is mostly deprecated as a coding tool in favour of using breakpoints
 if exist('functionAlity')
     ['## Error: Both function and non-function params specified ##']
     crash = yes
@@ -137,6 +140,7 @@ ifiRectificationMode = options.ifiRectificationMode;
 outputDirectory = options.outputDirectory;
 pixRestrictPhasePlots = options.pixRestrictPhasePlots;
 destructivePhaseShift = options.destructivePhaseShift;
+forceNoIterator = options.forceNoIterator;
 
 %Quick check for important options
 if shiftImTime ~= 0
@@ -484,7 +488,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             disp(['btAncillary loaded'])
         end
         progVerNum = NaN; %Default, will be calculated later if possible
-        if hasPTB
+        if hasPTB %Probably critical at this point
             %matParamStruct = load( [matParamFile.folder,filesep,matParamFile.name] );
             if ~isempty( matParamFile )
                 disp(['(Legacy name)'])
@@ -564,6 +568,14 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 includesBlanks = matParamStruct.matSave.includeBlanks;
             else
                 includesBlanks = 0; %Default no
+            end
+
+            %Check if iterator used
+            useIterator = 1; %Will be overridden momentarily according to params, if necessary
+            if isfield( matParamStruct.matSave, 'useIterator' )
+                useIterator = matParamStruct.matSave.useIterator;
+            else
+                useIterator = 1; %Default yes
             end
     
             ptbStartTime = btData(1,2)/1000; %Divide by 1000 because PTB stores down to millisecond unix time
@@ -768,167 +780,175 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %Find iterator values
                 %Note: As currently written (Mk 8.55), the iterator value will increase 'aberrantly' as a last act before the while loop quits
             %taste
-            daqRange = matParamStruct.matSave.daqRange;
-            daqItDiff = nanmedian( diff( daqRange ) );
-            if round( daqItDiff, 1) == 0.1
-                %This section works by effectively smoothing/cleaning the iterator values then attempting to match them to daqRange and then bootleg unwrapping that
-                disp(['DAQ iterator values distributed by 0.1'])
-                daqItDiff = 0.1;
-                %itVals = round( syncStruct.AI.Iterator, 1 );
-                itVals = smooth( syncStruct.AI.Iterator, 100 ); %Value of 100 empirically determined based on apparent DAQ voltage kinematics (~500 sample rise time for standard step)
-                itVals( itVals <= (daqRange(1) - 0.5*daqItDiff)  ) = NaN;
-                %itVals( itVals <= (daqRange(1) )  ) = NaN; %Aggressive cleaning
-                %itVals = floor( syncStruct.AI.Iterator*10 )/10;
-                %{
-                itVals = round( itVals, 3, 'significant' );
-                itVals = smooth( itVals, 100 );
-                itVals = round( itVals, 3, 'significant' );
-                itVals( itVals <= (matParamStruct.matSave.daqRange(1) - daqItDiff)  ) = NaN;
-                %}
-                itValsDiff = abs( diff(itVals) );
-                if hasPTB && ~isequal( matParamStruct.matSave.stimuli, 'battery' )
-                    [itPKS, itLOCS] = findpeaks( itValsDiff, 'MinPeakHeight', 0.25e-3,... %Empirical
-                       'MinPeakDistance', ( sampRate / matParamStruct.matSave.frequency )*0.66 ); %Look for peaks separated by at 66% of a flip
-                else
-                   % [itPKS, itLOCS] = findpeaks( itValsDiff, 'MinPeakHeight', 0.25e-3, ...
-                   %     'MinPeakWidth', 200); %Use an empirical spike width based on pilot data
-                   [itPKS, itLOCS] = findpeaks( itValsDiff, 'MinPeakHeight', 0.25e-3, ...
-                        'MinPeakWidth', 25, 'MinPeakDistance',  (1/nanmax( matParamStruct.matSave.freqSequence ))*sampRate*0.5); %Use an empirical spike width based on pilot data together with a derived inter-interval change distance
-                end
-                    %Note: Will be 1 element longer than true iteration value (See above)
-                %QA for emptiness
-                if isempty( itLOCS )
-                    ['## Alert: No discernible values found in itVals differences (-> itLOCS) ##']
-                    crash = yes
-                end
-
-                 %Remove last itLOCS value, since extremely high likelihood script ended in this period
-                 terminalItDropped = 0; %Will store whether last iterator value dropped (And thus, flipOnsetIndices will likely need trimming too)
-                 if frameLOCS(end) < itLOCS(end) %But only do it (more or less safely) if last index less than last index of framespikes
-                     itLOCS(end) = []; %Note: If PTB ended mid iterator block, it is possible that the last framespike could precede *2* (apparent) changes in iterator (1 true and 1 EOF)
-                     disp(['Terminal itLOCS value dropped'])
-                     terminalItDropped = 1; %Note: Must represent how many elements removed so that QA below works
-                 end
-
-                 %battery delete first 2(?) elements of itLOCS cos opto
-                    %Based on empirical of May 29th starting sequence
-                 if batteryDesign && progVerNum >= 8.45
-                    itLOCS(1:2) = []; %Empirical, under observation that Left-Right begins with a rapid 2x framespike/iteration combo
-                                                    %Iterator stable -> Iterator low -> Iterator 'real' -> Next iterator, in quick succession
-                    frameLOCS(1) = []; 
-                    disp(['Battery: Proximal 2 (for now) elements of itLOCS and 1 elements of frameLOCS deleted'])
-                 elseif batteryDesign && progVerNum < 8.45
-                     ['manual case curation needed wrt no initialisation framespike']
-                     todo = yes
-                 end
-
-                %QA for sanity
-                if abs( targetINum - length(itLOCS) ) > 0.05*targetINum
-                    ['-# Alert: >5% difference in detected iterator changes and target number of i values #-']
-                    crash = yes
-                end
-                itProc = []; %Will be 1 shorter than itLOCS eventually, but hopefully the same number of elements as max of i
-                itProcIdealised = [];
-                itProcRangeInd = [];
-                for i = 1:length(itLOCS)%-1
-                    %itProc(i) = mode( round(itVals( itLOCS(i):itLOCS(i+1) ),3 ,'significant') ); %Not valid
-                    if i < length(itLOCS) %Normal
-                        itProc(i) = mode( floor(itVals( itLOCS(i):itLOCS(i+1) )*10)/10 ); %Note: Use of floor only valid where 2nd decimal place meaningless and does not exceed 0.1 (Empirically true within DAQ range of 0.5 to 4.5)
-                    else %Last element
-                        itProc(i) = mode( floor(itVals( itLOCS(i):itLOCS(i)+(itLOCS(i)-itLOCS(i-1)) )*10)/10 ); %Use assumption of normal size and forward-extrapolate (Note: Relies on NaNing of last elements to keep this value sane)
-                            %Note: With current itLOCS last element dropping there might be a better way to do this, but cbf currently
+            if forceNoIterator 
+                disp(['(Iterator data will be forcibly ignored)'])
+            end
+            if ~useIterator 
+                disp(['(Iterator data was not used in PTB)'])
+            end
+            if ~forceNoIterator && useIterator
+                daqRange = matParamStruct.matSave.daqRange;
+                daqItDiff = nanmedian( diff( daqRange ) );
+                if round( daqItDiff, 1) == 0.1
+                    %This section works by effectively smoothing/cleaning the iterator values then attempting to match them to daqRange and then bootleg unwrapping that
+                    disp(['DAQ iterator values distributed by 0.1'])
+                    daqItDiff = 0.1;
+                    %itVals = round( syncStruct.AI.Iterator, 1 );
+                    itVals = smooth( syncStruct.AI.Iterator, 100 ); %Value of 100 empirically determined based on apparent DAQ voltage kinematics (~500 sample rise time for standard step)
+                    itVals( itVals <= (daqRange(1) - 0.5*daqItDiff)  ) = NaN;
+                    %itVals( itVals <= (daqRange(1) )  ) = NaN; %Aggressive cleaning
+                    %itVals = floor( syncStruct.AI.Iterator*10 )/10;
+                    %{
+                    itVals = round( itVals, 3, 'significant' );
+                    itVals = smooth( itVals, 100 );
+                    itVals = round( itVals, 3, 'significant' );
+                    itVals( itVals <= (matParamStruct.matSave.daqRange(1) - daqItDiff)  ) = NaN;
+                    %}
+                    itValsDiff = abs( diff(itVals) );
+                    if hasPTB && ~isequal( matParamStruct.matSave.stimuli, 'battery' )
+                        [itPKS, itLOCS] = findpeaks( itValsDiff, 'MinPeakHeight', 0.25e-3,... %Empirical
+                           'MinPeakDistance', ( sampRate / matParamStruct.matSave.frequency )*0.66 ); %Look for peaks separated by at 66% of a flip
+                    else
+                       % [itPKS, itLOCS] = findpeaks( itValsDiff, 'MinPeakHeight', 0.25e-3, ...
+                       %     'MinPeakWidth', 200); %Use an empirical spike width based on pilot data
+                       [itPKS, itLOCS] = findpeaks( itValsDiff, 'MinPeakHeight', 0.25e-3, ...
+                            'MinPeakWidth', 25, 'MinPeakDistance',  (1/nanmax( matParamStruct.matSave.freqSequence ))*sampRate*0.5); %Use an empirical spike width based on pilot data together with a derived inter-interval change distance
                     end
-                    [~,itProcRangeInd(i)] = min( abs( repmat( itProc(i), 1, length(daqRange) ) - daqRange ) );
-                    itProcIdealised(i) = daqRange( itProcRangeInd(i) );
-                end
-                %QA to see if discontinuity
-                if any( diff( itProcIdealised ) > 0.11 )
-                    ['-# Alert: Apparent discontinuity (Jump >0.11) in idealised itProc data #-']
-                    crash = yes
-                    %This is most likely to be because itLOCS failed to detect a change in itVals, or detected too many etc
-                end                
-                %itProc(i+1) = mode( round(itVals( itLOCS(end):itLOCS(end)+nanmedian( diff(itLOCS) ) ),3 ,'significant') ); %Note: V. high likelihood of this number being aberrant if itVals go low state immediate after; Round not good
-                %itProc(i+1) = mode( floor(itVals( itLOCS(end):itLOCS(end)+nanmedian( diff(itLOCS) ) )*10)/10 ); %Note: V. high likelihood of this number being aberrant if itVals go low state immediate after
-                %[~,itProcRangeInd(i+1)] = min( abs( repmat( itProc(i+1), 1, length(daqRange) ) - daqRange ) );
-                %itProcIdealised(i+1) = daqRange( itProcRangeInd(i+1) );
-                    %By not doing these ~3 lines the last, 'aberrant' element is ommitted
-                itProcRangeIndUnwrapped = [];
-                itProcRangeIndUnwrapped(1) = itProcRangeInd(1);
-                roller = 0;
-                rollCount = 0;
-                for i = 2:length(itProcRangeInd)
-                    if itProcRangeInd(i) < itProcRangeInd(i-1)
-                        roller = roller + length(daqRange);         
-                        rollCount = rollCount + 1;
+                        %Note: Will be 1 element longer than true iteration value (See above)
+                    %QA for emptiness
+                    if isempty( itLOCS )
+                        ['## Alert: No discernible values found in itVals differences (-> itLOCS) ##']
+                        crash = yes
                     end
-                    itProcRangeIndUnwrapped(i) = itProcRangeInd(i) + roller;
-                end
-
-                %more battery stuff: subtract first element (then +1) due to non-zero ("0.5") starting point
-                if batteryDesign
-                    itProcRangeIndUnwrapped = itProcRangeIndUnwrapped - itProcRangeIndUnwrapped(1) + 1;
-                    %Note: May behave unpredictably if first iterator is a loop (4.5 -> 0.5)
-                    disp(['Battery: Iterator values reset to 1 at first non-opto position'])
-                end
-
-                %QA
-                if numel(unique(itProcRangeIndUnwrapped)) ~= numel(itProcRangeIndUnwrapped)
-                    ['-# Alert: Discontinuity detected in unwrapped iterator values #-'] %Ideally shouldn't happen, but may
-                        %Likely reasons are lag, etc
-                    crash = yes
-                end
-                if ~batteryDesign && exist('btAncillary') && isfield(btAncillary,'daqLoopCount') && rollCount ~= btAncillary.daqLoopCount %May need to allow disparity; Also, not applicable to battery (Due to opto silent rolling?)
-                    ['-# Asynchrony between reported number of iterator loops and detected number of loops #-']
-                    [num2str(btAncillary.daqLoopCount),' vs ', num2str(rollCount)]
-                end
-                if ~isnan( daqIteratorCount ) && ( daqIteratorCount ~= itProcRangeIndUnwrapped(end)+terminalItDropped && daqIteratorCount ~= itProcRangeIndUnwrapped(end) ) %Allow for disparity of one (See below terminal cases)
-                        %Only 80% confident the initialisation framespike is counted as one...
-                    ['## Alert: Disparity between post-hoc reported iterator count and detected iterator count ##']
-                    crash = yes
-                end
-
-                %Plot
-                if length(itLOCS) == length(itProcRangeIndUnwrapped)
-                    plotInds = [1:10; itProcRangeIndUnwrapped(end)-10+1:itProcRangeIndUnwrapped(end) ];
-                    figure
-                    for i = 1:size(plotInds,1)
-                        subplot( size(plotInds,1), 1, i )
-                        theseCoords = plotInds(i,:);
-                        firstLast = [ itLOCS( theseCoords(1) ),...
-                            itLOCS( theseCoords(end) )];
-                        %firstLastCoords = [ find( inferTimes >= inferTimes( firstLast(1) )-1, 1 , 'first' ),...
-                        %    find( inferTimes >= inferTimes( firstLast(2) )+1, 1 , 'first' ) ];
-                        %plot( [firstLastCoords(1):firstLastCoords(2)] , itVals( firstLastCoords(1):firstLastCoords(2) ) )
-                        plot( [ inferTimes( firstLast(1):firstLast(2) ) ],...
-                            [ itVals( firstLast(1):firstLast(2) ) ] )
-                        hold on
-                        for subI = 1:length(theseCoords)
-                            thisSub = theseCoords(subI);
-                            text( [inferTimes(itLOCS(thisSub))], [ itVals(itLOCS(thisSub))+1*daqItDiff ], [ num2str(thisSub) ], 'Color', 'r' )
+    
+                     %Remove last itLOCS value, since extremely high likelihood script ended in this period
+                     terminalItDropped = 0; %Will store whether last iterator value dropped (And thus, flipOnsetIndices will likely need trimming too)
+                     if frameLOCS(end) < itLOCS(end) %But only do it (more or less safely) if last index less than last index of framespikes
+                         itLOCS(end) = []; %Note: If PTB ended mid iterator block, it is possible that the last framespike could precede *2* (apparent) changes in iterator (1 true and 1 EOF)
+                         disp(['Terminal itLOCS value dropped'])
+                         terminalItDropped = 1; %Note: Must represent how many elements removed so that QA below works
+                     end
+    
+                     %battery delete first 2(?) elements of itLOCS cos opto
+                        %Based on empirical of May 29th starting sequence
+                     if batteryDesign && progVerNum >= 8.45
+                        itLOCS(1:2) = []; %Empirical, under observation that Left-Right begins with a rapid 2x framespike/iteration combo
+                                                        %Iterator stable -> Iterator low -> Iterator 'real' -> Next iterator, in quick succession
+                        frameLOCS(1) = []; 
+                        disp(['Battery: Proximal 2 (for now) elements of itLOCS and 1 elements of frameLOCS deleted'])
+                     elseif batteryDesign && progVerNum < 8.45
+                         ['manual case curation needed wrt no initialisation framespike']
+                         todo = yes
+                     end
+    
+                    %QA for sanity
+                    if abs( targetINum - length(itLOCS) ) > 0.05*targetINum
+                        ['-# Alert: >5% difference in detected iterator changes and target number of i values #-']
+                        crash = yes
+                    end
+                    itProc = []; %Will be 1 shorter than itLOCS eventually, but hopefully the same number of elements as max of i
+                    itProcIdealised = [];
+                    itProcRangeInd = [];
+                    for i = 1:length(itLOCS)%-1
+                        %itProc(i) = mode( round(itVals( itLOCS(i):itLOCS(i+1) ),3 ,'significant') ); %Not valid
+                        if i < length(itLOCS) %Normal
+                            itProc(i) = mode( floor(itVals( itLOCS(i):itLOCS(i+1) )*10)/10 ); %Note: Use of floor only valid where 2nd decimal place meaningless and does not exceed 0.1 (Empirically true within DAQ range of 0.5 to 4.5)
+                        else %Last element
+                            itProc(i) = mode( floor(itVals( itLOCS(i):itLOCS(i)+(itLOCS(i)-itLOCS(i-1)) )*10)/10 ); %Use assumption of normal size and forward-extrapolate (Note: Relies on NaNing of last elements to keep this value sane)
+                                %Note: With current itLOCS last element dropping there might be a better way to do this, but cbf currently
                         end
-                        xlabel(['Time (s)'])
-                        ylabel(['Voltage (V)'])
+                        [~,itProcRangeInd(i)] = min( abs( repmat( itProc(i), 1, length(daqRange) ) - daqRange ) );
+                        itProcIdealised(i) = daqRange( itProcRangeInd(i) );
                     end
+                    %QA to see if discontinuity
+                    if any( diff( itProcIdealised ) > 0.11 )
+                        ['-# Alert: Apparent discontinuity (Jump >0.11) in idealised itProc data #-']
+                        crash = yes
+                        %This is most likely to be because itLOCS failed to detect a change in itVals, or detected too many etc
+                    end                
+                    %itProc(i+1) = mode( round(itVals( itLOCS(end):itLOCS(end)+nanmedian( diff(itLOCS) ) ),3 ,'significant') ); %Note: V. high likelihood of this number being aberrant if itVals go low state immediate after; Round not good
+                    %itProc(i+1) = mode( floor(itVals( itLOCS(end):itLOCS(end)+nanmedian( diff(itLOCS) ) )*10)/10 ); %Note: V. high likelihood of this number being aberrant if itVals go low state immediate after
+                    %[~,itProcRangeInd(i+1)] = min( abs( repmat( itProc(i+1), 1, length(daqRange) ) - daqRange ) );
+                    %itProcIdealised(i+1) = daqRange( itProcRangeInd(i+1) );
+                        %By not doing these ~3 lines the last, 'aberrant' element is ommitted
+                    itProcRangeIndUnwrapped = [];
+                    itProcRangeIndUnwrapped(1) = itProcRangeInd(1);
+                    roller = 0;
+                    rollCount = 0;
+                    for i = 2:length(itProcRangeInd)
+                        if itProcRangeInd(i) < itProcRangeInd(i-1)
+                            roller = roller + length(daqRange);         
+                            rollCount = rollCount + 1;
+                        end
+                        itProcRangeIndUnwrapped(i) = itProcRangeInd(i) + roller;
+                    end
+    
+                    %more battery stuff: subtract first element (then +1) due to non-zero ("0.5") starting point
+                    if batteryDesign
+                        itProcRangeIndUnwrapped = itProcRangeIndUnwrapped - itProcRangeIndUnwrapped(1) + 1;
+                        %Note: May behave unpredictably if first iterator is a loop (4.5 -> 0.5)
+                        disp(['Battery: Iterator values reset to 1 at first non-opto position'])
+                    end
+    
+                    %QA
+                    if numel(unique(itProcRangeIndUnwrapped)) ~= numel(itProcRangeIndUnwrapped)
+                        ['-# Alert: Discontinuity detected in unwrapped iterator values #-'] %Ideally shouldn't happen, but may
+                            %Likely reasons are lag, etc
+                        crash = yes
+                    end
+                    if ~batteryDesign && exist('btAncillary') && isfield(btAncillary,'daqLoopCount') && rollCount ~= btAncillary.daqLoopCount %May need to allow disparity; Also, not applicable to battery (Due to opto silent rolling?)
+                        ['-# Asynchrony between reported number of iterator loops and detected number of loops #-']
+                        [num2str(btAncillary.daqLoopCount),' vs ', num2str(rollCount)]
+                    end
+                    if ~isnan( daqIteratorCount ) && ( daqIteratorCount ~= itProcRangeIndUnwrapped(end)+terminalItDropped && daqIteratorCount ~= itProcRangeIndUnwrapped(end) ) %Allow for disparity of one (See below terminal cases)
+                            %Only 80% confident the initialisation framespike is counted as one...
+                        ['## Alert: Disparity between post-hoc reported iterator count and detected iterator count ##']
+                        crash = yes
+                    end
+    
+                    %Plot
+                    if length(itLOCS) == length(itProcRangeIndUnwrapped)
+                        plotInds = [1:10; itProcRangeIndUnwrapped(end)-10+1:itProcRangeIndUnwrapped(end) ];
+                        figure
+                        for i = 1:size(plotInds,1)
+                            subplot( size(plotInds,1), 1, i )
+                            theseCoords = plotInds(i,:);
+                            firstLast = [ itLOCS( theseCoords(1) ),...
+                                itLOCS( theseCoords(end) )];
+                            %firstLastCoords = [ find( inferTimes >= inferTimes( firstLast(1) )-1, 1 , 'first' ),...
+                            %    find( inferTimes >= inferTimes( firstLast(2) )+1, 1 , 'first' ) ];
+                            %plot( [firstLastCoords(1):firstLastCoords(2)] , itVals( firstLastCoords(1):firstLastCoords(2) ) )
+                            plot( [ inferTimes( firstLast(1):firstLast(2) ) ],...
+                                [ itVals( firstLast(1):firstLast(2) ) ] )
+                            hold on
+                            for subI = 1:length(theseCoords)
+                                thisSub = theseCoords(subI);
+                                text( [inferTimes(itLOCS(thisSub))], [ itVals(itLOCS(thisSub))+1*daqItDiff ], [ num2str(thisSub) ], 'Color', 'r' )
+                            end
+                            xlabel(['Time (s)'])
+                            ylabel(['Voltage (V)'])
+                        end
+                    else
+                        ['-# Cannot do iterator plot with dissimilar length itLOCS/unwrapped values #-']
+                    end
+    
+                    %QA to compare iterator against framespike
+                    if abs( frameLOCS(1) - itLOCS(2) ) > nanmedian( diff(frameLOCS) ) * 0.75
+                        ['-# Alert: Apparent >n+1 gap between first framespike and supposedly following iterator change #-']
+                        crash = yes %Highly like if 'first' framespike detected is actually a little way into experiment or similar 
+                        %Goes hand in hand with framespike detection numbers being wrong
+                    end
+    
+                    %Make simpler
+                    lastIt = itProcRangeIndUnwrapped(end);
+    
+                    %Report
+                    disp(['Final calculated iterator value: ',num2str(lastIt)])
+                    
                 else
-                    ['-# Cannot do iterator plot with dissimilar length itLOCS/unwrapped values #-']
+                    ['-# Cannot detect DAQ iterator step value! #-']
+                    crash = yes %Maybe overkill
                 end
-
-                %QA to compare iterator against framespike
-                if abs( frameLOCS(1) - itLOCS(2) ) > nanmedian( diff(frameLOCS) ) * 0.75
-                    ['-# Alert: Apparent >n+1 gap between first framespike and supposedly following iterator change #-']
-                    crash = yes %Highly like if 'first' framespike detected is actually a little way into experiment or similar 
-                    %Goes hand in hand with framespike detection numbers being wrong
-                end
-
-                %Make simpler
-                lastIt = itProcRangeIndUnwrapped(end);
-
-                %Report
-                disp(['Final calculated iterator value: ',num2str(lastIt)])
-                
-            else
-                ['-# Cannot detect DAQ iterator step value! #-']
-                crash = yes %Maybe overkill
             end
 
             %shadow
@@ -1007,8 +1027,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         [syncStruct.AI.FrameSpike( frameLOCS(spikeRange(1):spikeRange(2))) ] )
                     scatter( [inferTimes( frameLOCS( thisErrorSpike ) )], [syncStruct.AI.FrameSpike( frameLOCS( thisErrorSpike ) )]+0.1, 'Color', [1,0,0] )
                     plot( inferTimes(theseInds) , syncStruct.AI.Iterator(theseInds)*0.25, 'r' )
+                    if ~forceNoIterator && useIterator
                     scatter( [inferTimes( itLOCS( spikeRange(1)+1:spikeRange(2)+1 ) )],... %+1 necessary because iterator precedes framespike
                         [syncStruct.AI.Iterator( itLOCS(spikeRange(1)+1:spikeRange(2)+1)) ]*0.25 )
+                    end
                     title(['IFI loss frameSpike (#',num2str(errorSpikes(eros)),') location'])
                     xlabel(['Time (s)'])
                     a = a + 1;
@@ -1059,14 +1081,16 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         elseif ismember( thisErrorSpike, rectifiedErrorSpikes )
                             disp(['-# Error spike already rectified #-'])
                             continue
-                        elseif abs( (frameLOCS( thisErrorSpike+1 ) - frameLOCS( thisErrorSpike )) - (itLOCS( thisErrorSpike+2 ) - itLOCS( thisErrorSpike+1 )) ) < 0.05*nanmean(temp2)
+                        elseif (~forceNoIterator && useIterator) && ... %Add iterator ignore shortcut boolean
+                                abs( (frameLOCS( thisErrorSpike+1 ) - frameLOCS( thisErrorSpike )) - (itLOCS( thisErrorSpike+2 ) - itLOCS( thisErrorSpike+1 )) ) < 0.05*nanmean(temp2)
                         %"Framespike delayed (or broad), but phase with iterator maintained"
                             %Note: This case may have to be broadened for 'normal' phase loss (i.e. use itLocs +1 and 0 respectively, or vice versa)
                             %Secondary note: More nuanced iterator non-phase-loss detection may be possible
                             disp(['-# IFI stutter and iterator stutter appear identical; Not rectifying #-'])
                                 %Phase loss checks will be important to ensure this does not cause issues
                             continue
-                        elseif ( frameLOCS( thisErrorSpike+1 ) - frameLOCS( thisErrorSpike ) ) < 0.75*nanmean(temp2) && ...
+                        elseif (~forceNoIterator && useIterator) && ...
+                                ( frameLOCS( thisErrorSpike+1 ) - frameLOCS( thisErrorSpike ) ) < 0.75*nanmean(temp2) && ...
                                 abs(frameLOCS(thisErrorSpike) - itLOCS( thisErrorSpike )) >= 0.25*nanmean(temp2) && ...
                                 abs(frameLOCS(thisErrorSpike+1) - itLOCS( thisErrorSpike+1 )) < 0.25*nanmean(temp2)
                         %"Spike too close to postceder AND this framespike is more than 5% away from iterator change AND next framespike is within 5% of iterator change"
@@ -1085,7 +1109,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         elseif frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1) < 0.25*nanmean(temp2) || frameLOCS(thisErrorSpike+1) - frameLOCS(thisErrorSpike) < 0.25*nanmean(temp2)
                             ['likely overdetection; Need to write case']
                             crash = yes
-                        elseif frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1) < 1.1*nanmean(temp2) && frameLOCS(thisErrorSpike+1) - frameLOCS(thisErrorSpike) < 1.5*nanmean(temp2) && ...
+                        elseif (~forceNoIterator && useIterator) && ...
+                            frameLOCS(thisErrorSpike) - frameLOCS(thisErrorSpike-1) < 1.1*nanmean(temp2) && frameLOCS(thisErrorSpike+1) - frameLOCS(thisErrorSpike) < 1.5*nanmean(temp2) && ...
                                 numel(intersect( [find(itLOCS > frameLOCS(thisErrorSpike))] , [find(itLOCS < frameLOCS(thisErrorSpike+1))] )) == 1
                             %"Normal distance to preceding framespike AND postceding framespike is within 1.5 of normal AND no iterator phase loss detected"
                             disp(['-# Framespike #', num2str(thisErrorSpike),' likely only minor delay; Not rectifying #-'])
@@ -1147,70 +1172,72 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %--------------------
 
             %Check for phase loss/other irregularities in data
-            temp = []; %Index difference between framespikes and iterator changes; Should be stable
-            for i = 1:nanmin( [size(frameLOCS,2), size( itLOCS,1)] ) %Note: itLOCS not 100% guaranteed 1:1 with itProcRangeIndUnwrapped
-                temp(i) = frameLOCS(i) - itLOCS(i);
-            end
-            meanPhaseDiff = nanmean(temp);
-            stdPhaseDiff = nanstd(temp);
-            %temp = diff(temp); %Diff, better for mean/SDing
-
-            phaseLoss = 0;
-            if any(temp < 0)%nanmax( abs(temp) ) > nanmean(temp) + 4*nanstd(temp)
-                ['-# Alert: Phase loss detected between framespike and iterator #-']
-                phaseLoss = 1;
-            end
-
-            %Rectify
-            if phaseLoss %&& ifiLoss %FrameSpike positions both undertake/overtake iterator AND unequally spaced
-                not modified yet wrt ifi prerectification
-                %errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) );
-                phaseLossSpike = errorSpikes( find( frameLOCS(errorSpikes) - itLOCS(errorSpikes)' < 0 ) );
-                    %NOTE: CURRENTLY ONLY FINDS FIRST INSTANCE, SINCE NOT RECURSIVE
-                disp(['Apparent phase loss frameSpike/s: #',num2str(phaseLossSpike),...
-                    ' (~',num2str(floor( inferTimes( frameLOCS( phaseLossSpike) ) )),'s)'])
-                phaseLossSpikeInd = frameLOCS( phaseLossSpike );
-
-                %Plot
-                figure
-                for phasmo = 1:size( phaseLossSpikeInd,2 )
-                    subplot( 1, size( phaseLossSpikeInd,2 ), phasmo )
-                    %plot( [inferTimes( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )] )
-                    plot( [inferTimes( frameLOCS(phaseLossSpike(phasmo)-2) : frameLOCS(phaseLossSpike(phasmo)+2) )],...
-                        [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)-2) : frameLOCS(phaseLossSpike(phasmo)+2) )] )
-                    hold on
-                    %scatter( [inferTimes( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )] )
-                    %scatter( [inferTimes( frameLOCS(phaseLossSpike) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike) )]+0.1, 'Color', [1,0,0] )
-                    scatter( [inferTimes( frameLOCS(phaseLossSpike(phasmo)-2:phaseLossSpike(phasmo)+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)-2:phaseLossSpike(phasmo)+2) )] )
-                    scatter( [inferTimes( frameLOCS(phaseLossSpike(phasmo)) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)) )]+0.1, 'Color', [1,0,0] )
-                    %title(['Phase loss frameSpike (#',num2str(phaseLossSpike),') location'])
-                    title(['Phase loss frameSpike (#',num2str(phaseLossSpike(phasmo)),') location'])
-                    xlabel(['Time (s)'])
+            if (~forceNoIterator && useIterator)
+                temp = []; %Index difference between framespikes and iterator changes; Should be stable
+                for i = 1:nanmin( [size(frameLOCS,2), size( itLOCS,1)] ) %Note: itLOCS not 100% guaranteed 1:1 with itProcRangeIndUnwrapped
+                    temp(i) = frameLOCS(i) - itLOCS(i);
                 end
-
-                %Check if phase loss spike within believable proximity to intended 'true' position
-                if itLOCS(phaseLossSpike+1) - phaseLossSpikeInd < meanPhaseDiff+2*stdPhaseDiff && ...
-                        itLOCS(phaseLossSpike+1) - frameLOCS( phaseLossSpike-1 ) > meanPhaseDiff+2*stdPhaseDiff %"phase loss spike within normal distance of next iterator change AND n-1 spike not within believable range"
-                    line([inferTimes(frameLOCS( phaseLossSpike - 1 )),inferTimes(frameLOCS( phaseLossSpike - 1 ))], [0.9,1.1],'LineStyle', ':', 'Color','k', 'LineWidth', 1.5) %Amend plot to show which element being removed
-                    frameLOCS( phaseLossSpike - 1 ) = []; %Remove n-1 spike
-                        %EXTRAORDINARILY EMPIRICAL
-                        %This is based on assumption that two framespikes were detected in aberrantly close proximity OR framespike aberrantly long due to daq write stutter (e.g. 14May Fly 2 Exp 3 framespike #8820)
-                        %Note: Actual element removal also heavily based on phase of diff with regards to length-1 nature etc
-                    disp(['Framespike #', num2str(phaseLossSpike - 1), ' removed from data to restore phase'])
-                    nonLinearityPresent = 1;
-                else
-                    ['-# Cannot (currently) rectify #-']
+                meanPhaseDiff = nanmean(temp);
+                stdPhaseDiff = nanstd(temp);
+                %temp = diff(temp); %Diff, better for mean/SDing
+    
+                phaseLoss = 0;
+                if any(temp < 0)%nanmax( abs(temp) ) > nanmean(temp) + 4*nanstd(temp)
+                    ['-# Alert: Phase loss detected between framespike and iterator #-']
+                    phaseLoss = 1;
                 end
-            end
-
-            %Recheck for phase loss
-            temp = []; 
-            for i = 1:nanmin( [size(frameLOCS,2), size( itLOCS,1)] )
-                temp(i) = frameLOCS(i) - itLOCS(i);
-            end
-            if any(temp < 0)
-                ['## Alert: Phase loss persists ##']
-                crash = yes
+    
+                %Rectify
+                if phaseLoss %&& ifiLoss %FrameSpike positions both undertake/overtake iterator AND unequally spaced
+                    not modified yet wrt ifi prerectification
+                    %errorSpikes = find( abs(temp2) > nanmean(temp2) + 4*nanstd(temp2) );
+                    phaseLossSpike = errorSpikes( find( frameLOCS(errorSpikes) - itLOCS(errorSpikes)' < 0 ) );
+                        %NOTE: CURRENTLY ONLY FINDS FIRST INSTANCE, SINCE NOT RECURSIVE
+                    disp(['Apparent phase loss frameSpike/s: #',num2str(phaseLossSpike),...
+                        ' (~',num2str(floor( inferTimes( frameLOCS( phaseLossSpike) ) )),'s)'])
+                    phaseLossSpikeInd = frameLOCS( phaseLossSpike );
+    
+                    %Plot
+                    figure
+                    for phasmo = 1:size( phaseLossSpikeInd,2 )
+                        subplot( 1, size( phaseLossSpikeInd,2 ), phasmo )
+                        %plot( [inferTimes( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2) : frameLOCS(phaseLossSpike+2) )] )
+                        plot( [inferTimes( frameLOCS(phaseLossSpike(phasmo)-2) : frameLOCS(phaseLossSpike(phasmo)+2) )],...
+                            [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)-2) : frameLOCS(phaseLossSpike(phasmo)+2) )] )
+                        hold on
+                        %scatter( [inferTimes( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike-2:phaseLossSpike+2) )] )
+                        %scatter( [inferTimes( frameLOCS(phaseLossSpike) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike) )]+0.1, 'Color', [1,0,0] )
+                        scatter( [inferTimes( frameLOCS(phaseLossSpike(phasmo)-2:phaseLossSpike(phasmo)+2) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)-2:phaseLossSpike(phasmo)+2) )] )
+                        scatter( [inferTimes( frameLOCS(phaseLossSpike(phasmo)) )], [syncStruct.AI.FrameSpike( frameLOCS(phaseLossSpike(phasmo)) )]+0.1, 'Color', [1,0,0] )
+                        %title(['Phase loss frameSpike (#',num2str(phaseLossSpike),') location'])
+                        title(['Phase loss frameSpike (#',num2str(phaseLossSpike(phasmo)),') location'])
+                        xlabel(['Time (s)'])
+                    end
+    
+                    %Check if phase loss spike within believable proximity to intended 'true' position
+                    if itLOCS(phaseLossSpike+1) - phaseLossSpikeInd < meanPhaseDiff+2*stdPhaseDiff && ...
+                            itLOCS(phaseLossSpike+1) - frameLOCS( phaseLossSpike-1 ) > meanPhaseDiff+2*stdPhaseDiff %"phase loss spike within normal distance of next iterator change AND n-1 spike not within believable range"
+                        line([inferTimes(frameLOCS( phaseLossSpike - 1 )),inferTimes(frameLOCS( phaseLossSpike - 1 ))], [0.9,1.1],'LineStyle', ':', 'Color','k', 'LineWidth', 1.5) %Amend plot to show which element being removed
+                        frameLOCS( phaseLossSpike - 1 ) = []; %Remove n-1 spike
+                            %EXTRAORDINARILY EMPIRICAL
+                            %This is based on assumption that two framespikes were detected in aberrantly close proximity OR framespike aberrantly long due to daq write stutter (e.g. 14May Fly 2 Exp 3 framespike #8820)
+                            %Note: Actual element removal also heavily based on phase of diff with regards to length-1 nature etc
+                        disp(['Framespike #', num2str(phaseLossSpike - 1), ' removed from data to restore phase'])
+                        nonLinearityPresent = 1;
+                    else
+                        ['-# Cannot (currently) rectify #-']
+                    end
+                end
+    
+                %Recheck for phase loss
+                temp = []; 
+                for i = 1:nanmin( [size(frameLOCS,2), size( itLOCS,1)] )
+                    temp(i) = frameLOCS(i) - itLOCS(i);
+                end
+                if any(temp < 0)
+                    ['## Alert: Phase loss persists ##']
+                    crash = yes
+                end
             end
 
             %To add: More rectification methods depending on different data fuckery types
@@ -1240,7 +1267,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             end
 
             %QA
-            if nSpikes ~= lastIt
+            if (~forceNoIterator && useIterator) && ...
+                    nSpikes ~= lastIt
                 disp(['-# Caution: nSpikes (',num2str(nSpikes),') and last iterator value (',num2str(lastIt),') differ #-']) %May actually be normal condition
                 %crash = yes %Probably most likely if weirdness with iterator lasting for 1 frame/etc
             end
@@ -1260,10 +1288,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 if nSpikes == targetINum%btData(end,5)-1
                     %disp(['Perfect match between number of detected framespikes (',num2str(nSpikes),') and reported last valid i value (',num2str(btData(end,5)-1),')'])
                     disp(['Perfect match between number of detected framespikes and reported last valid i value']) %Note: This may actually be bad for flipOnsetIndices below
+                    preKnowledge = 0; %This is used to obviate later terminal pattern matching, currently only for noIterator conditions
+                        %This value (If existing) will be subtracted from length(frameLOCS)
                 %else
                 %    disp(['Number of detected framespikes: ',num2str(nSpikes),'; Reported last valid i value: ',num2str(btData(end,5)-1)])
                 elseif nSpikes == targetINum - 1
                     disp(['n-1 match between number of detected framespikes and reported last valid i value'])
+                    preKnowledge = -1; %"Subtract 1 from length(frameLOCS)"
                 end
             
                 %Standard calcs
@@ -1305,37 +1336,47 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     %chester
 
                     %Establish which framespike to match with last element of flipOnsetIndices
-                    %Pre QA
-                    if nanmin( [lastIt, length(flipOnsetIndices),  length(frameLOCS), length(itLOCS)] ) - nanmax( [lastIt, length(flipOnsetIndices),  length(frameLOCS), length(itLOCS)] ) > 2
-                        ['-# Alert: Non-insignificant disparity between smallest and largest iterator/frame/etc counts #-']
-                        crash = yes %Might be 'normal' cases where this occurs
-                    end
-                    lastUseful = [];
-                    %---------
-                    %Empirical booleans
-                        %"The Empire Strikes Back"
-                    if lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) > itLOCS(end)
-                            %" Ends with a full iterator block (inc. framespike) immediately followed by an iterator increase BUT NOT a change in btData "
-                                %Note that this is actually really only the case for a PTB end happening coincidentally right on an i change (Since btData saving occurs 1 loop cycle after iterator increase)
-                        lastUseful = length(frameLOCS)-1;
-                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
-                        disp(['(Terminal pattern Foxtrot 2 Beta 2 [frameSpike n - 1])']) %So named because it's how 14May F2 B2 ends
-                    elseif lastIt == length(flipOnsetIndices) && frameLOCS(end) > itLOCS(end)
-                            % "Ends midway through an iterator block, no framespike at very end, with a change in btData at last framespike"
-                            % Presumable common case?
-                        lastUseful = length(frameLOCS);
-                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
-                        disp(['(Terminal pattern Foxtrot 2 Beta 3 [frameSpike n])']) %So named because it's how 14May F2 B3 ends
-                    elseif lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) < itLOCS(end)
-                            % Similar to F2B3, except iterator larger(?)
-                        lastUseful = length(frameLOCS);
-                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
-                        disp(['(Terminal pattern Foxtrot 1 Beta 1 [frameSpike n])']) %So named because it's how 14May F1 B1 ends
+                    if (~forceNoIterator && useIterator)
+                        %Pre QA
+                        if nanmin( [lastIt, length(flipOnsetIndices),  length(frameLOCS), length(itLOCS)] ) - nanmax( [lastIt, length(flipOnsetIndices),  length(frameLOCS), length(itLOCS)] ) > 2
+                            ['-# Alert: Non-insignificant disparity between smallest and largest iterator/frame/etc counts #-']
+                            crash = yes %Might be 'normal' cases where this occurs
+                        end
+                        lastUseful = [];
+                        %---------
+                        %Empirical booleans
+                            %"The Empire Strikes Back"
+                        if lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) > itLOCS(end)
+                                %" Ends with a full iterator block (inc. framespike) immediately followed by an iterator increase BUT NOT a change in btData "
+                                    %Note that this is actually really only the case for a PTB end happening coincidentally right on an i change (Since btData saving occurs 1 loop cycle after iterator increase)
+                            lastUseful = length(frameLOCS)-1;
+                            disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                            disp(['(Terminal pattern Foxtrot 2 Beta 2 [frameSpike n - 1])']) %So named because it's how 14May F2 B2 ends
+                        elseif lastIt == length(flipOnsetIndices) && frameLOCS(end) > itLOCS(end)
+                                % "Ends midway through an iterator block, no framespike at very end, with a change in btData at last framespike"
+                                % Presumable common case?
+                            lastUseful = length(frameLOCS);
+                            disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                            disp(['(Terminal pattern Foxtrot 2 Beta 3 [frameSpike n])']) %So named because it's how 14May F2 B3 ends
+                        elseif lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) < itLOCS(end)
+                                % Similar to F2B3, except iterator larger(?)
+                            lastUseful = length(frameLOCS);
+                            disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                            disp(['(Terminal pattern Foxtrot 1 Beta 1 [frameSpike n])']) %So named because it's how 14May F1 B1 ends
+                        else
+                            ['-# Uncommon ending case detected; Specification does not exist #-']
+                            todo = yes
+                        end
+                        %---------
                     else
-                        ['-# Uncommon ending case detected; Specification does not exist #-']
-                        todo = yes
+                        if exist('preKnowledge')
+                            disp(['Using earlier knowledge for ending case (frameSpike n -> ',num2str(preKnowledge),')'])
+                            lastUseful = length(frameLOCS) + preKnowledge;
+                        else
+                            disp(['(No iterator; Assuming terminal pattern Foxtrot 2 Beta 2 [frameSpike n - 1])'])
+                            lastUseful = length(frameLOCS) - 1;
+                        end
                     end
-                    %---------
                     %mushroom
                     disp(char(10))
                     %QA for pre-drift between inferTimes and btData
@@ -1445,31 +1486,36 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     firstUseful = 1; %Note: Assumes that initialisation framespike/etc have been cleared
                     disp(['First flip-matching framespike assumed as #',num2str(firstUseful)])
 
-                    %---------
-                    %Empirical booleans
-                        %"The Empire Strikes Back"
-                    if lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) > itLOCS(end)
-                            %" Ends with a full iterator block (inc. framespike) immediately followed by an iterator increase BUT NOT a change in btData "
-                                %Note that this is actually really only the case for a PTB end happening coincidentally right on an i change (Since btData saving occurs 1 loop cycle after iterator increase)
-                        lastUseful = length(frameLOCS)-1;
-                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
-                        disp(['(Terminal pattern Foxtrot 2 Beta 2 [frameSpike n - 1])']) %So named because it's how 14May F2 B2 ends
-                    elseif lastIt == length(flipOnsetIndices) && frameLOCS(end) > itLOCS(end)
-                            % "Ends midway through an iterator block, no framespike at very end, with a change in btData at last framespike"
-                            % Presumable common case?
-                        lastUseful = length(frameLOCS);
-                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
-                        disp(['(Terminal pattern Foxtrot 2 Beta 3 [frameSpike n])']) %So named because it's how 14May F2 B3 ends
-                    elseif lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) < itLOCS(end)
-                            % Similar to F2B3, except iterator larger(?)
-                        lastUseful = length(frameLOCS);
-                        disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
-                        disp(['(Terminal pattern Foxtrot 1 Beta 1 [frameSpike n])']) %So named because it's how 14May F1 B1 ends
+                    if (~forceNoIterator && useIterator)
+                        %---------
+                        %Empirical booleans
+                            %"The Empire Strikes Back"
+                        if lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) > itLOCS(end)
+                                %" Ends with a full iterator block (inc. framespike) immediately followed by an iterator increase BUT NOT a change in btData "
+                                    %Note that this is actually really only the case for a PTB end happening coincidentally right on an i change (Since btData saving occurs 1 loop cycle after iterator increase)
+                            lastUseful = length(frameLOCS)-1;
+                            disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                            disp(['(Terminal pattern Foxtrot 2 Beta 2 [frameSpike n - 1])']) %So named because it's how 14May F2 B2 ends
+                        elseif lastIt == length(flipOnsetIndices) && frameLOCS(end) > itLOCS(end)
+                                % "Ends midway through an iterator block, no framespike at very end, with a change in btData at last framespike"
+                                % Presumable common case?
+                            lastUseful = length(frameLOCS);
+                            disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                            disp(['(Terminal pattern Foxtrot 2 Beta 3 [frameSpike n])']) %So named because it's how 14May F2 B3 ends
+                        elseif lastIt == length(flipOnsetIndices)+1 && frameLOCS(end) < itLOCS(end)
+                                % Similar to F2B3, except iterator larger(?)
+                            lastUseful = length(frameLOCS);
+                            disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
+                            disp(['(Terminal pattern Foxtrot 1 Beta 1 [frameSpike n])']) %So named because it's how 14May F1 B1 ends
+                        else
+                            ['-# Uncommon ending case detected; Specification does not exist #-']
+                            todo = yes
+                        end
+                        %---------
                     else
-                        ['-# Uncommon ending case detected; Specification does not exist #-']
-                        todo = yes
+                        disp(['(No iterator; Assuming terminal pattern Foxtrot 2 Beta 3 [frameSpike n])'])
+                        lastUseful = length(frameLOCS);
                     end
-                    %---------
                     estPTBInferTimeStart = inferTimes( frameLOCS(firstUseful) ) - btData( flipOnsetIndices(1), 6); %Theoretical time (inferTimes reference) PTB started at
                     estPTBInferTimeEnd = inferTimes( frameLOCS(lastUseful) ) + ( btData(end,6) - btData( flipOnsetIndices(end), 6) );  
 
