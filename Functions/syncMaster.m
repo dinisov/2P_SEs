@@ -66,6 +66,8 @@ arguments
     options.pixRestrictPhasePlots double = 1 %Whether to apply pixel restriction in phase visualisation plot (Does not affect data in any way)
     options.destructivePhaseShift double = 1 %Whether to shift (0) or destroy (1) indices when arbitrary phase shifting
     options.forceNoIterator double = 0 %Whether to forcibly ignore iterator data, existing or not, (1); Linked with Mk10+ parameter 'useIterator' (If either false, it will not be used)
+    options.rollingWindowSize double = [0.8,1] %Acquisition window size for rolling data (block uses nomInter currently); Expressed as proportion of total vols in nBack period (e.g. [0.8,1] means 80% -> 100% (i.e. Last 20%))
+    options.rollingForceModLength double = 0 %Mostly deprecated; Whether to force rolling data sequence length to be a mod of nBack
 end
 functionAlity = 1;
 %}
@@ -141,6 +143,8 @@ outputDirectory = options.outputDirectory;
 pixRestrictPhasePlots = options.pixRestrictPhasePlots;
 destructivePhaseShift = options.destructivePhaseShift;
 forceNoIterator = options.forceNoIterator;
+rollingWindowSize = options.rollingWindowSize;
+rollingForceModLength = options.rollingForceModLength;
 
 %Quick check for important options
 if shiftImTime ~= 0
@@ -1115,6 +1119,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             %"Normal distance to preceding framespike AND postceding framespike is within 1.5 of normal AND no iterator phase loss detected"
                             disp(['-# Framespike #', num2str(thisErrorSpike),' likely only minor delay; Not rectifying #-'])
                             continue
+                        elseif ( forceNoIterator || useIterator == 0 ) && ( ( size(frameLOCS,2) == targetINum-1 ) || ( size(frameLOCS,2) == targetINum ) ) %No iterator information BUT nSpikes seems to match"
+                            disp(['-# Apparent framespike number (',num2str(size(frameLOCS,2)),') matches (== | -1) target number (',num2str(targetINum),')']) %Functionally Foxtrot 2 Bravo 3/2
+                            disp(['(Iterator information ignored or unavailable to validate)'])
+                            continue
                         else %CHECK FOR PHASE?
                             ['## case not written yet ##']
                             %This will be something like a framespike being just really delayed or ahead in time; TBD what to do
@@ -1249,11 +1257,17 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
             nSpikes = size(frameLOCS,2);
             disp(['Found ',num2str(nSpikes),' apparent peaks in DAQ framespike data'])
+            backFreq = 1 / ( nanmean( diff( frameLOCS ) ) / sampRate );
             disp(['(Approximate peak/presumed flip rate: ',...
-                num2str(1 / ( nanmean( diff( frameLOCS ) ) / sampRate )),'Hz w/ ~',...
+                num2str(backFreq),'Hz w/ ~',...
                 num2str(nanstd( diff( frameLOCS ) ) / sampRate),'s SD)'])
             if hasPTB
                 disp(['(Expected fliprate: ',num2str(matParamStruct.matSave.frequency),'Hz)'])
+                if abs( backFreq - matParamStruct.matSave.frequency ) > 0.1*matParamStruct.matSave.frequency
+                    ['## Alert: >10% apparent difference between actual and theoretical freqs ##']
+                    %crash = yes 
+                    input('Please press enter to acknowledge experiment issue') %Like, nothing can be done about it here, but this is a strong sign to check PTB settings/etc
+                end
             end
 
             %Report on instability in framespike locations
@@ -2337,20 +2351,23 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   randomSeqActual = randomSeqCorr( 1:methodBTSeqInterpZ(end) ); %Collect theoretical randomSequence from start to last element actually displayed
                     %Note: Heavily relies on assumption that imaging pre- and postcedes stimulus delivery
                   %Check if number of sent stimuli is a mod of nBack (unlikely)
-                  if mod( length(randomSeqActual), nBack ) ~= 0
-                      disp(['Bendy rolling sequence (Length ',num2str(length(randomSeqActual)),') requires trimming to match requested nBack (',num2str(nBack),')'])
-                      %Trim
-                      newLength =  length(randomSeqActual) - mod( length(randomSeqActual), nBack );
-                      randomSeqActual = randomSeqActual( 1:newLength );
-    
-                      btSeqPosInterpZ( btSeqPosInterpZ > newLength ) = NaN; %Mostly for posterity. Note that *values* larger than newLength are removed, not indices
-                      methodBTSeqInterpZ( methodBTSeqInterpZ > newLength ) = [];
-    
-                      dataStimTrim = dataStimTrim( :,:, 1:length(methodBTSeqInterpZ) ); %Use length of interpolated Z, since we are using stim to define imaging region now
-                        %Should this actually be nVol frames after last stim? Or just ditch last few rolling stims?
-                      imStimTerp = imStimTerp( 1:length(methodBTSeqInterpZ) ); 
-                        %Reminder that imStimTerp technically relates to what was actually experienced by an imaging frame, not the true visible history                
-                      volTimes = volTimes( :, 1:length(methodBTSeqInterpZ) );
+                    %Note: This probably existed because Dinis 2p analysis initially could not support true rolling analysis
+                  if rollingForceModLength
+                      if mod( length(randomSeqActual), nBack ) ~= 0
+                          disp(['Bendy rolling sequence (Length ',num2str(length(randomSeqActual)),') requires trimming to match requested nBack (',num2str(nBack),')'])
+                          %Trim
+                          newLength =  length(randomSeqActual) - mod( length(randomSeqActual), nBack );
+                          randomSeqActual = randomSeqActual( 1:newLength );
+        
+                          btSeqPosInterpZ( btSeqPosInterpZ > newLength ) = NaN; %Mostly for posterity. Note that *values* larger than newLength are removed, not indices
+                          methodBTSeqInterpZ( methodBTSeqInterpZ > newLength ) = [];
+        
+                          dataStimTrim = dataStimTrim( :,:, 1:length(methodBTSeqInterpZ) ); %Use length of interpolated Z, since we are using stim to define imaging region now
+                            %Should this actually be nVol frames after last stim? Or just ditch last few rolling stims?
+                          imStimTerp = imStimTerp( 1:length(methodBTSeqInterpZ) ); 
+                            %Reminder that imStimTerp technically relates to what was actually experienced by an imaging frame, not the true visible history                
+                          volTimes = volTimes( :, 1:length(methodBTSeqInterpZ) );
+                      end
                   end
     
                   %QA for stimulation amounts outnumbering imaging frames
@@ -2358,26 +2375,48 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       ['-# Caution: Imaging frames (',num2str(length(methodBTSeqInterpZ) ),') outnumbered by stimulus elements (',num2str( length( randomSeqActual )/nBack),') #-']
                   end
     
-                  %The below section was an attempted reindicisation that may be unnecessary?
+                  %If siphoning, reindicise so that Dinis analyses actually work
                     %See wrt sortSEs2P
                   %{{
                   if ~unsiphonedSEs %'Normal', siphoned SEs
 
+                      %~~~~~~~~~~~
+                      %As of syncMaster v11, this section basically reconstructs rolling data, both sequence and images, as a blocklike design
+                      %That is to say, below will calculate nVol (based on window settings), pre-acquire the data, and assemble a new dataStimTrim that is exactly nVol * sequence length long
+                        %The primary advantage of this is complete support for any nVol, including nVol larger than the ISI, or nVol bleeding into the next stimuli etc
+                      %Simultaneously, randomSequence itself will be expanded in size as if it were block (i.e. 1 1 1 1 0 0 1 -> 1 1 1 1 0[,] 1 1 1 0 0[,] 1 1 0 0 1 etc)
+                        %This means it would be highly disadvisable to analyse randomSequence post this step as rolling, as it would be for a true native block design 
+                      %~~~~~~~~~~~
+
                       %stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) );
-                      stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) ); %Basically calculates the approximate volume number at each element of the sequence (Assuming equal spacing I guess)
-        
-                      %'Old' nVol calcs, probably incorrect
-                        %These calcs presumed incorrect on account of rolling data not needing to be reindicised to be nBack elements (e.g. 5)
+                      %stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) ); %Basically calculates the approximate volume number at each element of the sequence (Assuming equal spacing I guess)
+                      %stimBlockInds = aaaaa
+
+                      %Note: At this portion of the code, data x sequence synchronicity is 'assured' by dataStimTrim calcs and sync                      
+
                       %{{
                       %Calculate nVol, for later use
                       %nVol = floor( size(imageStack,3)/ ( length(randomSequence) / options.nBack ) ); %Stolen from sortSEs2P initial implementation
                       nStimuli = options.nBack;
-                      disp(['Using nBack of ', num2str(options.nBack),' to calculate acceptable volume counts'])
-                      nVol = floor( size(dataStimTrim,3)/ ( length(randomSeqActual) / nStimuli ) ); %Calculates theoretically optimal number of volumes in imaging time period (Based on looking at linspaced volume index at index nBack)
+                      disp(['Using nBack of ', num2str(options.nBack),' to calculate initial volume counts'])
+                      nVolPre = floor( size(dataStimTrim,3)/ ( length(randomSeqActual) / nStimuli ) ); %Calculates theoretically optimal number of volumes in imaging time period (Based on looking at linspaced volume index at index nBack)
+                      %Old, probably deprecated calcs for proper nVol
+                      %{
                       while ceil( stimFrameInds( nStimuli ) - nVol ) < 0
                           disp(['-# Caution: Initially calculated nVol of ',num2str(nVol),' may be too large; Reducing #-'])   
                           nVol = nVol - 1;
                       end
+                      %}
+                      %New, window-based calcs
+                      disp(['Provided window: ',num2str(rollingWindowSize)])
+                      windowVolPre = [nVolPre*rollingWindowSize(1),nVolPre*rollingWindowSize(2)]; %"Why not windowVouivre?"
+                        %Reminder: The reference frame for these is the 'total' window, starting at nBack of e.g. 5
+                        %So, values like [44,55] mean "Acquire data from vols 44 to 55"
+                      disp(['Initial window vols: ',num2str(windowVolPre)])
+                      windowVolPre = floor(windowVolPre);
+                      %Note: No explicit prevention of <0% or >100% acquisition, to theoretically allow for capture of pre- or post-vols (For whatever reason)
+                      nVol = windowVolPre(2) - windowVolPre(1) + 1;
+
                       disp(['Calculated nVol: ',num2str(nVol)])
                       %QA
                       if nVol <= 0
@@ -2389,6 +2428,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       %  Are there situations where original size might want to be preserved?
                       %stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) ); %Moved above to be more useful
         
+
+                      %'Old' reindicisation system
+                      %{
                       %Check if mod math can be correctly applied
                       if nStimuli ~= 5
                           ['-# Alert: Mod calculations likely to be incorrect on account of non-standard nBack #-']
@@ -2433,6 +2475,45 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
                       unfinished, because seemingly redundant with functionality for rolling in sortSEs2P
                       %}
+                      %}
+
+                      %Super-new, unclassified system
+                      stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) ); %Basically calculates the approximate volume number at each element of the sequence
+                        %Note: This assumes equal spacing; A btData-based element matching system may be superior
+                      newFrameInds = nan( nVol, size(stimFrameInds,2) );
+                      for vol = 1:nVol
+                          %newFrameInds( vol, : ) = ceil( stimFrameInds ) - nVol + vol; %nVol rows, n of blocks cols; One phase out of order?
+                          newFrameInds( vol, : ) = ceil( stimFrameInds ) + nVol - vol; %nVol rows, n of blocks cols
+                      end
+                      newFrameInds = flip(newFrameInds,1); %Necessary because current maths assembles collection upside-down
+                      while nanmin(newFrameInds(:,1)) <= 0 %This will occur if the window is too large and volumes prior to imaging would be collected
+                        newFrameInds(:,1) = [];
+                        randomSeqActual(1) = [];
+                      end
+                      while nanmax(newFrameInds(:,end)) > size(dataStimTrim,3) %Similar, but for overrun
+                        newFrameInds(:,end) = [];
+                        randomSeqActual(end) = [];
+                      end
+                      %Generate 'fake' randomSequence (duplicated, more or less)
+                      newSeqInds = nan( nBack, size(newFrameInds,2) ); %"NEWTYPE"
+                      for s = nBack:size(newFrameInds,2)
+                        newSeqInds(:,s) = [s-nBack+1:s];
+                      end
+                      %As designed, this will have NaNs until column number nBack, since column e.g. 4 will request at least one element prior to actual stimulus presentation
+                      newSeqInds = reshape( newSeqInds, 1, nBack*size(newSeqInds,2));
+                      newSeq = nan( 1, nBack*size(newFrameInds,2) );
+                      newSeq( 1:nBack*(nBack-1) ) = -1; %Place -1s where newSeqInds wasn't calculated for (Hopefully doesn't cause issues with Dinis analysis)
+                      newSeq( nBack*(nBack-1)+1:end ) = randomSeqActual( newSeqInds( nBack*(nBack-1)+1:end ) ); %Pull (and duplicate) original elements of randomSeqActual to fill newSeq
+                      randomSeqActual = newSeq;
+                      disp(['Faux blocklike randomSequence assembled (',num2str(size(newSeq,2) / nBack),' elements -> ',num2str(size(randomSeqActual,2)),' elements)']) %If this returns a decimal, a critical error has occurred
+                      newFrameInds = reshape( newFrameInds, 1, nVol*size(newFrameInds,2));
+                        %Note: There is explicitly no uniqueness checking here, so with large nVols, dataStimTrim *will* be duplicated/etc
+                            %This also applies to volTimes ofc
+                      %QA
+                      if rem( size(newFrameInds,2) , nVol ) ~= 0
+                          ['## Alert: Critical error reindicising data to nVol for rolling design ##']
+                          crash = yes
+                      end
 
         
                       dataStimTrim = dataStimTrim( :,:, newFrameInds ); %If this crashes, NaNs were probably in newFrameInds for some error reason
@@ -2443,6 +2524,36 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                           num2str( ( 1 - ( size(dataStimTrim,3) / max(newFrameInds) ) ) * 100 ),'% Loss)'] )
                       %Loss in this context is how much of the original imaging data could not be associated with 'blocks' 
                         %It is likely to be highest when imaging rates are low and stimulus frequencies are high (i.e. 1 in 3 is 33%, but 1 in 8 is only 12.5%)
+                            %As of the use of the unclassified reindicisation system, this loss value may be misleading
+
+                      %Testatory mean transient plot
+                      %{
+                      temp = mean(reshape(dataStimTrim,[size(dataStimTrim,1), size(dataStimTrim,2), ...
+                          nVol, size(dataStimTrim,3)/nVol]),4);
+                      flatMean = squeeze( nanmean( temp, [1,2] ) );
+                      pointVal = squeeze( temp(22,22,:) );
+                      %
+                      figure
+                      plot(flatMean)
+                      xlabel('Time (frame)')
+                      title(['Whole-brain mean transient'])
+                      %
+                      figure
+                      plot(pointVal)
+                      xlabel('Time (frame)')
+                      title(['Y:22, X:22, transient'])
+                      %
+                      figure
+                      %while true
+                      for t = 1:size(temp,3)
+                        imagesc(temp(:,:,t))
+                        title(num2str(t))
+                        drawnow
+                      end
+                      %end
+                      %}
+                      input('Reminder: Add bootleg sequence obliteration (Enter to ack)')
+      
 
                   else
                       disp(['(No reindicisation for unsiphoned rolling data)'])

@@ -23,11 +23,15 @@ function R = analyse2PBlock(block)
     %[dataSeq, dataSeqIso] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
     if isfield( block, 'behavSequence' )
         %[dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence);
-        [dataSeq, dataSeqIso, dataSeqBehav, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
+        %[dataSeq, dataSeqIso, dataSeqBehav, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
+        %    'behavSequence', block.behavSequence, 'doRolling', block.doRolling, 'skipIso',skipIso);
+        [dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
             'behavSequence', block.behavSequence, 'doRolling', block.doRolling, 'skipIso',skipIso);
     else
         %[dataSeq, dataSeqIso, ~] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
-        [dataSeq, dataSeqIso, ~, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
+        %[dataSeq, dataSeqIso, ~, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
+        %    'doRolling', block.doRolling,'skipIso',skipIso);
+        [dataSeq, dataSeqIso, ~] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
             'doRolling', block.doRolling,'skipIso',skipIso);
     end
     
@@ -45,6 +49,8 @@ function R = analyse2PBlock(block)
     R = struct;
 
     % calculate mean overall transient
+        %Note: This does implicitly rely on perfect modal(/multiple) nature of greenChannel wrt stimuli
+            %i.e. Each nVol must be in perfect phase with the stimuli
     R.meanTransient = mean(reshape(block.greenChannel,[size(block.greenChannel,1)...
     size(block.greenChannel,2) block.nVol size(block.greenChannel,3)/block.nVol]),4);
 
