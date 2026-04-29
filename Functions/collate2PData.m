@@ -120,6 +120,11 @@ for fly = 1:length(chosenFlies)
                 thisReqZ = reqZ;
                 disp(['Using one value for singular Z across all flies/blocks (Z=',num2str(thisReqZ),')'])
             end
+            %QA
+            if alternateUseCase ~= 3
+                ['-# Alert: Singular Z requested but alternateUseCase ~= 3 #-']
+                crash = yes
+            end
         end
         
         % load 128x128 data

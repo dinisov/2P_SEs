@@ -68,6 +68,9 @@ arguments
     options.forceNoIterator double = 0 %Whether to forcibly ignore iterator data, existing or not, (1); Linked with Mk10+ parameter 'useIterator' (If either false, it will not be used)
     options.rollingWindowSize double = [0.8,1] %Acquisition window size for rolling data (block uses nomInter currently); Expressed as proportion of total vols in nBack period (e.g. [0.8,1] means 80% -> 100% (i.e. Last 20%))
     options.rollingForceModLength double = 0 %Mostly deprecated; Whether to force rolling data sequence length to be a mod of nBack
+    options.photSeparator double = 0.2 %Designed to separate any true phot event (High or Low) from background
+    options.forceOnePhotSystem double = 0 %Whether to force interpretation of phot data as onePhot
+    options.onePhotSeparator double = 0.225 %Empirical value designed to optimally separate low and high onePhot states (Now applied post-smoothing)
 end
 functionAlity = 1;
 %}
@@ -145,6 +148,9 @@ destructivePhaseShift = options.destructivePhaseShift;
 forceNoIterator = options.forceNoIterator;
 rollingWindowSize = options.rollingWindowSize;
 rollingForceModLength = options.rollingForceModLength;
+photSeparator = options.photSeparator;
+forceOnePhotSystem = options.forceOnePhotSystem;
+onePhotSeparator = options.onePhotSeparator;
 
 %Quick check for important options
 if shiftImTime ~= 0
@@ -1806,6 +1812,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 photProc = shortStruct.photProc;
             end
         end
+        if hasPTB && hasPhotData && isfield( matParamStruct.matSave, 'onePhotSystem' ) && matParamStruct.matSave.onePhotSystem == 1
+            onePhotSystem = 1;
+        elseif forceOnePhotSystem == 1 %Technically will proc even if no phot data, but shouldn't cause an issue
+            onePhotSystem = 1; 
+        else %No phot, etc
+            onePhotSystem = 0;
+        end
 
         if ~isShortcutting && hasPhotData && cleanPhotData
             %destroyer
@@ -1863,19 +1876,81 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %}
             
             photTemp = photData;
-            photTemp( photTemp < 0.3 ) = 0; %Hopefully remove all iterator shared signal (Note: Will delete low luminosity true phot events)
-            photTemp( photTemp >= 0.3 ) = 1;
+            if onePhotSystem == 0
 
-            %Smoothing method
-            smoothVal = 100;
-            photTemp = smooth(photTemp, smoothVal ); %Empirical numbers
-                %Note: This is a bit unconventional, smoothing a binary trace
-            photTemp( photTemp ~= 0 ) = 1;
-            photTemp( photTemp ~= 1 ) = 0;
+                %photTemp( photTemp < 0.3 ) = 0; %Hopefully remove all iterator shared signal (Note: Will delete low luminosity true phot events)
+                %photTemp( photTemp >= 0.3 ) = 1;
+                photTemp( photTemp < photSeparator ) = 0; %Use dynamic separator
+                photTemp( photTemp >= photSeparator ) = 1;
+
+                %Smoothing method
+                smoothVal = 100;
+                photTemp = smooth(photTemp, smoothVal ); %Empirical numbers
+                    %Note: This is a bit unconventional, smoothing a binary trace
+                photTemp( photTemp ~= 0 ) = 1;
+                photTemp( photTemp ~= 1 ) = 0;
+
+            else %onePhot
+
+                %Dinis system, from calculatePeaks (ephys), for comparison
+                %{
+                PHOT = -blocks(b).PHOT(3,:)/max(blocks(b).PHOT(3,:));
+                PHOT = movmax(PHOT,[20 20]);
+                [PKS_PHOT1,LOCS_PHOT1] = findpeaksbase(PHOT, 'MinPeakHeight' , .1 , 'MinPeakDistance' , 1/2*ISI*resampleFreq );
+                [PKS_PHOT2,LOCS_PHOT2] = findpeaksbase(PHOT , 'MinPeakHeight' , peakThreshold , 'MinPeakDistance' , 1/2*ISI*resampleFreq ); 
+                [LOCS_PHOT1, ind_locs_phot1] = setdiff(LOCS_PHOT1, LOCS_PHOT2);
+                PKS_PHOT1 = PKS_PHOT1(ind_locs_phot1);
+                %}
+
+
+                %Pre QA
+                if size(photTemp,1) > 1
+                    no support for multiple phot channels currently %Not hard to add tho
+                end
+                %temp = zeros([size(photTemp)]); %Make zeros array to 'paste' data into
+
+                %Testatory, broken-up figure
+                figure
+                plot( photTemp )
+                hold on
+                xlim([8.0290e4,8.8039e4]) %Empirical
+                
+
+                %smoothVal =  3 * ( 1/ matParamStruct.matSave.panelFrequency ) * 30000; %Theoretically an automated system based on flips/refreshes, but inaccurate due to line scanning being ~600Hz, not 60Hz etc
+                    %For reference, as mentioned, the time between two line refreshes of a phot/panel is ~600Hz (1.6ms)
+                smoothVal = 150; %Slightly larger than above
+                photTemp = smooth(photTemp, smoothVal ); %Note: Unlike above, not smoothing a binary (Will this affect the lead/lag fixing?)
+
+                plot( photTemp )
+                
+                photTemp( photTemp > onePhotSeparator ) = 1;
+                temp = intersect( find( photTemp > photSeparator ) , find( photTemp <= onePhotSeparator ) ); %Theoretically finds peaks between baseline and low state
+                    %Note that rising phase of high state is likely to be set to 0.5 here as well
+                photTemp( temp ) = 0.5;
+                photTemp( photTemp < photSeparator ) = 0;
+
+                line([0,size(photTemp,1)],[photSeparator,photSeparator],'LineStyle',':','Color','c')
+                line([0,size(photTemp,1)],[onePhotSeparator,onePhotSeparator],'LineStyle',':','Color','m')
+                plot( photTemp )
+                ylim([-0.25,1.1])
+                plot( (photTemp > 0.75) - 1.1 )
+                temp2 = zeros( size(photTemp) );
+                temp2( temp ) = 1;
+                plot( (temp2) - 1.2 )
+                legend({'OG phot','Smooth phot','photSeparator','onePhotSeparator','Proc. phot','High states','Low states'})
+                title('onePhot testatory')
+
+                disp(['Pre-calcs indicate high:low state ratio of ',num2str(nansum( photTemp > 0.75 ) / numel(temp))])
+                %1 means 50/50 high/low state, Values lower indicate more low than high
+                    %Note that at this stage of processing, aberrant 'low state' whiskers around high state instances are likely to amplify low state apparent occupancy
+
+            end
+
 
             photLabel = bwlabel( photTemp ); %Find post-smoothed stimulus events
 
             %'Fix' artificial lead/lag induced by smoothing
+                %Note: For onePhot, this is critical to removing the false low state attributions during the rising/falling phase of high state events
             disp(['Fixing artificial lead/lag in phot data'])
             tic
             flatFails = 0;
@@ -1937,8 +2012,22 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             photProc = photTemp;
 
             %Some potentially useful post-hoc reporting
-            temp = bwlabel( photProc );
-            disp(['Phot indicates ',num2str(nanmax(temp)),' stimulus events'])            
+            temp = bwlabel( photProc ); %Note: Not optimised for onePhot system (i.e. Treatment of 0.5 values)
+            disp(['Phot indicates ',num2str(nanmax(temp)),' stimulus events'])     
+            if onePhotSystem
+                photEvents = zeros(1,2);
+                for i = 1:nanmax(temp)
+                    if mode( photTemp( temp == i ) ) == 1
+                        photEvents(1) = photEvents(1) + 1;
+                    elseif mode( photTemp( temp == i ) ) == 0.5
+                        photEvents(2) = photEvents(2) + 1;
+                    else
+                        ['## Unknown phot state case ##']
+                    end
+                end
+                disp(['onePhot high/low state event count: ',num2str(photEvents),...
+                    ' (',num2str((photEvents(1)/nansum(photEvents))*100),'/',num2str((photEvents(2)/nansum(photEvents))*100),'%)'])
+            end
 
         end
     
@@ -2374,6 +2463,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   if length(methodBTSeqInterpZ) < length( randomSeqActual )/nBack
                       ['-# Caution: Imaging frames (',num2str(length(methodBTSeqInterpZ) ),') outnumbered by stimulus elements (',num2str( length( randomSeqActual )/nBack),') #-']
                   end
+
+                  randomSeqActualOriginal = randomSeqActual; %Save for later QA
+                    %Be careful not to do any meaningful trimming/etc on this in between, lest the QA fail
     
                   %If siphoning, reindicise so that Dinis analyses actually work
                     %See wrt sortSEs2P
@@ -2552,7 +2644,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       end
                       %end
                       %}
-                      input('Reminder: Add bootleg sequence obliteration (Enter to ack)')
+                      %input('Reminder: Add bootleg sequence obliteration (Enter to ack)')
       
 
                   else
@@ -3233,6 +3325,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
               %Collect appropriate processed photodiode data, now that volTimes is finished being modified presumably
               if hasPhotData && cleanPhotData
+
                   if ~batteryDesign && ~unsiphonedSEs
                       if bendyBlockDesign == 0
                           photProcVol = photProc( volTimes(3,:) )'; %Collect only phot data from imaging volumes
@@ -3247,6 +3340,39 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       photProcVol = photProc( volTimes(3,:) )'; %Ostensibly same as bendy rolling  
                         %If this pings as an error, high likelihood legacy shortcut file being used in unexpected ways
                   end
+                  %QA for onePhot system to compare theoretical (randomSequence/etc) and phot (photProc)
+                  if onePhotSystem && ~batteryDesign
+                      temp = photProc( volTimes(3,1) : volTimes(3,end) ); %Subselect photProc to valid imaging period
+                        %Note: In theory photProcVol might be better here, but it is too sparse
+                      photLabel = bwlabel( temp );
+                      photSequenceActual = nan(1,nanmax(photLabel));
+                      for i = 1:nanmax(photLabel)
+                          if mode( temp( photLabel == i ) ) == 1
+                              photSequenceActual(i) = 0;                           
+                          else
+                              photSequenceActual(i) = 1;                            
+                          end
+                      end
+                      %Report
+                      if bendyBlockDesign %Block
+                          if isequal( deRandomSeq , photSequenceActual )
+                              disp(['-- Perfect match between theoretical sequence and phot-derived sequence [Block] --'])
+                          else
+                              ['-# Alert: Apparent difference between theoretical and phot-derived sequence [Block] #-']
+                              %Note: This can be because of stuttering/etc, or because benign size difference
+                                %For the latter, simply update this QA with n-1 functionality etc
+                              crash = yes
+                          end
+                      else %Rolling
+                          if size(photSequenceActual,2) == size( randomSeqActualOriginal,2 ) - (nBack-1) && isequal( photSequenceActual, randomSeqActualOriginal(1:end-nBack+1) )
+                              disp(['-- Perfect match between theoretical sequence and phot-derived sequence [Rolling] --'])       
+                          else
+                              ['-# Alert: Apparent difference between theoretical and phot-derived sequence [Rolling] #-']   
+                              %Note: Again, either a true difference or a size issue; Check n-1 etc
+                          end
+                      end
+                  end
+
               end
 
               %--------------------------------------------------------------------------------------------
