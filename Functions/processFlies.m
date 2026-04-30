@@ -22,6 +22,7 @@ recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',0)
     [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
         'disregardRollingDesign', 0, 'overwriteShortcut', 0, 'unsiphonedSEs', 0, 'disregardBattery', 1,...
         'outputDirectory',outputDirectory);
+        %'sequenceObliteration',{[0,0,0,0,0],[1,1,1,1,1]});
         %'shiftImTime',0);
         %'forceNoIterator',0);
 %catch

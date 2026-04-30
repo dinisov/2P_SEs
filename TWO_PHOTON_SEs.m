@@ -9,7 +9,7 @@ addpath('C:\Users\uqmvan13\ANALYSIS\2p\Matt Scripts\');
 close all; clear;
 
 %Matt/Dinish
-%{{
+%{
 RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
 
 %where the sequence data is located (stimulus files)
@@ -29,7 +29,7 @@ flyRecord = readtable(recordPath);
 
 
 %Andre params
-%{
+%{{
 RDMDirectory = 'I:\RFDG2021-Q4413\Andre\2p_Data\\'; %Andre
 sequenceDirectory = 'I:\RFDG2021-Q4413\Andre';
 dataDirectory = fullfile(RDMDirectory);
@@ -54,14 +54,14 @@ gridSize = [64 64];
 flyList = unique(flyRecord.Fly);
 
 %chosenFlies = [354:357]; %Matt
-chosenFlies = [419]; %Matt
-chosenBlocks = {}; %Leave empty if not using
+%chosenFlies = [419]; %Matt
+%chosenBlocks = {}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
-chosenZ = {}; %Same format as chosenBlocks (Specified for all)
+%chosenZ = {}; %Same format as chosenBlocks (Specified for all)
 
-%chosenFlies = [198]; %Andre
-%chosenBlocks = {[2]};
-%chosenZ = {};
+chosenFlies = [198]; %Andre
+chosenBlocks = {[2]};
+chosenZ = {};
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 

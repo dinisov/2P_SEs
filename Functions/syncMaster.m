@@ -71,6 +71,7 @@ arguments
     options.photSeparator double = 0.2 %Designed to separate any true phot event (High or Low) from background
     options.forceOnePhotSystem double = 0 %Whether to force interpretation of phot data as onePhot
     options.onePhotSeparator double = 0.225 %Empirical value designed to optimally separate low and high onePhot states (Now applied post-smoothing)
+    options.sequenceObliteration cell = {}; %Sanity check system designed to zero out specific sequences
 end
 functionAlity = 1;
 %}
@@ -151,6 +152,7 @@ rollingForceModLength = options.rollingForceModLength;
 photSeparator = options.photSeparator;
 forceOnePhotSystem = options.forceOnePhotSystem;
 onePhotSeparator = options.onePhotSeparator;
+sequenceObliteration = options.sequenceObliteration;
 
 %Quick check for important options
 if shiftImTime ~= 0
@@ -2439,6 +2441,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   %Derive 'true' sequence delivered during rolling acquisition
                   randomSeqActual = randomSeqCorr( 1:methodBTSeqInterpZ(end) ); %Collect theoretical randomSequence from start to last element actually displayed
                     %Note: Heavily relies on assumption that imaging pre- and postcedes stimulus delivery
+                    %Geneology: Saved randomSequence -> randomSeqOrig -> randomSeqCorr -> Binarised etc -> Volume-associated sequence elements (meBTSeInZ)
+                        %randomSeqActual will not match dataStimTrim in size because of non-unique elements in methodBTSeqInterpZ
                   %Check if number of sent stimuli is a mod of nBack (unlikely)
                     %Note: This probably existed because Dinis 2p analysis initially could not support true rolling analysis
                   if rollingForceModLength
@@ -2462,6 +2466,38 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   %QA for stimulation amounts outnumbering imaging frames
                   if length(methodBTSeqInterpZ) < length( randomSeqActual )/nBack
                       ['-# Caution: Imaging frames (',num2str(length(methodBTSeqInterpZ) ),') outnumbered by stimulus elements (',num2str( length( randomSeqActual )/nBack),') #-']
+                  end
+
+                  %Sanity checking sequence obliteration (for Rolling)
+                    %Potential pos. #2
+                  if ~isempty( sequenceObliteration )
+
+                      disp(['~~ Performing sequence obliteration (',num2str(size(sequenceObliteration,2)),' seqs) [Rolling] #-'])
+                      disp(sequenceObliteration)
+
+                      %First, acquire a first-principles copy of the sequence
+                      blirgSeq = nan( 1, nanmax(btData(:,5)) ); %First principles sequence
+                      volSeqInds = cell( 1, nanmax(btData(:,5)) ); %Volumes associated with each sequence element
+                      for vol = 1:size(volTimes,2)
+                          thisSeqInd = btData( volTimes(2,vol) , 5 );
+                          blirgSeq( thisSeqInd ) = matParamStruct.matSave.randomSequence( thisSeqInd ) - 1; %Have to recapitulate binarisation      
+                          volSeqInds{ thisSeqInd } = [ volSeqInds{ thisSeqInd } , vol ];
+                      end
+                      %Empirical testing indicates this is seemingly identical to randomSeqActual
+
+                      seqObCount = zeros(1,size(sequenceObliteration,2));
+                      for seq = 1:size(sequenceObliteration,2)
+                          thisSeq = sequenceObliteration{seq};
+                          disp(['Now obliterating ',num2str(thisSeq)])
+                          for i = nBack:size(blirgSeq,2)
+                              if isequal( blirgSeq(i-nBack+1:i) , thisSeq )
+                                  %supercell
+                                  dataStimTrim( : , : , volSeqInds{i} ) = 0; %Obliterate
+                                  seqObCount(seq) = seqObCount(seq) + 1;
+                              end        
+                          end
+                      end
+                      disp(['Seqs were obliterated ',num2str(seqObCount),' times'])
                   end
 
                   randomSeqActualOriginal = randomSeqActual; %Save for later QA
@@ -2586,6 +2622,23 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         newFrameInds(:,end) = [];
                         randomSeqActual(end) = [];
                       end
+                      %This is actually the first point at which a synchronised form of the data and sequence are (easily) available
+                        %(With a sampling of nVol though, not true full time between elements)
+
+                      %Sanity checking sequence obliteration (for Rolling)
+                        %Potential pos. #2 (Less first principles, more targeted)
+                      %{  
+                      if ~isempty( sequenceObliteration )
+                          disp(['~~ Performing sequence obliteration (',num2str(size(sequenceObliteration,2)),' seqs) [Rolling] #-'])
+                          disp(sequenceObliteration)
+                          for seq = 1:size(sequenceObliteration,2)
+                              thisSeq = sequenceObliteration{seq};
+                              disp(['Now obliterating ',num2str(thisSeq)])
+    
+                          end
+                      end
+                      %}
+
                       %Generate 'fake' randomSequence (duplicated, more or less)
                       newSeqInds = nan( nBack, size(newFrameInds,2) ); %"NEWTYPE"
                       for s = nBack:size(newFrameInds,2)
@@ -2596,6 +2649,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       newSeq = nan( 1, nBack*size(newFrameInds,2) );
                       newSeq( 1:nBack*(nBack-1) ) = -1; %Place -1s where newSeqInds wasn't calculated for (Hopefully doesn't cause issues with Dinis analysis)
                       newSeq( nBack*(nBack-1)+1:end ) = randomSeqActual( newSeqInds( nBack*(nBack-1)+1:end ) ); %Pull (and duplicate) original elements of randomSeqActual to fill newSeq
+
+                      %And apply
                       randomSeqActual = newSeq;
                       disp(['Faux blocklike randomSequence assembled (',num2str(size(newSeq,2) / nBack),' elements -> ',num2str(size(randomSeqActual,2)),' elements)']) %If this returns a decimal, a critical error has occurred
                       newFrameInds = reshape( newFrameInds, 1, nVol*size(newFrameInds,2));
