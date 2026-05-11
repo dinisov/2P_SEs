@@ -554,6 +554,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     disp(['#########',char(10),char(10),char(10),...
                         '-# Cautionary: Block design detected but rolling analysis requested #-',...
                         char(10),char(10),char(10),'#########'])
+                        input('Enter to ack') %Might be annoying if doing this by design, but leaving in for now
                 end
             else
                 bendyBlockDesign = 0; %Rolling
@@ -1307,16 +1308,20 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             %if (batteryDesign == 0 && nSpikes == targetINum ) || ( batteryDesign == 1 )%&& (nSpikes == btData(end,5)) ) %-1 based on exactly N=1 testing
             if (batteryDesign == 0 && (nSpikes == targetINum || nSpikes == targetINum-1) ) || ( batteryDesign == 1 )
                     %Note: As of v8.2, it may be the norm for btData at end to match nSpikes without - 1
+                    %Secondary note: Currently (by design) both conditions here apply the same preKnowledge (0, i.e. no change to nFramespikes)
+                        %It is highly possible that one case may need to instead apply a -1
                 if nSpikes == targetINum%btData(end,5)-1
                     %disp(['Perfect match between number of detected framespikes (',num2str(nSpikes),') and reported last valid i value (',num2str(btData(end,5)-1),')'])
                     disp(['Perfect match between number of detected framespikes and reported last valid i value']) %Note: This may actually be bad for flipOnsetIndices below
                     preKnowledge = 0; %This is used to obviate later terminal pattern matching, currently only for noIterator conditions
                         %This value (If existing) will be subtracted from length(frameLOCS)
+                    %ntoe: math may need to be flipped
                 %else
                 %    disp(['Number of detected framespikes: ',num2str(nSpikes),'; Reported last valid i value: ',num2str(btData(end,5)-1)])
                 elseif nSpikes == targetINum - 1
                     disp(['n-1 match between number of detected framespikes and reported last valid i value'])
-                    preKnowledge = -1; %"Subtract 1 from length(frameLOCS)"
+                    %preKnowledge = -1; %"Subtract 1 from length(frameLOCS)"
+                    preKnowledge = 0; %"Subtract nothing"
                 end
             
                 %Standard calcs
@@ -1399,7 +1404,84 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                             lastUseful = length(frameLOCS) - 1;
                         end
                     end
+
+                    %Empirical prevention of FS happening at v end, before btData catches up
+                    if lastUseful > size(flipOnsetIndices,2) %If not rectified, one way or another, this will cause a crash
+                        ['-# Caution: lastUseful FS (',num2str(lastUseful),') exceeds # of btData iterations (',num2str(length(flipOnsetIndices)),') #-']
+                        if hasPTB && hasPhotData && isfield( matParamStruct.matSave, 'onePhotSystem' ) && matParamStruct.matSave.onePhotSystem == 1 %Steal below boolean for onePhot detection
+                            temp = syncStruct.AI.Photodiode( frameLOCS(lastUseful) : end ); %Portion of phot data at very end; Should normally not go low until at least one btData row from lastUseful pos.
+                            temp2 = find( temp < nanmedian( syncStruct.AI.Photodiode ) - nanstd( syncStruct.AI.Photodiode ) , 1 , 'first'); %How long (TS ref) between lastUseful and phot data going at least 1SD lower 
+                                %Phot data primarily rests at ~0.18 (Empirical), interspersed with phot events, then goes to ~0 after arduino low
+                            if (temp2/sampRate) < ( nanmedian( diff( unique( btData( :, 1) ) ) ) )*1.5 %"Time (s) from lastUseful FS to phot decay < Ballpark bt sampling interval [*1.5 for tolerance purposes]"
+                                disp(['Phot decay (/Presumed Arduino end) < ballpark BT interval; Creating fake flipOnset (btData last row ',num2str(size(btData,1)),')'])
+                                flipOnsetIndices = [flipOnsetIndices, size(btData,1)]; %Note: This exists in opposition to the alternative of omitting the last framespike
+                            else
+                                ['Phot decay (/Presumed Arduino end) cannot be confidently established']
+                                crash = yes %If this happens, write a specific case based on this dataset
+                            end
+                        else
+                            ['No system available to try rectify; Omitting last FS']
+                            lastUseful = lastUseful - 1; %Do this with great care
+                        end
+                    end
+
+                    %ftl
+                    %Testatory of first framespike and lastUseful framespike
+                    figure
+                    subplot(1,2,1) %First framespike
+                    %thisSpike = 1;
+                    temp = nanmedian(diff(frameLOCS));
+                    theseInds =  floor(frameLOCS(1)-5.5*temp:frameLOCS(1)+3.25*temp); %No over/under run protection
+                    plot( [inferTimes( theseInds )],...
+                        [syncStruct.AI.FrameSpike( theseInds )] )
+                    hold on    
+                    scatter( [inferTimes( frameLOCS( 1 ) )],...
+                        [syncStruct.AI.FrameSpike( frameLOCS(1)) ] )
+                    if (~forceNoIterator && useIterator)
+                        plot( [inferTimes( theseInds )],...
+                            [syncStruct.AI.Iterator( theseInds )]*0.1 )
+                    end
+                    if hasPhotData
+                        plot( [inferTimes( theseInds )],...
+                            [syncStruct.AI.Photodiode( theseInds )] )
+                    end
+                    if ~isempty(omittedFrameLOCPK)
+                        scatter( [inferTimes( omittedFrameLOCPK(1) )], [syncStruct.AI.FrameSpike( omittedFrameLOCPK(1) ) ]*0.9 )
+                        title(['First framespike (w/ omitted "true" first)'])
+                    else
+                        title(['First framespike (no omission)'])
+                    end
+                    %scatter( [inferTimes( frameLOCS( thisErrorSpike ) )], [syncStruct.AI.FrameSpike( frameLOCS( thisErrorSpike ) )]+0.1, 'Color', [1,0,0] )
+                    xlabel(['Time (s)'])
+                    %title(['First framespike (no omission)'])
+                    subplot(1,2,2) %lastUseful framespike
+                    theseInds =  floor(frameLOCS(lastUseful)-6.25*temp:frameLOCS(lastUseful)+5.5*temp); %No over/under run protection
+                    plot( [inferTimes( theseInds )],...
+                        [syncStruct.AI.FrameSpike( theseInds )] )
+                    hold on    
+                    scatter( [inferTimes( frameLOCS( lastUseful ) )],...
+                        [syncStruct.AI.FrameSpike( frameLOCS(lastUseful)) ] )
+                    if hasPhotData
+                        plot( [inferTimes( theseInds )],...
+                            [syncStruct.AI.Photodiode( theseInds )] )
+                    end
+                    if (~forceNoIterator && useIterator)
+                        plot( [inferTimes( theseInds )],...
+                            [syncStruct.AI.Iterator( theseInds )]*0.1 )
+                    end
+                    xlabel(['Time (s)'])
+                    title(['lastUseful framespike (',num2str(lastUseful),')'])
+
                     %mushroom
+
+                    %~~~~~~~~~~~~~~~~~~~
+                    %Choreography reminder: 
+                    %When an i element iterates (in btData), flipOnsetIndices will increment (obviously), and a framespike will occur immediately after
+                    %It is possible, although rare to have the iteration happen before it is recorded to btData, in which case an FS will occur but not a flipOnset
+                        %In this instance, the last FS has to be discarded (It will be hopefully obvious by # of FS > # of flip onsets)
+                        %Empirically (Bhanu F13 B2), this may be indicated by the photodiode (onePhot system) decaying to 0 very soon after the 'last' FS 
+                    %~~~~~~~~~~~~~~~~~~~    
+
                     disp(char(10))
                     %QA for pre-drift between inferTimes and btData
                     preDrift = (inferTimes( frameLOCS(lastUseful) ) - inferTimes( frameLOCS(1) )) - (btData( flipOnsetIndices(lastUseful), 6) - btData( flipOnsetIndices(1), 6));
@@ -1517,7 +1599,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                                     %Note that this is actually really only the case for a PTB end happening coincidentally right on an i change (Since btData saving occurs 1 loop cycle after iterator increase)
                             lastUseful = length(frameLOCS)-1;
                             disp(['Last flip-matching framespike calculated as #',num2str(lastUseful)])
-                            disp(['(Terminal pattern Foxtrot 2 Beta 2 [frameSpike n - 1])']) %So named because it's how 14May F2 B2 ends
+                            disp(['(Terminal pattern Foxtrot 2 Beta 2 [frameSpike n - 1])']) %So named because it's how 14May25 F2 B2 ends
                         elseif lastIt == length(flipOnsetIndices) && frameLOCS(end) > itLOCS(end)
                                 % "Ends midway through an iterator block, no framespike at very end, with a change in btData at last framespike"
                                 % Presumable common case?
@@ -1915,7 +1997,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 figure
                 plot( photTemp )
                 hold on
-                xlim([8.0290e4,8.8039e4]) %Empirical
+                %xlim([8.0290e4,8.8039e4]) %Empirical
+                xlim([0,10e5]) %Empirical, but larger
                 
 
                 %smoothVal =  3 * ( 1/ matParamStruct.matSave.panelFrequency ) * 30000; %Theoretically an automated system based on flips/refreshes, but inaccurate due to line scanning being ~600Hz, not 60Hz etc
@@ -2017,6 +2100,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             temp = bwlabel( photProc ); %Note: Not optimised for onePhot system (i.e. Treatment of 0.5 values)
             disp(['Phot indicates ',num2str(nanmax(temp)),' stimulus events'])     
             if onePhotSystem
+                tic
                 photEvents = zeros(1,2);
                 for i = 1:nanmax(temp)
                     if mode( photTemp( temp == i ) ) == 1
@@ -2029,7 +2113,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 end
                 disp(['onePhot high/low state event count: ',num2str(photEvents),...
                     ' (',num2str((photEvents(1)/nansum(photEvents))*100),'/',num2str((photEvents(2)/nansum(photEvents))*100),'%)'])
+                disp(['[Metric calculated in ',num2str(toc),'s]'])
             end
+            disp(['Expected stimulus event count: ',num2str(nansum(randomSequence == 1) + nansum(randomSequence == 2))]) %Derived from btData functionally
+            disp(['(Stim 1: ',num2str(nansum(randomSequence == 1)),' vs Stim 2: ',num2str(nansum(randomSequence == 2)),')'])
 
         end
     
@@ -3416,7 +3503,16 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                               ['-# Alert: Apparent difference between theoretical and phot-derived sequence [Block] #-']
                               %Note: This can be because of stuttering/etc, or because benign size difference
                                 %For the latter, simply update this QA with n-1 functionality etc
-                              crash = yes
+                                temp = nanmin([length(deRandomSeq),length(photSequenceActual)]); %Find shortest comparable length between two
+                                    %It is possible/probable that normal terminal trimming operations may cause this
+                                if isequal( deRandomSeq(1:temp) , photSequenceActual(1:temp) )
+                                    disp(['However, whilst sizes different (',num2str(length(deRandomSeq)),'/',num2str(length(photSequenceActual)),'), sequences are same'])
+                                    %Nothing needs to be done here, as photSequenceActual is just a QA variable...more or less
+                                else
+                                    ['Both sizes and sequences different; Cannot allow'] %Note: No tolerance for minor( or major) phaseshift etc
+                                    crash = yes
+                                end
+                                %crash = yes
                           end
                       else %Rolling
                           if size(photSequenceActual,2) == size( randomSeqActualOriginal,2 ) - (nBack-1) && isequal( photSequenceActual, randomSeqActualOriginal(1:end-nBack+1) )

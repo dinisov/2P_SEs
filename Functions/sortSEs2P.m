@@ -38,6 +38,12 @@ options.nBack = 5; %Forced default
 
     sequenceLength = length(randomSequence);
 
+    %QA in case of bad nStimuli etc
+    if (sequenceLength/nStimuli-mod((nStimuli+4),8)) <= 0
+        ['## Error: Likely anomalous sequence sorting second index calculated (',num2str((sequenceLength/nStimuli-mod((nStimuli+4),8))),...
+            ') ##']
+    end
+
     % better to pre-allocate but 5th dim will be too long
     %dataSeq = zeros([nVol nSeq/2 size(imageStack)]);
     %if ~doRolling

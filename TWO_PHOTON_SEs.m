@@ -1,27 +1,22 @@
 close all; clear;
 
-addpath('C:\Users\uqmvan13\ANALYSIS\2p\Dinis Scripts\Global functions\');
-addpath('C:\Users\uqmvan13\ANALYSIS\2p\Dinis Scripts\Indexes and legends\');
+addpath('..\Dinis Scripts\Global functions\');
+addpath('..\Dinis Scripts\Indexes and legends\');
 %addpath('D:\group_vanswinderen\Matt\2p\2P SEs\Functions\');
 addpath('.\Functions\');
-addpath('C:\Users\uqmvan13\ANALYSIS\2p\Matt Scripts\');
+addpath('..\Matt Scripts\');
 
 close all; clear;
 
 %Matt/Dinish
 %{
 RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
-
 %where the sequence data is located (stimulus files)
 %sequenceDirectory = 'I:\RFDG2021-Q4413\2P_Data\RPiData';
 sequenceDirectory = 'I:\RFDG2021-Q4413\Matt';
-
-
 %where the main data is found
 dataDirectory = fullfile(RDMDirectory,'Gcamp7s_CC/');
-
 outputDirectory = '../2P_RESULTS_5';
-
 %flyRecord = readtable("I:\RFDG2021-Q4413\2P Record\2P_record");
 recordPath = "I:\RFDG2021-Q4413\2P Record\2P_record.xlsx";
 flyRecord = readtable(recordPath);
@@ -29,7 +24,7 @@ flyRecord = readtable(recordPath);
 
 
 %Andre params
-%{{
+%{
 RDMDirectory = 'I:\RFDG2021-Q4413\Andre\2p_Data\\'; %Andre
 sequenceDirectory = 'I:\RFDG2021-Q4413\Andre';
 dataDirectory = fullfile(RDMDirectory);
@@ -38,6 +33,19 @@ outputDirectory = '../2P Results Andre';
 recordPath = "I:\RFDG2021-Q4413\Andre\2p_Record\Andre_2P_record.xlsx";
 flyRecord = readtable(recordPath);
 recordPath = []; %Overwrite empty to prevent updating
+%}
+
+%Bhanu
+%{{
+RDMDirectory = 'I:\bhanu2026-Q9370\2P\2P_Data\';
+%where the sequence data is located (stimulus files)
+sequenceDirectory = 'I:\bhanu2026-Q9370\2P';
+%where the main data is found
+dataDirectory = fullfile(RDMDirectory);
+outputDirectory = '../2P_Results';
+recordPath = "I:\bhanu2026-Q9370\2P\2p_record\2P_record_Bhanu_New.xlsx";
+flyRecord = readtable(recordPath);
+recordPath = [];
 %}
 
 %get rid of excluded flies
@@ -54,12 +62,12 @@ gridSize = [64 64];
 flyList = unique(flyRecord.Fly);
 
 %chosenFlies = [354:357]; %Matt
-%chosenFlies = [419]; %Matt
-%chosenBlocks = {}; %Leave empty if not using
+%chosenFlies = [300]; %Matt
+%chosenBlocks = {[3]}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
 %chosenZ = {}; %Same format as chosenBlocks (Specified for all)
 
-chosenFlies = [198]; %Andre
+chosenFlies = [13]; %Bhanu
 chosenBlocks = {[2]};
 chosenZ = {};
 
@@ -91,7 +99,7 @@ end
 %analysisToggle = [1 0 0 0 0 0 1 0];
 analysisToggle = [1 0 0 0 0 0 1 0];
 separateByState = 0; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
-doRolling = 1; %Whether to also do rolling analysis
+doRolling = 0; %Whether to also do rolling analysis
     %Note: Requires MATLAB >=2021
 
 startTime = datetime('now');
