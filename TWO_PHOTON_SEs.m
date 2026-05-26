@@ -9,7 +9,7 @@ addpath('..\Matt Scripts\');
 close all; clear;
 
 %Matt/Dinish
-%{
+%{{
 RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
 %where the sequence data is located (stimulus files)
 %sequenceDirectory = 'I:\RFDG2021-Q4413\2P_Data\RPiData';
@@ -36,7 +36,7 @@ recordPath = []; %Overwrite empty to prevent updating
 %}
 
 %Bhanu
-%{{
+%{
 RDMDirectory = 'I:\bhanu2026-Q9370\2P\2P_Data\';
 %where the sequence data is located (stimulus files)
 sequenceDirectory = 'I:\bhanu2026-Q9370\2P';
@@ -61,15 +61,15 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-%chosenFlies = [354:357]; %Matt
+chosenFlies = [396,399,417,318,319,321,322,323]; %Matt
 %chosenFlies = [300]; %Matt
-%chosenBlocks = {[3]}; %Leave empty if not using
+chosenBlocks = {[4],[3],[2],[2],[2],[2],[2],[2]}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
-%chosenZ = {}; %Same format as chosenBlocks (Specified for all)
+chosenZ = {}; %Same format as chosenBlocks (Specified for all)
 
-chosenFlies = [13]; %Bhanu
-chosenBlocks = {[2]};
-chosenZ = {};
+%chosenFlies = [13]; %Bhanu
+%chosenBlocks = {[2]};
+%chosenZ = {};
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 

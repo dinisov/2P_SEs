@@ -13,7 +13,11 @@ FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirect
         %Note: Dynamic SG may not function correctly for legacy 512x512 data
 
 %% update records
-recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',0)
+if ~isempty(recordPath)
+    recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',0)
+else
+    disp(['(Skipping record updating)'])
+end
 
 %% Interrupt flow for rolling datasets
 %try
@@ -45,7 +49,7 @@ R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks);
 
 %% make movies of transients as differences to mean
 if analysisToggle(1)
-    transientMovies(R, chosenFlies, outputDirectory);
+    transientMovies(R, chosenFlies, outputDirectory, 'normalisation', 'pixel');
 end
 
 %% calculate fit to SLRP, LRPR, SLRP+LRPR, and EPHYS (per volume/time and collapsed across time)
@@ -96,7 +100,12 @@ if analysisToggle(7)
 end
 
 %% update records again
-recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',1)
+%recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',1)
+if ~isempty(recordPath)
+    recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',1)
+else
+    disp(['(Skipping record updating)'])
+end
 
 end
 

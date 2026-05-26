@@ -271,16 +271,28 @@ for fly = 1:length(chosenFlies)
             else
                 framesInVolStack = currentBlock.Steps; %Should always be 1 if flyback frames are 0 tbh
             end
-            SGThresh = floor( polyval( options.dynamicSGEqn, currentBlock.pixelX )/framesInVolStack*options.dynamicSGTimeWidth ); %Calculate per block, since size may change
+            if currentBlock.pixelX <= 128 %The below maths are optimised for 128x128
+                SGThresh = floor( polyval( options.dynamicSGEqn, currentBlock.pixelX )/framesInVolStack*options.dynamicSGTimeWidth ); %Calculate per block, since size may change
+            else %If large image, use % rather than estimated s
+                SGThresh = floor( (options.dynamicSGTimeWidth / 100)*size(BLOCKS(b).greenChannel,3) );
+            end
             disp(['Dynamic SG filter width calculated at: ',num2str(SGThresh),' frames'])
-            disp([num2str(currentBlock.pixelX),'px framesize, ',num2str(framesInVolStack),' frames/vol, ',num2str(options.dynamicSGTimeWidth),'s requested width'])
+            disp([num2str(currentBlock.pixelX),'px framesize, ',num2str(framesInVolStack),' frames/vol, ',num2str(options.dynamicSGTimeWidth),'s/% requested width'])
+            if SGThresh > size(BLOCKS(b).greenChannel,3)
+                ['-# Alert: Dynamically calculated SG width > data length #-']
+                SGThresh = size(BLOCKS(b).greenChannel,3)-2; %-2 because potentially adding 1 in a moment
+            end
+            if rem( SGThresh, 2 ) == 0 %"Even"
+                SGThresh = SGThresh + 1; %Do last
+            end
         end
-        BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,55);
+        %BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,55); %Hardcoded filter width
+        BLOCKS(b).greenChannel = filterChannel(BLOCKS(b).greenChannel,3,SGThresh);
         
         % plot after filtering
         figure; 
         plot(squeeze(mean(mean(BLOCKS(b).greenChannel,1),2)));
-        title(['Post SG-filtered raw data - ',strrep(flyID,'_',' ')])
+        title(['Post SG-filtered raw data - ',strrep(flyID,'_',' '),' [SG width: ',num2str(SGThresh),' frames]'])
         xlabel(['Frame no.'])
         ylabel(['Intensity'])
     

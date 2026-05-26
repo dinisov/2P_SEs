@@ -24,11 +24,6 @@ analysisState = options.analysisState;
 lastSearchRow = options.lastSearchRow;
 stateColumn = options.stateColumn;
 
-if isempty(recordPath)
-    disp(['(Skipping record updating)'])
-    return
-end
-
 %%
 
     disp(['Updating records (Mode ',num2str(upMode),')'])
@@ -38,6 +33,7 @@ end
     
     eW=e.Workbooks;
     %eF = eW.Open("\\uq.edu.au\uq-inst-gateway1\PHDMVDP002-Q1471\TEMP STORE\2P_record.xlsx");
+    disp([recordPath])
     eF = eW.Open(recordPath);
     eS=eF.ActiveSheet;
     

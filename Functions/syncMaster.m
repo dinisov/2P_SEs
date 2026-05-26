@@ -1270,7 +1270,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             disp(['(Approximate peak/presumed flip rate: ',...
                 num2str(backFreq),'Hz w/ ~',...
                 num2str(nanstd( diff( frameLOCS ) ) / sampRate),'s SD)'])
-            if hasPTB
+            if hasPTB && ~batteryDesign
                 disp(['(Expected fliprate: ',num2str(matParamStruct.matSave.frequency),'Hz)'])
                 if abs( backFreq - matParamStruct.matSave.frequency ) > 0.1*matParamStruct.matSave.frequency
                     ['## Alert: >10% apparent difference between actual and theoretical freqs ##']
@@ -1285,8 +1285,10 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
             %Interim QA
             if nSpikes > targetINum
-                ['## Alert: Detected number of framespikes exceeds target ##'] %This should never happen
-                crash = yes
+                ['## Alert: Detected number of framespikes (',num2str(nSpikes),') exceeds target (',num2str(targetINum),') ##'] %This should never happen
+                if ~batteryDesign
+                    crash = yes
+                end
             end
 
             %QA
@@ -1570,7 +1572,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     end
 
                     %Check for approximate timing between first flipOnset and first non-opto iteration (Should work even if no opto)
-                    if abs( btData( flipOnsetIndices(1) , 6 ) - inferTimes( itLOCS(1) ) ) > 5 %Allow 5 startup PTB time effectively
+                    if (~forceNoIterator && useIterator) &&...
+                            abs( btData( flipOnsetIndices(1) , 6 ) - inferTimes( itLOCS(1) ) ) > 5 %Allow 5 startup PTB time effectively
                         ['-# Alert: Potential error in first (DAQ) iteration <--> first BT flip detection timing #-'] %Probably most likely if first itLOCS is at start of PTB whilst flipOnset is post-opto, or vice versa
                         if exist( 'omittedFrameLOCPK' )
                             ['First btData time: ',num2str(btData(1,6))]

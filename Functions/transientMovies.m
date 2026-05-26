@@ -1,6 +1,23 @@
-function transientMovies(R, chosenFlies, resultsDirectory)
+function transientMovies(R, chosenFlies, resultsDirectory, options)
 %transientMovies Summary of this function goes here
 %   Detailed explanation goes here
+
+arguments
+    R struct
+    chosenFlies double
+    resultsDirectory char
+    options.normalisation char = 'orig' 
+        %Original corresponds to makeMovieData and basically divides everything by the overall max
+        %Pixel is a per-pixel method designed to highlight pixels, with the caveat that background areas will look *weird*
+end
+
+normalisation = options.normalisation;
+switch normalisation
+    case 'orig'
+        disp(['Using original normalisation'])
+    case 'pixel'
+        disp(['Using per-pixel normalisation'])
+end
 
 % load six_hertz.mat
 
@@ -35,9 +52,14 @@ for fly = 1:length(R)
             %blankTrials = blankTrials(trim+1:end-trim,trim+1:end-trim,:);
             blankTrials = blankTrials(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
             
-            makeMovie(prepareMovieData(blankTrials),fullfile(subDirectory,'blankTrials.avi'),false);
-            %makeMovie(prepareMovieData(blankTrials),fullfile(subDirectory,'blankTrials.mp4'),false);
-            
+            switch normalisation
+                case 'orig'
+                    makeMovie(prepareMovieData(blankTrials),fullfile(subDirectory,'blankTrials.avi'),false);
+                    %makeMovie(prepareMovieData(blankTrials),fullfile(subDirectory,'blankTrials.mp4'),false);
+                case 'pixel'
+                    makeMovie(prepareMoviePixelData(blankTrials),fullfile(subDirectory,'blankTrials_pixelNorm.avi'),false);
+            end
+
             % global response transient
             allSeq = permute(squeeze(mean(R(fly).BLOCK(b).meanDataSeq,2)),[2 3 1]);
             %allSeq = (allSeq(trim+1:end-trim,trim+1:end-trim,:)-blankTrials)./blankTrials;
@@ -57,8 +79,13 @@ for fly = 1:length(R)
 % 
 %         figure; plot(mean(seqAux));
 
-        makeMovie(prepareMovieData(allSeq),fullfile(subDirectory,'global.avi'), false);
-        %makeMovie(prepareMovieData(allSeq),fullfile(subDirectory,'global.mp4'), false);
+        switch normalisation
+            case 'orig'
+                makeMovie(prepareMovieData(allSeq),fullfile(subDirectory,'global.avi'), false);
+                %makeMovie(prepareMovieData(allSeq),fullfile(subDirectory,'global.mp4'), false);
+            case 'pixel'
+                makeMovie(prepareMoviePixelData(allSeq),fullfile(subDirectory,'global_pixelNorm.avi'), false);
+        end
         
 %         blah = cell(1,11);
         
@@ -78,11 +105,16 @@ for fly = 1:length(R)
 %                 blah{i}(s) = max(seq(:,:,i),[],'all');%-min(seq(:,:,i),[],'all');
 %             end
 %             blah(s) = mean(seq(:,:,6),'all');
-            
-            seq = prepareMovieData(seq);
-            
-            makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']),false);
-            %makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.mp4']),false);
+            switch normalisation
+                case 'orig'
+                    seq = prepareMovieData(seq);
+                    makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.avi']),false);
+                    %makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '.mp4']),false);
+                case 'pixel'
+                    seq = prepareMoviePixelData(seq);
+                    makeMovie(seq,fullfile(subDirectory,['seq' num2str(s) '_pixelNorm.avi']),false);
+            end
+
         end
         
         % make movie of difference between global transient and no stimulus
@@ -122,8 +154,13 @@ for fly = 1:length(R)
                 end
                 
                 save(fullfile(thisBlockStateDirectory,'global_behav_transient'),'allSeqBehav');
-                makeMovie(prepareMovieData(allSeqBehav),fullfile(thisBlockStateDirectory,'global_behav.avi'), false);
-                
+                switch normalisation 
+                    case 'orig'
+                        makeMovie(prepareMovieData(allSeqBehav),fullfile(thisBlockStateDirectory,'global_behav.avi'), false);
+                    case 'pixel'
+                        makeMovie(prepareMovieData(allSeqBehav),fullfile(thisBlockStateDirectory,'global_behav.avi'), false);
+                end
+
                 for s = 1:16     
                     seqBehav = permute(squeeze(thisData(:,s,:,:)),[2 3 1]);
                     if ~isempty(R(fly).BLOCK(b).meanBlankTransient)
@@ -133,9 +170,15 @@ for fly = 1:length(R)
                         %seqBehav = seqBehav(trim+1:end-trim,trim+1:end-trim,:);
                         seqBehav = seqBehav(trim(1)+1:end-trim(3),trim(4)+1:end-trim(2),:);
                     end
-                    seqBehav = prepareMovieData(seqBehav);
-                    makeMovie(seqBehav,fullfile(thisBlockStateDirectory,['seqBehav' num2str(s) '.avi']),false);
-                    %makeMovie(seqBehav,fullfile(thisBlockStateDirectory,['seqBehav' num2str(s) '.mp4']),false);
+                    switch normalisation 
+                        case 'orig'
+                            seqBehav = prepareMovieData(seqBehav);
+                            makeMovie(seqBehav,fullfile(thisBlockStateDirectory,['seqBehav' num2str(s) '.avi']),false);
+                            %makeMovie(seqBehav,fullfile(thisBlockStateDirectory,['seqBehav' num2str(s) '.mp4']),false);
+                        case 'pixel'
+                            seqBehav = prepareMoviePixelData(seqBehav);
+                            makeMovie(seqBehav,fullfile(thisBlockStateDirectory,['seqBehav' num2str(s) '_pixelNorm.avi']),false);
+                    end
                 end
                 disp(['State ',num2str(R(fly).BLOCK(b).dataSeqBehav(statInd).state),' sequence data/movies saved'])
                 
@@ -159,4 +202,14 @@ function data = prepareMovieData(data)
     data = data - min(data,[],'all'); % make minimum 0
     data = data / max(data,[],'all'); %make maximum 1
     
+end
+
+function data = prepareMoviePixelData(data)
+    temp = normalize( data , 3 );
+    %temp = temp + abs(nanmin(temp, [], 'all'));
+    %temp = temp ./ nanmax
+    temp = temp * 0.2; %Minimise range such that +-2SD will sit at 0/1 respectively (Dinis movie making requires 0-1 range)
+    temp = temp + 0.5; %Place in middle of range
+
+    data = temp;
 end
