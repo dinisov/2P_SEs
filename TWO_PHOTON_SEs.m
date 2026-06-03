@@ -61,15 +61,15 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [396,399,417,318,319,321,322,323]; %Matt
+%chosenFlies = [419]; %Matt
 %chosenFlies = [300]; %Matt
-chosenBlocks = {[4],[3],[2],[2],[2],[2],[2],[2]}; %Leave empty if not using
+%chosenBlocks = {[99]}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
-chosenZ = {}; %Same format as chosenBlocks (Specified for all)
+%chosenZ = {}; %Same format as chosenBlocks (Specified for all)
 
-%chosenFlies = [13]; %Bhanu
-%chosenBlocks = {[2]};
-%chosenZ = {};
+chosenFlies = [298]; %Bhanu
+chosenBlocks = {[2:6,8]};
+chosenZ = {};
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
@@ -79,6 +79,14 @@ flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
 %whether to analyse grouped blocks
 groupedBlocks = 0;
+
+%Other, mostly syncMaster-specific options
+unsiphonedSEs = 0;
+overwriteShortcut = 0;
+separateByState = 0; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
+doRolling = 0; %Whether to also do rolling analysis (DEPRECATED)
+    %Note: Requires MATLAB >=2021
+    %Secondary note: Not tested for a very long time
 
 %%
 %Pre QA for bad block specification
@@ -98,9 +106,6 @@ end
 %analysisToggle = [1 1 1 0 1 0 1 1];
 %analysisToggle = [1 0 0 0 0 0 1 0];
 analysisToggle = [1 0 0 0 0 0 1 0];
-separateByState = 0; %Whether to use available behav data to repeat processing on sleep vs wake, etc 
-doRolling = 0; %Whether to also do rolling analysis
-    %Note: Requires MATLAB >=2021
 
 startTime = datetime('now');
 %for fly = chosenFlies %Does not work with chosenBlocks/etc specification for some reason
@@ -123,7 +128,10 @@ for flyInd = 1:length(chosenFlies)
         end
         %processFlies(flyRecord, fly, theseChosenBlocks, theseChosenZs, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling);
         %fake
-        processFlies(flyRecord, fly, theseChosenBlocks, theseChosenZs, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling, recordPath);
+        %processFlies(flyRecord, fly, theseChosenBlocks, theseChosenZs, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling, recordPath);
+        processFlies(flyRecord, fly, theseChosenBlocks, theseChosenZs, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, ...
+            'separateByState', separateByState, 'doRolling', doRolling, 'recordPath',recordPath,...
+            'syncManUnsiphonedSEs',unsiphonedSEs,'syncManOverwriteShortcut',overwriteShortcut);
     end
 end
 endTime = datetime('now');

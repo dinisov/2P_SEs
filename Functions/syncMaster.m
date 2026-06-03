@@ -72,6 +72,7 @@ arguments
     options.forceOnePhotSystem double = 0 %Whether to force interpretation of phot data as onePhot
     options.onePhotSeparator double = 0.225 %Empirical value designed to optimally separate low and high onePhot states (Now applied post-smoothing)
     options.sequenceObliteration cell = {}; %Sanity check system designed to zero out specific sequences
+    options.photStorageMode double = 1; %Whether to save original photData (1), processed photData (2), both (3), or none (0)
 end
 functionAlity = 1;
 %}
@@ -153,6 +154,7 @@ photSeparator = options.photSeparator;
 forceOnePhotSystem = options.forceOnePhotSystem;
 onePhotSeparator = options.onePhotSeparator;
 sequenceObliteration = options.sequenceObliteration;
+photStorageMode = options.photStorageMode;
 
 %Quick check for important options
 if shiftImTime ~= 0
@@ -776,6 +778,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 title([strrep(expName,'_',' '),' - Last 10 framespike elements + Iterator'])
                 xlabel('Times (s)')
                 ylabel('Voltage (V)')
+                clear theseInds
                 %Same as above but for an arbitrary position
                 %{
                 figure
@@ -1046,6 +1049,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     end
                     title(['IFI loss frameSpike (#',num2str(errorSpikes(eros)),') location'])
                     xlabel(['Time (s)'])
+                    clear theseInds
                     a = a + 1;
                 end
 
@@ -1433,7 +1437,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     subplot(1,2,1) %First framespike
                     %thisSpike = 1;
                     temp = nanmedian(diff(frameLOCS));
-                    theseInds =  floor(frameLOCS(1)-5.5*temp:frameLOCS(1)+3.25*temp); %No over/under run protection
+                    theseInds =  floor(frameLOCS(1)-5.5*temp:frameLOCS(1)+3.25*temp); 
+                    theseInds( theseInds < 1 ) = [];
+                    theseInds( theseInds > size(inferTimes,2) ) = [];
                     plot( [inferTimes( theseInds )],...
                         [syncStruct.AI.FrameSpike( theseInds )] )
                     hold on    
@@ -1458,6 +1464,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     %title(['First framespike (no omission)'])
                     subplot(1,2,2) %lastUseful framespike
                     theseInds =  floor(frameLOCS(lastUseful)-6.25*temp:frameLOCS(lastUseful)+5.5*temp); %No over/under run protection
+                    theseInds( theseInds < 1 ) = [];
+                    theseInds( theseInds > size(inferTimes,2) ) = [];
                     plot( [inferTimes( theseInds )],...
                         [syncStruct.AI.FrameSpike( theseInds )] )
                     hold on    
@@ -1473,6 +1481,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                     end
                     xlabel(['Time (s)'])
                     title(['lastUseful framespike (',num2str(lastUseful),')'])
+                    clear theseInds
 
                     %mushroom
 
@@ -2034,6 +2043,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
             end
 
+            %gas
 
             photLabel = bwlabel( photTemp ); %Find post-smoothed stimulus events
 
@@ -2698,7 +2708,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       %Super-new, unclassified system
                       stimFrameInds = linspace( 0, size( dataStimTrim,3 ), length(randomSeqActual) ); %Basically calculates the approximate volume number at each element of the sequence
                         %Note: This assumes equal spacing; A btData-based element matching system may be superior
-                      newFrameInds = nan( nVol, size(stimFrameInds,2) );
+                      newFrameInds = nan( nVol, size(stimFrameInds,2) ); %As above, values here are vol # (Associated in a moment with individual rolling elements)
+                        %Note no accounting for nBack, insofar as volumes for element 1 are still allocated, despite the fact that standard 5back analyses may never look at these
                       for vol = 1:nVol
                           %newFrameInds( vol, : ) = ceil( stimFrameInds ) - nVol + vol; %nVol rows, n of blocks cols; One phase out of order?
                           newFrameInds( vol, : ) = ceil( stimFrameInds ) + nVol - vol; %nVol rows, n of blocks cols
@@ -2731,17 +2742,36 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
                       %Generate 'fake' randomSequence (duplicated, more or less)
                       newSeqInds = nan( nBack, size(newFrameInds,2) ); %"NEWTYPE"
+                        %Values in this array indicate which elements of randomSeqActual should be pulled to make the (true-)faux blocklike sequence
+                            %i.e. Rows are nBack, Cols are how a rolling nBack analysis would otherwise look at the data
+                                %e.g. 1:5, then 2:6, etc
+                            %Note that because nBack of 5 etc cannot be analysed for the first 1:4 elements, cols 1:4 will be NaN
+                                %Thus, for later analyses, the starting position actually has to be @ nBack, not 0 say
                       for s = nBack:size(newFrameInds,2)
                         newSeqInds(:,s) = [s-nBack+1:s];
                       end
+
+                      %Delete elements of both sequence and data that can't be analysed, due to specified nBack
+                      deletInds = find( isnan(newSeqInds(1,:)) ); %In theory should always be nBack-1 I guess
+                      newSeqInds(:,deletInds) = [];
+                      newFrameInds(:,deletInds) = [];
+
                       %As designed, this will have NaNs until column number nBack, since column e.g. 4 will request at least one element prior to actual stimulus presentation
-                      newSeqInds = reshape( newSeqInds, 1, nBack*size(newSeqInds,2));
+                      newSeqInds = reshape( newSeqInds, 1, nBack*size(newSeqInds,2)); %Reshape into a sequence-like shape (Reminder that these are indices for use with randomSeqActual)
                       newSeq = nan( 1, nBack*size(newFrameInds,2) );
-                      newSeq( 1:nBack*(nBack-1) ) = -1; %Place -1s where newSeqInds wasn't calculated for (Hopefully doesn't cause issues with Dinis analysis)
-                      newSeq( nBack*(nBack-1)+1:end ) = randomSeqActual( newSeqInds( nBack*(nBack-1)+1:end ) ); %Pull (and duplicate) original elements of randomSeqActual to fill newSeq
+                      %Old system that allows NaN/-1 values at start
+                      %newSeq( 1:nBack*(nBack-1) ) = -1; %Place -1s where newSeqInds wasn't calculated for (Hopefully doesn't cause issues with Dinis analysis)
+                      %newSeq( nBack*(nBack-1)+1:end ) = randomSeqActual( newSeqInds( nBack*(nBack-1)+1:end ) ); %Pull (and duplicate by virtue of indices) original elements of randomSeqActual to fill newSeq
+                      %New system, based on deletion of elements 1:4 eg
+                      %Pre-QA
+                      if ~isequal( size(newSeq,2) , size(newSeqInds,2) ) %May not even be really possible to occur
+                          ['## Critical failure in newSeq assembly ##'] 
+                          crash = yes
+                      end
+                      newSeq = randomSeqActual(newSeqInds); %Expand based on original
 
                       %And apply
-                      randomSeqActual = newSeq;
+                      randomSeqActual = newSeq; %Overwrite original with expanded
                       disp(['Faux blocklike randomSequence assembled (',num2str(size(newSeq,2) / nBack),' elements -> ',num2str(size(randomSeqActual,2)),' elements)']) %If this returns a decimal, a critical error has occurred
                       newFrameInds = reshape( newFrameInds, 1, nVol*size(newFrameInds,2));
                         %Note: There is explicitly no uniqueness checking here, so with large nVols, dataStimTrim *will* be duplicated/etc
@@ -2752,16 +2782,17 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                           crash = yes
                       end
 
-        
+                      %Collect applicable volumes/etc
                       dataStimTrim = dataStimTrim( :,:, newFrameInds ); %If this crashes, NaNs were probably in newFrameInds for some error reason
                       imStimTerp = imStimTerp( newFrameInds );
                       volTimes = volTimes( :, newFrameInds );
                       %check validity of imStim/volT reindicising
-                      disp( ['Bendy rolling data reindicised to length ',num2str( size(dataStimTrim,3) ),' (',num2str( size(dataStimTrim,3) / nVol ),' "blocks") for analysis (',...
+                      disp( ['Bendy rolling data expanded/reindicised to length ',num2str( size(dataStimTrim,3) ),' (',num2str( size(dataStimTrim,3) / nVol ),' "blocks") for analysis (',...
                           num2str( ( 1 - ( size(dataStimTrim,3) / max(newFrameInds) ) ) * 100 ),'% Loss)'] )
                       %Loss in this context is how much of the original imaging data could not be associated with 'blocks' 
                         %It is likely to be highest when imaging rates are low and stimulus frequencies are high (i.e. 1 in 3 is 33%, but 1 in 8 is only 12.5%)
                             %As of the use of the unclassified reindicisation system, this loss value may be misleading
+                                %A negative value means that volumes have been duplicated, most likely
 
                       %Testatory mean transient plot
                       %{
@@ -2789,7 +2820,6 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       end
                       %end
                       %}
-                      %input('Reminder: Add bootleg sequence obliteration (Enter to ack)')
       
 
                   else
@@ -3473,18 +3503,40 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
 
                   if ~batteryDesign && ~unsiphonedSEs
                       if bendyBlockDesign == 0
-                          photProcVol = photProc( volTimes(3,:) )'; %Collect only phot data from imaging volumes
+                          theseInds = volTimes(3,:);
+                          photProcVol = photProc( theseInds )'; %Collect only phot data from imaging volumes
                             %Note: Will crash if volTimes does not exist, which may occur
                             %Secondary note: A better system might collect *all*
                             %the phot data between imaging vols, rather than just
                             %the point value
                       else
-                          photProcVol = photProc( postStimTimes(3,:) )'; %Note different vol/time selection for bendy block                        
+                          theseInds = postStimTimes(3,:);
+                          photProcVol = photProc( theseInds )'; %Note different vol/time selection for bendy block                        
                       end
                   elseif batteryDesign || unsiphonedSEs
-                      photProcVol = photProc( volTimes(3,:) )'; %Ostensibly same as bendy rolling  
+                      theseInds = volTimes(3,:);
+                      photProcVol = photProc( theseInds )'; %Ostensibly same as bendy rolling  
                         %If this pings as an error, high likelihood legacy shortcut file being used in unexpected ways
                   end
+
+                  %Slightly useful reporter figure
+                  figure
+                  subplot(2,1,1)
+                  plot( photProc )
+                  hold on
+                  scatter( theseInds , photProc( theseInds ) )
+                  ylim([-0.25,1.25])
+                  xlim([0,numel(photProc)*0.01])
+                  title(['photProc (full length) + imaging inds [Exp. first 10%]'])
+                  hold off
+                  subplot(2,1,2)
+                  plot( photProcVol )
+                  ylim([-0.25,1.25])
+                  xlim([0,numel(photProcVol)*0.01])
+                  title(['photProcVol [First 10%]']) %Note timing different
+                  set(gcf,'Name',[flyID,' - Phot data reporter figure'])
+                  clear theseInds
+
                   %QA for onePhot system to compare theoretical (randomSequence/etc) and phot (photProc)
                   if onePhotSystem && ~batteryDesign
                       temp = photProc( volTimes(3,1) : volTimes(3,end) ); %Subselect photProc to valid imaging period
@@ -3498,7 +3550,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                               photSequenceActual(i) = 1;                            
                           end
                       end
+
                       %Report
+                      if ~unsiphonedSEs
                       if bendyBlockDesign %Block
                           if isequal( deRandomSeq , photSequenceActual )
                               disp(['-- Perfect match between theoretical sequence and phot-derived sequence [Block] --'])
@@ -3525,6 +3579,9 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                               %Note: Again, either a true difference or a size issue; Check n-1 etc
                           end
                       end
+                      end
+
+
                   end
 
               end
@@ -3549,6 +3606,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                           BLOCKS( thisFlyRowInd ).nVol = nVol;
                           BLOCKS( thisFlyRowInd ).nStimuli = nStimuli;
                           BLOCKS( thisFlyRowInd ).stimulus = 'bendy_rolling';
+                          BLOCKS( thisFlyRowInd ).ancillary.newSeqInds = newSeqInds; %Potentially useful
+                          BLOCKS( thisFlyRowInd ).ancillary.newFrameInds = newFrameInds; %Potentially useful
                           %clear dataStimTrim imStimTerp randomSeqActual nVol nStimuli %Just in case
                       else %Block
                           BLOCKS( thisFlyRowInd ).greenChannel = postStimData; %Data
@@ -3568,7 +3627,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                               BLOCKS( thisFlyRowInd ).nVolBlanks = blankNVol; %Note: If destructive phase shifting used, this value may differ from nVol/nomInter (This may cause issues)
                           end
 
-                          disp(['Faux-block design created'])
+                          disp(['(Pseudo-)Faux block design created']) %'Pseudo' faux because not as faux as expanded rolling -> rolling blocks of bendy rolling analysis
                           %clear postStimData deRandomSeq nomInter
                       end
                       if isfield( matParamStruct.matSave, 'blockDesign' )
@@ -3605,11 +3664,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   end
                   BLOCKS( thisFlyRowInd ).hasPhotData = hasPhotData;
                   if hasPhotData
-                      BLOCKS( thisFlyRowInd ).photData = photData; %Will blow out size a bit probably
+                      %BLOCKS( thisFlyRowInd ).photData = photData; %Will blow out size a bit probably
+                      if photStorageMode == 1 || photStorageMode == 3 %Note that mode 3 will basically half-again increase structure size
+                          BLOCKS( thisFlyRowInd ).photData = photData;                        
+                      end
+                      if photStorageMode == 2
+                          BLOCKS( thisFlyRowInd ).photProc = photProc;    
+                      end
                       if exist('photProcVol')
                           BLOCKS( thisFlyRowInd ).photProcVol = photProcVol;
                       end
-                      disp(['~~ Photodiode data saved to BLOCKS ~~'])
+                      %disp(['~~ Photodiode data saved to BLOCKS ~~'])
+                      disp(['~~ Photodiode data saved to BLOCKS [Mode: ',num2str(photStorageMode),'] ~~'])
                   end
 
                   if exist( 'preBaselineExists' ) && preBaselineExists %Pre-experiment blank baseline

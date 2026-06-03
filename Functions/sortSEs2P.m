@@ -73,7 +73,7 @@ options.nBack = 5; %Forced default
     end
     
     %Rolling-specific indexing
-    if isfield( options, 'doRolling' ) && options.doRolling == 1
+    if isfield( options, 'doRolling' ) && options.doRolling == 1 %Note: Currently deprecated?
         starterN = options.nBack - 1; %Rolling, due to faux blocklike/expanded nature starts at nBack-1 (e.g. randomSeq pos 21 -> ...)
     else
         starterN = 0; %Block design, per original Dinis construction starts at 0 (+1 etc)

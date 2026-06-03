@@ -1,6 +1,35 @@
 function processFlies(flyRecord, chosenFlies, chosenBlocks, chosenZ, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, ...
-    separateByState, doRolling, recordPath)
-%UNTITLED Summary of this function goes here
+options)
+
+%Wrapper for the primary 2P SEs analyses
+
+arguments
+    flyRecord table
+    chosenFlies double
+    chosenBlocks cell
+    chosenZ cell
+    gridSize double
+    dataDirectory char
+    sequenceDirectory char
+    outputDirectory char
+    analysisToggle double
+    groupedBlocks double
+    options.separateByState double = 0
+    options.doRolling double = 0
+    options.recordPath char
+    options.syncManUnsiphonedSEs double = 0
+    options.syncManOverwriteShortcut double = 0
+    options.syncManDoVid double = 0
+end
+
+separateByState = options.separateByState;
+doRolling = options.doRolling;
+recordPath = options.recordPath;
+
+overwriteShortcut = options.syncManOverwriteShortcut;
+unsiphonedSEs = options.syncManUnsiphonedSEs;
+doVid = options.syncManDoVid;
+
 disp([char(10),'-------------------------------------'])
 %% collate, reduce, filter and concatenate pre-aligned data
 
@@ -9,30 +38,37 @@ disp([char(10),'-------------------------------------'])
 FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirectory, sequenceDirectory,...
     'alternateUseCase', 0, 'reqZ', chosenZ,...
     'dynamicSG',1,'dynamicSGTimeWidth',10,...
-    'doRolling',doRolling); %Moved Matt additions to options
+    'doRolling',doRolling,...
+    'separateByState',separateByState); %Moved Matt additions to options
         %Note: Dynamic SG may not function correctly for legacy 512x512 data
 
 %% update records
-if ~isempty(recordPath)
+if ~isempty(recordPath) && ~unsiphonedSEs
     recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',0)
 else
     disp(['(Skipping record updating)'])
 end
 
 %% Interrupt flow for rolling datasets
-%try
+try
     %[FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
     %    'disregardRollingDesign', 0, 'overwriteShortcut', 1, 'unsiphonedSEs', 0, 'disregardBattery', 1);
-    [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', 0, 'rollingAnalysis', -1,...
-        'disregardRollingDesign', 0, 'overwriteShortcut', 0, 'unsiphonedSEs', 0, 'disregardBattery', 1,...
-        'outputDirectory',outputDirectory);
+    [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', doVid, 'rollingAnalysis', -1,...
+        'disregardRollingDesign', 0, 'overwriteShortcut', overwriteShortcut, 'unsiphonedSEs', unsiphonedSEs, 'disregardBattery', 1,...
+        'outputDirectory',outputDirectory,...
+            'photStorageMode',2);
         %'sequenceObliteration',{[0,0,0,0,0],[1,1,1,1,1]});
         %'shiftImTime',0);
         %'forceNoIterator',0);
-%catch
-%    ['## syncMaster error; Continuing with next fly ##']
-%    return %Skips rest of blocks for this fly
-%end
+catch
+    ['## syncMaster error; Continuing with next fly ##']
+    return %Skips rest of blocks for this fly
+end
+
+if unsiphonedSEs
+    disp(['Unsiphoned SEs requested; Ceasing (Dinis) processing'])
+    return
+end
 
 %And check for accidental battery inclusion
 if isfield( FLIES.BLOCKS, 'stimulus') && ~isempty( strfind( [FLIES.BLOCKS.stimulus], 'battery' ) )
@@ -101,11 +137,13 @@ end
 
 %% update records again
 %recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',1)
-if ~isempty(recordPath)
+if ~isempty(recordPath) && ~unsiphonedSEs
     recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',1)
 else
     disp(['(Skipping record updating)'])
 end
+
+%disp(['subFin'])
 
 end
 
