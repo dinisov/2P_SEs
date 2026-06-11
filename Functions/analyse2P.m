@@ -1,4 +1,4 @@
-function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
+function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks, saveFull)
 %analyse2P Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -35,6 +35,49 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks)
 
             %save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient');
             save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient', 'ancillary');
+            
+            %Save full (per-event) sequence data, if requested
+            if ~isempty(saveFull) && saveFull
+                dataSeq = R(fly).BLOCK(b).dataSeq; %Inefficient memory, but necessary for save?
+
+                temp = nansum( squeeze( dataSeq(1,:,1,1,:) ) ~= 0 , 2 ); %Instance count
+                    %Note: Leans heavily on nothing being wierd with T:1, pixel 1,1
+                if saveFull == 1
+                    disp(['Saving (reduced) full sequence data, as requested'])
+                elseif saveFull == 2
+                    disp(['Saving (actual) full sequence data, as requested'])
+                end
+                disp(['# of instances of seqs:'])
+                disp( temp )
+
+                dataSeqReduced = nan( [size( dataSeq, [1:4] ), nanmax(temp) ] );
+                    %Save memory, at the cost of obliterating true time
+                    %Architecture: T*Seq*X*Y*Event#
+                dataSeqReducedInd = nan( size( dataSeq, 2 ) , nanmax(temp) );
+                    %Might as well store original event # alongside
+                for seq = 1:size( dataSeq, 2 )
+                    temp = find( dataSeq(1,seq,1,1,:) ~= 0 );
+                    dataSeqReduced( :, seq, :, :, [1:numel(temp)] ) = ...
+                        dataSeq(:,seq,:,:, temp );
+                    dataSeqReducedInd( seq, [1:numel(temp)] ) = temp;
+                end
+
+                %And save
+                if saveFull == 1
+                    save(fullfile(thisBlockDirectory,'resultsFull'),'dataSeqReduced','dataSeqReducedInd',...
+                        '-v7.3');
+                        %Since dataSeq is very big, we will not save it unless absolutely necessary
+                            %Like, this takes multiple minutes per individual block
+                elseif saveFull == 2
+                    tic
+                    save(fullfile(thisBlockDirectory,'resultsFull'),'dataSeq','dataSeqReduced','dataSeqReducedInd',...
+                        '-v7.3');
+                    toc
+                end
+
+
+            end
+            
             %Check for behav state data
             if isfield( R(fly).BLOCK(b), 'dataSeqBehav' ) && ~isempty(R(fly).BLOCK(b).dataSeqBehav)
                 %disp(R(fly).BLOCK(b).dataSeqBehav)

@@ -44,7 +44,7 @@ FLIES = collate2PData(flyRecord, chosenFlies, chosenBlocks, gridSize, dataDirect
 
 %% update records
 if ~isempty(recordPath) && ~unsiphonedSEs
-    recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',0)
+    recordUpdater(FLIES,flyRecord,recordPath,1,'analysisState',0.5)
 else
     disp(['(Skipping record updating)'])
 end
@@ -65,11 +65,15 @@ catch
     return %Skips rest of blocks for this fly
 end
 
+%Some QAs/checks
 if unsiphonedSEs
     disp(['Unsiphoned SEs requested; Ceasing (Dinis) processing'])
     return
 end
-
+if isempty(FLIES.BLOCKS) %Might crash under normal circumstances?
+    ['-# No apparent data supplied and/or made it through syncMaster/etc #-']
+    return
+end
 %And check for accidental battery inclusion
 if isfield( FLIES.BLOCKS, 'stimulus') && ~isempty( strfind( [FLIES.BLOCKS.stimulus], 'battery' ) )
     ['## Alert: Battery blocks erroneously(?) included in analysis; Aborting ##']
@@ -81,7 +85,7 @@ end
 % separates images according to preceding sequence of stimuli and
 % calculates mean images as a function of the sequence
 
-R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks);
+R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks, 1); %New argument: saveFull
 
 %% make movies of transients as differences to mean
 if analysisToggle(1)

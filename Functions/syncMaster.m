@@ -73,6 +73,7 @@ arguments
     options.onePhotSeparator double = 0.225 %Empirical value designed to optimally separate low and high onePhot states (Now applied post-smoothing)
     options.sequenceObliteration cell = {}; %Sanity check system designed to zero out specific sequences
     options.photStorageMode double = 1; %Whether to save original photData (1), processed photData (2), both (3), or none (0)
+    options.saveReporterPlots double = 1; %Whether to save some useful reporter plots to a discreet folder
 end
 functionAlity = 1;
 %}
@@ -155,6 +156,7 @@ forceOnePhotSystem = options.forceOnePhotSystem;
 onePhotSeparator = options.onePhotSeparator;
 sequenceObliteration = options.sequenceObliteration;
 photStorageMode = options.photStorageMode;
+saveReporterPlots = options.saveReporterPlots;
 
 %Quick check for important options
 if shiftImTime ~= 0
@@ -237,6 +239,25 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
         if k > 1 || k == 0
             ['## Error: Too many h5 (or none) found ##']
             crash = yes
+        end
+
+        if saveReporterPlots
+            try
+                %Check/Make folder to put figures into
+                reportFolder = strcat( dataFolder,filesep,'REPORT' );
+                if exist(reportFolder) ~= 7
+                    mkdir( reportFolder )
+                    disp(['Reporter figure folder made at ',reportFolder])
+                end
+                reportResultsFolder = strcat(outputDirectory,filesep,'Fly', num2str(thisBlock.flyNum), filesep,'Block', num2str(thisBlock.blockNum),filesep,'Report');
+                reportResultsFolder = char(reportResultsFolder);
+                if ~exist(reportResultsFolder,'dir')
+                    mkdir(reportResultsFolder);
+                    disp(['Secondary reporter figure folder made at ',reportResultsFolder])
+                end
+            catch
+                ['-# Railure to generate rolder for repplots #-']
+            end
         end
     
     
@@ -568,6 +589,17 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
             if isequal( matParamStruct.matSave.stimuli , "battery")
                 batteryDesign = 1;
                 disp(['~ Battery design detected ~'])
+            end
+
+            %Assign stimulus identity, for mostly minor uses
+            if batteryDesign
+                stimulusType = 'battery';
+            else
+                if bendyBlockDesign
+                    stimulusType = 'bendy block';    
+                else
+                    stimulusType = 'bendy rolling';  
+                end
             end
 
             %Get script version
@@ -2980,7 +3012,18 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                         end
                         xlim([1,collInds(5,end)]) %Free to resize
                         title(['Meaned data + collection period (g) + stim period (r) + sequence (bottom) [First 5 trials window]'])
-    
+                        if saveReporterPlots
+                            try
+                                drawnow
+                                saveas(gcf, [reportFolder,filesep,flyID,'_allTogetherPlot'], 'png');
+                                saveas(gcf, [reportResultsFolder,filesep,flyID,'_allTogetherPlot'], 'png');
+                                %disp(['Report plot saved'])
+                            catch
+                                ['-# Railure to save replots #-']
+                            end
+                        end
+
+
                         %Prepare a labelled form of randomSeqCorr for intelligent stimulus collection, if applicable
                         if isequal( btInterpolationMethod, 'intelligent' ) 
                             if ~includesBlanks %No blanks
@@ -3525,16 +3568,35 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   plot( photProc )
                   hold on
                   scatter( theseInds , photProc( theseInds ) )
+                  xlabel('TS sample index')
                   ylim([-0.25,1.25])
                   xlim([0,numel(photProc)*0.01])
-                  title(['photProc (full length) + imaging inds [Exp. first 10%]'])
+                  title(['photProc (full length) + imaging vol. inds [Exp. first 10%]',' [',stimulusType,']'])
                   hold off
                   subplot(2,1,2)
                   plot( photProcVol )
-                  ylim([-0.25,1.25])
+                  hold on
+                  plot( normalize( squeeze( nanmean( dataStimTrim , [1,2] ) ) )*0.5 - 1 )
+                  xlabel('Vol #')
+                  ylim([-2.5,1.25])
                   xlim([0,numel(photProcVol)*0.01])
-                  title(['photProcVol [First 10%]']) %Note timing different
-                  set(gcf,'Name',[flyID,' - Phot data reporter figure'])
+                  title(['photProcVol + full-frame mean [First 10%]',' [',stimulusType,']']) %Note timing different
+                  nameStr = [];
+                  nameStr = [nameStr,flyID];
+                  nameStr = [nameStr,' - ',stimulusType];
+                  nameStr = [nameStr,' - Phot data reporter figure'];
+                  %set(gcf,'Name',[flyID,' - Phot data reporter figure'])
+                  set(gcf,'Name',[nameStr])
+                  if saveReporterPlots
+                      try
+                          drawnow
+                          saveas(gcf, [reportFolder,filesep,flyID,nameStr], 'png');
+                          saveas(gcf, [reportResultsFolder,filesep,flyID,nameStr], 'png');
+                          %disp(['Report plot saved'])
+                      catch
+                          ['-# Railure to save replots #-']
+                      end
+                  end
                   clear theseInds
 
                   %QA for onePhot system to compare theoretical (randomSequence/etc) and phot (photProc)

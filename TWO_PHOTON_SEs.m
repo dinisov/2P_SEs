@@ -61,15 +61,17 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-%chosenFlies = [419]; %Matt
-%chosenFlies = [300]; %Matt
-%chosenBlocks = {[99]}; %Leave empty if not using
+%chosenFlies = [393]; %Matt
+chosenFlies = [318,319,321,322,323,343,338,344,399,396]; %Matt
+chosenBlocks = {[2],[2],[2],[2],[2],[2],[3],[3],[3],[4]}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
-%chosenZ = {}; %Same format as chosenBlocks (Specified for all)
+chosenZ = {}; %Same format as chosenBlocks (Specified for all)
+%[chosenFlies, chosenBlocks] = flyProvider( "I:\RFDG2021-Q4413\2P Record\2P_record_datasets.xlsx", 'Whisky', ...
+%    'expandedArchitecture', 0 );
 
-chosenFlies = [298]; %Bhanu
-chosenBlocks = {[2:6,8]};
-chosenZ = {};
+%chosenFlies = [15]; %Bhanu
+%chosenBlocks = {[3]};
+%chosenZ = {};
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
 
@@ -95,6 +97,9 @@ if ~isempty(chosenBlocks)
         thisFlyBlocks = flyRecord(flyRecord.Fly == chosenFlies(fly),:);
         if any( ~ismember(chosenBlocks{fly},thisFlyBlocks.Block.') )
             ['## Alert: One or more requested blocks not existing in flyRecord ##']
+            ['chosenFly ',num2str(fly),' - #',num2str(chosenFlies(fly))]
+            ['requested blocks: ',num2str(chosenBlocks{fly})]
+            ['available blocks: ',num2str(thisFlyBlocks.Block.')]
             crash = yes
         end
     end
