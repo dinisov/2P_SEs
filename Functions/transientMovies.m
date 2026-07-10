@@ -36,13 +36,19 @@ for fly = 1:length(R)
         end
         
         %m_
-        if ~isnan(R(fly).BLOCK(b).Trim) && ( ~isfield(R(fly).BLOCK(b),'TrimCoords') || isempty(R(fly).BLOCK(b).TrimCoords) )
+        if isnan(R(fly).BLOCK(b).Trim) && ( ~isfield(R(fly).BLOCK(b),'TrimCoords') || isempty(R(fly).BLOCK(b).TrimCoords) )
+            trim = repmat( 0 , 1 , 4 ); %No trim?
+            disp(['No trim requested'])
+        elseif ~isnan(R(fly).BLOCK(b).Trim) && ( ~isfield(R(fly).BLOCK(b),'TrimCoords') || isempty(R(fly).BLOCK(b).TrimCoords) )
             %trim = R(fly).BLOCK(b).Trim;
             trim = repmat( R(fly).BLOCK(b).Trim , 1 , 4 ); %Make coord-like, to simplify later
             disp(['Using unitary trim for transient movie creation'])
-        else
+        elseif isfield(R(fly).BLOCK(b),'TrimCoords') && ~isempty(R(fly).BLOCK(b).TrimCoords)
             trim = R(fly).BLOCK(b).TrimCoords; %Note matrix, not singular
             disp(['Using coordinate trim for transient movie creation'])
+        else
+            ['## Unknown trim condition encountered ##']
+            crash = yes
         end
         
         % blank trial transient movie

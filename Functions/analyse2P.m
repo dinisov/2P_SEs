@@ -28,9 +28,24 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks, saveF
             meanDataSeq = R(fly).BLOCK(b).meanDataSeq;
             meanBlankTransient = R(fly).BLOCK(b).meanBlankTransient;
             meanTransient = R(fly).BLOCK(b).meanTransient;
-            ancillary = struct; %Make empty, put stuff in momentarily, if applicable
+            if isfield(thisFly.BLOCKS(b),'ancillary')
+                ancillary = thisFly.BLOCKS(b).ancillary;
+                if isfield(thisFly.BLOCKS(b),'approxVolRate')
+                    ancillary.approxVolRate = thisFly.BLOCKS(b).approxVolRate;
+                end
+            else
+                ancillary = struct; %Make empty, put stuff in momentarily, if applicable
+            end
             if isfield( thisBlock, 'singularZ' )
                 ancillary.singularZ = thisBlock.singularZ;
+            end
+            if isfield(thisFly.BLOCKS(b),'secondStageSmooth')
+                ancillary.secondStageSmooth = thisFly.BLOCKS(b).secondStageSmooth;
+                if ancillary.secondStageSmooth == 1
+                    ancillary.smooth.smoothWindowTime = thisFly.BLOCKS(b).smoothWindowTime;
+                    ancillary.smooth.smoothWindowSize = thisFly.BLOCKS(b).smoothWindowSize;
+                    ancillary.smooth.smoothWindowMethod = thisFly.BLOCKS(b).smoothWindowMethod;
+                end
             end
 
             %save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient');

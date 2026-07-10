@@ -74,6 +74,9 @@ arguments
     options.sequenceObliteration cell = {}; %Sanity check system designed to zero out specific sequences
     options.photStorageMode double = 1; %Whether to save original photData (1), processed photData (2), both (3), or none (0)
     options.saveReporterPlots double = 1; %Whether to save some useful reporter plots to a discreet folder
+    options.secondStageSmooth double = 0; %Whether to perform second-stage smoothing in addition to classic Dinis SG etc
+    options.smoothWindowTime double = 0.5; %For 2nd stage smoothing, how long in seconds to smooth across (Only enacted with smoothing obvs)
+    options.smoothMethod char = "movmean"; %Method for smoothing, can theoretically be any of the supported smoothdata methods
 end
 functionAlity = 1;
 %}
@@ -157,6 +160,9 @@ onePhotSeparator = options.onePhotSeparator;
 sequenceObliteration = options.sequenceObliteration;
 photStorageMode = options.photStorageMode;
 saveReporterPlots = options.saveReporterPlots;
+secondStageSmooth = options.secondStageSmooth;
+smoothWindowTime = options.smoothWindowTime;
+smoothMethod = options.smoothMethod;
 
 %Quick check for important options
 if shiftImTime ~= 0
@@ -2412,6 +2418,8 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                 %Should we be concerned this doesn't exactly match imStimTerp for size?
               disp(['Data trimmed to stimulated portion only'])
               disp([size(dataStimTrim)])
+                %Note: Unless mistaken, the third dimension here refers to **volume**, not Z
+                    %Z is collapsed by collate2PData?
 
               %Calculate times of volumes
               %if batteryDesign
@@ -2425,10 +2433,49 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
               volTimesDesc{3} = 'TS index of vol';
               %end
               %motherbase
+              approxVolRate = nanmedian(diff(volTimes(1,:))); %Probably useful for multiple things
 
               %volTimes 'bootleg' adjustment
               %volTimesAdj = volTimes;
               %volTimesAdj(3,:) = volTimesAdj(3,:) - firstImStimFrameInd; %Manually shift TS reference back by 
+
+              %Second-stage smooth, if requested
+              if secondStageSmooth
+
+                  disp(['-- Second-stage smoothing requested --'])
+
+                  %Calculate number of volumes
+                  %approxVolRate = nanmedian(diff(volTimes(1,:)));
+                  smoothWindowSize = ceil( smoothWindowTime / approxVolRate); %Use volTimes to find approx imaging volrate
+                  disp(['Smooth time: ',num2str(smoothWindowTime),'s -> ',num2str(smoothWindowSize),' vol window (Imaging rate: ~',num2str(1/approxVolRate),'vol/s)'])
+
+                  temp = smoothdata( dataStimTrim, 3, smoothMethod, smoothWindowSize ); %Dim 3 because that is volume dim
+
+                  %Testatory plot
+                  figure
+                  %Big
+                  subplot(2,1,1)
+                  plot( squeeze( nanmean(dataStimTrim, [1,2])) )
+                  hold on
+                  plot( squeeze( nanmean(temp, [1,2])) )
+                  xlabel(['Vol #'])
+                  legend({'Original data', 'Smoothed data'})
+                  title(['Whole-frame mean original vs smoothed (',num2str(smoothWindowTime),'s/',num2str(smoothWindowSize),'vol window) comparison'])
+                  %Zoom
+                  subplot(2,1,2)
+                  cenp = [ ceil(size(dataStimTrim,1)/2), ceil(size(dataStimTrim,2)/2) ];
+                  plot( squeeze( dataStimTrim(cenp(1),cenp(2),:) ) )
+                  hold on
+                  plot( squeeze( temp(cenp(1),cenp(2),:) ) )
+                  xlim([0,10 / approxVolRate])
+                  xlabel(['Vol #'])
+                  legend({'Original data', 'Smoothed data'})
+                  title(['Pixel ',num2str(cenp(1)),'x',num2str(cenp(2)),' original vs smoothed (',num2str(smoothWindowTime),'s/',num2str(smoothWindowSize),'vol window) comparison [Zoom]'])
+                  set(gcf,'Name',[flyID,' - smoothing effect plot'])
+
+                  dataStimTrim = temp; %Apply
+
+              end
               
 
               %Second testatory figure of transient against phot (if existing)
@@ -3692,9 +3739,11 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                           disp(['(Pseudo-)Faux block design created']) %'Pseudo' faux because not as faux as expanded rolling -> rolling blocks of bendy rolling analysis
                           %clear postStimData deRandomSeq nomInter
                       end
-                      if isfield( matParamStruct.matSave, 'blockDesign' )
-                         BLOCKS( thisFlyRowInd ).bendyBlockDesign =  matParamStruct.matSave.blockDesign;
-                      end
+                      %if isfield( matParamStruct.matSave, 'blockDesign' )
+                      %if exist('bendyBlockDesign')
+                      %  %BLOCKS( thisFlyRowInd ).bendyBlockDesign =  matParamStruct.matSave.blockDesign;
+                      %  BLOCKS( thisFlyRowInd ).bendyBlockDesign =  matParamStruct.matSave.blockDesign;
+                      %end
                       disp(['Modified data and randomSequence inserted into BLOCKS'])
                       %slyleaf
                       if stillRollable == 0
@@ -3721,8 +3770,19 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       %end
                   elseif ~batteryDesign && unsiphonedSEs
                       BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
-                      BLOCKS( thisFlyRowInd ).volTimes = volTimes;                    
-                      BLOCKS( thisFlyRowInd ).stimulus = 'bendy_block_unsiphoned';
+                      BLOCKS( thisFlyRowInd ).volTimes = volTimes;        
+                      if bendyBlockDesign
+                        BLOCKS( thisFlyRowInd ).stimulus = 'bendy_block_unsiphoned';
+                      elseif ~bendyBlockDesign
+                        BLOCKS( thisFlyRowInd ).stimulus = 'bendy_rolling_unsiphoned';
+                      else
+                        ['## Unknown case ##']
+                        crash = yes
+                      end
+                  end
+                  if exist('bendyBlockDesign')
+                    %BLOCKS( thisFlyRowInd ).bendyBlockDesign =  matParamStruct.matSave.blockDesign;
+                    BLOCKS( thisFlyRowInd ).bendyBlockDesign =  matParamStruct.matSave.blockDesign;
                   end
                   BLOCKS( thisFlyRowInd ).hasPhotData = hasPhotData;
                   if hasPhotData
@@ -3750,6 +3810,13 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                   BLOCKS( thisFlyRowInd ).phaseShifted = phaseShifted;
                   if shiftImTime ~= 0
                       BLOCKS( thisFlyRowInd ).imagingStartTimeShift = shiftImTime;                 
+                  end
+                  BLOCKS( thisFlyRowInd ).approxVolRate = approxVolRate;
+                  BLOCKS( thisFlyRowInd ).secondStageSmooth = secondStageSmooth;
+                  if secondStageSmooth
+                      BLOCKS( thisFlyRowInd ).smoothWindowTime = smoothWindowTime; 
+                      BLOCKS( thisFlyRowInd ).smoothWindowSize = smoothWindowSize; 
+                      BLOCKS( thisFlyRowInd ).smoothWindowMethod = smoothMethod;
                   end
               end
     

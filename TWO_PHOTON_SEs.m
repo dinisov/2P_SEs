@@ -61,16 +61,16 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-%chosenFlies = [393]; %Matt
-chosenFlies = [318,319,321,322,323,343,338,344,399,396]; %Matt
-chosenBlocks = {[2],[2],[2],[2],[2],[2],[3],[3],[3],[4]}; %Leave empty if not using
+chosenFlies = [396,399,343,344,327,328,312,314,316,319,322,327,328]; %Matt
+%chosenFlies = [318,319,321,322,323,343,338,344,399,396]; %Matt
+chosenBlocks = {}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
 chosenZ = {}; %Same format as chosenBlocks (Specified for all)
 %[chosenFlies, chosenBlocks] = flyProvider( "I:\RFDG2021-Q4413\2P Record\2P_record_datasets.xlsx", 'Whisky', ...
 %    'expandedArchitecture', 0 );
 
 %chosenFlies = [15]; %Bhanu
-%chosenBlocks = {[3]};
+%chosenBlocks = {[2]};
 %chosenZ = {};
 
 flyRecord = flyRecord(ismember(flyRecord.Fly,chosenFlies),:);
@@ -136,9 +136,11 @@ for flyInd = 1:length(chosenFlies)
         %processFlies(flyRecord, fly, theseChosenBlocks, theseChosenZs, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, separateByState, doRolling, recordPath);
         processFlies(flyRecord, fly, theseChosenBlocks, theseChosenZs, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, ...
             'separateByState', separateByState, 'doRolling', doRolling, 'recordPath',recordPath,...
-            'syncManUnsiphonedSEs',unsiphonedSEs,'syncManOverwriteShortcut',overwriteShortcut);
+            'syncManUnsiphonedSEs',unsiphonedSEs,'syncManOverwriteShortcut',overwriteShortcut,...
+            'syncMan2ndStageSmooth',1);
     end
 end
 endTime = datetime('now');
 MET = seconds(endTime-startTime);
 disp([char(10),'---------------------------------',char(10),'Total analysis time: ',num2str(MET/60),'m'])
+close all

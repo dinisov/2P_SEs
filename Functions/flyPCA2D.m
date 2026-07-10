@@ -37,8 +37,16 @@ for fly = 1:length(R)
         %trim = results.Trim;
         if ~isfield(results,'TrimCoords') || isempty(results.TrimCoords)
             trim = results.Trim;
+            if isnan(trim)
+                disp(['-# Caution: PCA received NaN trim value [Singular] #-'])
+                trim = 0; 
+            end
         else
             trim = results.TrimCoords;
+            if any( isnan(trim) )
+                disp(['-# Caution: PCA received NaN trim value [Coords] #-'])
+                trim = [0,0,0,0]; %Correct?
+            end
         end
         
         %imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;
@@ -153,8 +161,16 @@ for fly = 1:length(R)
         %trim = R(fly).BLOCK(b).Trim;
         if ~isfield(R(fly).BLOCK(b),'TrimCoords') || isempty(R(fly).BLOCK(b).TrimCoords)
             trim = R(fly).BLOCK(b).Trim;
+            if isnan(trim)
+                %disp(['-# Caution: PCA received NaN trim value [Singular] #-'])
+                trim = 0; 
+            end
         else
             trim = R(fly).BLOCK(b).TrimCoords;
+            if any( isnan(trim) )
+                %disp(['-# Caution: PCA received NaN trim value [Coords] #-'])
+                trim = [0,0,0,0]; %Correct?
+            end
         end
         
         %imageSize = size(R(fly).BLOCK(b).meanDataSeq,[3 4]) - 2 * trim;

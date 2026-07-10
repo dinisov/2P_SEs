@@ -20,6 +20,7 @@ arguments
     options.syncManUnsiphonedSEs double = 0
     options.syncManOverwriteShortcut double = 0
     options.syncManDoVid double = 0
+    options.syncMan2ndStageSmooth double = 0;
 end
 
 separateByState = options.separateByState;
@@ -29,6 +30,7 @@ recordPath = options.recordPath;
 overwriteShortcut = options.syncManOverwriteShortcut;
 unsiphonedSEs = options.syncManUnsiphonedSEs;
 doVid = options.syncManDoVid;
+secondStageSmooth = options.syncMan2ndStageSmooth;
 
 disp([char(10),'-------------------------------------'])
 %% collate, reduce, filter and concatenate pre-aligned data
@@ -56,7 +58,7 @@ try
     [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', doVid, 'rollingAnalysis', -1,...
         'disregardRollingDesign', 0, 'overwriteShortcut', overwriteShortcut, 'unsiphonedSEs', unsiphonedSEs, 'disregardBattery', 1,...
         'outputDirectory',outputDirectory,...
-            'photStorageMode',2);
+            'photStorageMode',2, 'secondStageSmooth',secondStageSmooth);
         %'sequenceObliteration',{[0,0,0,0,0],[1,1,1,1,1]});
         %'shiftImTime',0);
         %'forceNoIterator',0);
