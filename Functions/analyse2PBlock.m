@@ -1,4 +1,11 @@
-function R = analyse2PBlock(block)
+function R = analyse2PBlock(block,options)
+
+arguments
+    block struct
+    options.skipIso double = 0;
+end
+
+skipIso = options.skipIso;
 
     %% sort data according to previous sequence
 
@@ -14,7 +21,8 @@ function R = analyse2PBlock(block)
     %load('I:\RFDG2021-Q4413\2P_Data\Gcamp7s_CC\3Jun24\fly1_exp1_3Jun24\behavSequence.mat')
     %behavSequence = savStruct.acInac.thisInacBinaryInterp;
 
-    skipIso = 1; %Whether to skip doing isomer data (Useful for very large/fast data)
+    %skipIso = 1; %Whether to skip doing isomer data (Useful for very large/fast data)
+        %Defined now as argument
     if skipIso
         disp(['-# Isomer data not being calculated, per request #-'])
     end
@@ -25,13 +33,13 @@ function R = analyse2PBlock(block)
         %[dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, 'behavSequence', block.behavSequence);
         %[dataSeq, dataSeqIso, dataSeqBehav, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
         %    'behavSequence', block.behavSequence, 'doRolling', block.doRolling, 'skipIso',skipIso);
-        [dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
+        [dataSeq, dataSeqIso, dataSeqBehav, auxSeq] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
             'behavSequence', block.behavSequence, 'doRolling', block.doRolling, 'skipIso',skipIso);
     else
         %[dataSeq, dataSeqIso, ~] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli);
         %[dataSeq, dataSeqIso, ~, rollStruct] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
         %    'doRolling', block.doRolling,'skipIso',skipIso);
-        [dataSeq, dataSeqIso, ~] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
+        [dataSeq, dataSeqIso, ~, auxSeq] = sortSEs2P(block.greenChannel, block.randomSequence, block.nVol, block.nStimuli, ...
             'doRolling', block.doRolling,'skipIso',skipIso);
     end
     
@@ -72,6 +80,7 @@ function R = analyse2PBlock(block)
   
     R.dataSeq = dataSeq;
     R.dataSeqIso = dataSeqIso;% this still holds the 32 sequences
+    R.auxSeq = auxSeq; %Isomer-specific indexing (e.g. 32 -> 16)
     R.meanDataSeq = meanDataSeq;
     R.nData = nData;
     

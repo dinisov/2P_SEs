@@ -1,4 +1,5 @@
-close all; clear;
+%close all; 
+%clear;
 
 addpath('..\Dinis Scripts\Global functions\');
 addpath('..\Dinis Scripts\Indexes and legends\');
@@ -6,14 +7,15 @@ addpath('..\Dinis Scripts\Indexes and legends\');
 addpath('.\Functions\');
 addpath('..\Matt Scripts\');
 
-close all; clear;
+%close all; 
+clear;
 
 %Matt/Dinish
-%{{
+%{
 RDMDirectory = '\\uq.edu.au\uq-inst-gateway1\RFDG2021-Q4413\2P_Data\';
 %where the sequence data is located (stimulus files)
-%sequenceDirectory = 'I:\RFDG2021-Q4413\2P_Data\RPiData';
-sequenceDirectory = 'I:\RFDG2021-Q4413\Matt';
+sequenceDirectory = 'I:\RFDG2021-Q4413\2P_Data\RPiData';
+%sequenceDirectory = 'I:\RFDG2021-Q4413\Matt';
 %where the main data is found
 dataDirectory = fullfile(RDMDirectory,'Gcamp7s_CC/');
 outputDirectory = '../2P_RESULTS_5';
@@ -24,7 +26,7 @@ flyRecord = readtable(recordPath);
 
 
 %Andre params
-%{
+%{{
 RDMDirectory = 'I:\RFDG2021-Q4413\Andre\2p_Data\\'; %Andre
 sequenceDirectory = 'I:\RFDG2021-Q4413\Andre';
 dataDirectory = fullfile(RDMDirectory);
@@ -61,13 +63,15 @@ gridSize = [64 64];
 
 flyList = unique(flyRecord.Fly);
 
-chosenFlies = [396,399,343,344,327,328,312,314,316,319,322,327,328]; %Matt
+chosenFlies = [255]; %Matt
 %chosenFlies = [318,319,321,322,323,343,338,344,399,396]; %Matt
-chosenBlocks = {}; %Leave empty if not using
+%chosenBlocks = {[3],[2],[2],[2],[2]}; %Leave empty if not using
     %Note: If using, block/s must be specified for *all* chosen flies
+chosenBlocks = [3]; %New format, which can be double matrix and will be converted into cells if necessary
 chosenZ = {}; %Same format as chosenBlocks (Specified for all)
 %[chosenFlies, chosenBlocks] = flyProvider( "I:\RFDG2021-Q4413\2P Record\2P_record_datasets.xlsx", 'Whisky', ...
 %    'expandedArchitecture', 0 );
+pciAnalysis = 1;
 
 %chosenFlies = [15]; %Bhanu
 %chosenBlocks = {[2]};
@@ -91,6 +95,21 @@ doRolling = 0; %Whether to also do rolling analysis (DEPRECATED)
     %Secondary note: Not tested for a very long time
 
 %%
+%Pre-pre QA
+if ~isempty(chosenBlocks) && ~iscell(chosenBlocks)
+    if numel(chosenBlocks) == numel(chosenFlies)
+        temp = {};
+        for fly = 1:size(chosenBlocks,2)
+            temp{fly} = chosenBlocks(fly);
+        end
+        chosenBlocks = temp;
+    else
+        ['## Alert: Mismatch between chosenFlies and chosenBlocks number of elements ##']
+        crash = yes
+    end
+    disp(['-# Matrix chosenBlocks converted to cell array #-'])
+end
+
 %Pre QA for bad block specification
 if ~isempty(chosenBlocks)
     for fly = 1:length(chosenFlies)
@@ -137,7 +156,7 @@ for flyInd = 1:length(chosenFlies)
         processFlies(flyRecord, fly, theseChosenBlocks, theseChosenZs, gridSize, dataDirectory, sequenceDirectory, outputDirectory, analysisToggle, groupedBlocks, ...
             'separateByState', separateByState, 'doRolling', doRolling, 'recordPath',recordPath,...
             'syncManUnsiphonedSEs',unsiphonedSEs,'syncManOverwriteShortcut',overwriteShortcut,...
-            'syncMan2ndStageSmooth',1);
+            'syncMan2ndStageSmooth',1, 'skipIso',0, 'pciAnalysis',pciAnalysis);
     end
 end
 endTime = datetime('now');

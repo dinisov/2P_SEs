@@ -1,8 +1,9 @@
-function [dataSeq, dataSeqIso, dataSeqBehav] = sortSEs2P(imageStack, randomSequence, nVol, nStimuli, options)
+function [dataSeq, dataSeqIso, dataSeqBehav, auxSeq] = sortSEs2P(imageStack, randomSequence, nVol, nStimuli, options)
 %this function sorts ERPs according to the past sequence of events
 %Mk 1 - Dinis original functionality (Note: dataSeq hardcoded to be constructed as block design, even from rolling data)
 %   2 - Modifications to use rollStruct code for rolling
 %   3 - Reversion to use faux-block nature for rolling
+%   4 - Isomer specific updates, addition of auxSeq for posterity
 
 arguments
     imageStack double
@@ -146,13 +147,35 @@ options.nBack = 5; %Forced default
 
         %Matt testatory plot to show mean transients for all seqs
         temp = nanmean( dataSeq , [3,4,5] );
+            %Note: Technically this math is done differently to how Dinis calculates meanDataSeq
+        seqColours = jet( nanmax(auxSeq) );
         figure
         for seq = 1:size(dataSeq,2)
-            subplot( ceil(sqrt(size(dataSeq,2))) , ceil(sqrt(size(dataSeq,2))), seq )
+            ax = subplot( ceil(sqrt(size(dataSeq,2))) , ceil(sqrt(size(dataSeq,2))), seq );
             plot( temp(:,seq) )
+            box(ax, 'on'); 
+            ax.XColor = seqColours( seq, : ); 
+            ax.YColor = seqColours( seq, : );
             title(['Seq #',num2str(seq)])
+
         end
         set(gcf,'Name','Mean seq transient')
+        %Repeat for isomer data, if applicable
+        if ~skipIso
+            
+            temp = nanmean( dataSeqIso , [3,4,5] );
+            %Note: Technically this math is done differently to how Dinis calculates meanDataSeq
+            figure
+            for seq = 1:size(dataSeqIso,2)
+                ax = subplot( ceil(sqrt(size(dataSeqIso,2))) , ceil(sqrt(size(dataSeqIso,2))), seq );
+                plot( temp(:,seq) )
+                box(ax, 'on'); 
+                ax.XColor = seqColours( auxSeq(seq), : ); 
+                ax.YColor = seqColours( auxSeq(seq), : );
+                title(['Iso seq #',num2str(seq), ' [M#',num2str(auxSeq(seq)),']'])
+            end
+            set(gcf,'Name','Mean iso seq transient')
+        end
 
         if skipIso
             disp([num2str(toc),'s to assemble dataSeq'])
@@ -160,6 +183,8 @@ options.nBack = 5; %Forced default
             disp([num2str(toc),'s to assemble dataSeq (and dataSeqIso)'])
         end
         %size(behavSeq)
+
+
     
     %Rolling, if applicable
     %elseif doRolling == 1

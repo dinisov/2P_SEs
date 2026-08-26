@@ -21,6 +21,8 @@ arguments
     options.syncManOverwriteShortcut double = 0
     options.syncManDoVid double = 0
     options.syncMan2ndStageSmooth double = 0;
+    options.skipIso double = 1; %Whether to skip maintaining isomer data in its full form
+    options.pciAnalysis double = 0;
 end
 
 separateByState = options.separateByState;
@@ -31,6 +33,8 @@ overwriteShortcut = options.syncManOverwriteShortcut;
 unsiphonedSEs = options.syncManUnsiphonedSEs;
 doVid = options.syncManDoVid;
 secondStageSmooth = options.syncMan2ndStageSmooth;
+skipIso = options.skipIso;
+pciAnalysis = options.pciAnalysis;
 
 disp([char(10),'-------------------------------------'])
 %% collate, reduce, filter and concatenate pre-aligned data
@@ -58,7 +62,7 @@ try
     [FLIES] = syncMaster( FLIES , flyRecord, 'dataDirectory', dataDirectory, 'doPlot', 0, 'doVid', doVid, 'rollingAnalysis', -1,...
         'disregardRollingDesign', 0, 'overwriteShortcut', overwriteShortcut, 'unsiphonedSEs', unsiphonedSEs, 'disregardBattery', 1,...
         'outputDirectory',outputDirectory,...
-            'photStorageMode',2, 'secondStageSmooth',secondStageSmooth);
+            'photStorageMode',2, 'secondStageSmooth',secondStageSmooth, 'pciAnalysis',pciAnalysis);
         %'sequenceObliteration',{[0,0,0,0,0],[1,1,1,1,1]});
         %'shiftImTime',0);
         %'forceNoIterator',0);
@@ -68,8 +72,8 @@ catch
 end
 
 %Some QAs/checks
-if unsiphonedSEs
-    disp(['Unsiphoned SEs requested; Ceasing (Dinis) processing'])
+if unsiphonedSEs || pciAnalysis
+    disp(['Unsiphoned SEs and/or PCI analysis requested; Ceasing (Dinis) processing'])
     return
 end
 if isempty(FLIES.BLOCKS) %Might crash under normal circumstances?
@@ -87,7 +91,7 @@ end
 % separates images according to preceding sequence of stimuli and
 % calculates mean images as a function of the sequence
 
-R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks, 1); %New argument: saveFull
+R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks, 1, skipIso); %New argument: saveFull and skipIso
 
 %% make movies of transients as differences to mean
 if analysisToggle(1)

@@ -1,4 +1,4 @@
-function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks, saveFull)
+function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks, saveFull, skipIso)
 %analyse2P Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -18,7 +18,8 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks, saveF
             thisBlock = thisFly.BLOCKS(b);
             disp(thisBlock)
             %earthquke
-            R(fly).BLOCK(b) = analyse2PBlock(thisBlock);
+            %R(fly).BLOCK(b) = analyse2PBlock(thisBlock);
+            R(fly).BLOCK(b) = analyse2PBlock(thisBlock,'skipIso',skipIso);
             
             %thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(b)]);
             thisBlockDirectory = fullfile(outputDirectory,['Fly' num2str(chosenFlies(fly))],['Block' num2str(blockNum)]);
@@ -51,6 +52,28 @@ function R = analyse2P(FLIES, chosenFlies, outputDirectory, groupedBlocks, saveF
             %save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient');
             save(fullfile(thisBlockDirectory,'results'),'meanDataSeq','meanBlankTransient','meanTransient', 'ancillary');
             
+            %Save isomer data (if requested)
+            if ~skipIso
+                dataSeqIso = R(fly).BLOCK(b).dataSeqIso;
+                %Note: This is the full form
+                auxSeq = R(fly).BLOCK(b).auxSeq;
+
+                %%meanDataSeq = sum(dataSeq,5)./sum(dataSeq~=0,5); %This is the math (in analyse2PBlock) that turns dataSeq into meanDataSeq, for reference
+                %%meanDataSeq(isnan(meanDataSeq)) = 0;
+                    %Note: Empirical testing seems to confirm that under normal circumstances sum and mean yield same shape, but not absolute values
+
+                meanSeqIso = sum(dataSeqIso,5)./sum(dataSeqIso~=0,5);
+                meanSeqIso(isnan(meanSeqIso)) = 0;
+                    %Note: I do not personally agree with this system to find the mean, but it is Dinis' canonical method
+
+                save(fullfile(thisBlockDirectory,'resultsIso'),'meanSeqIso','auxSeq','meanBlankTransient','ancillary');
+
+                if saveFull
+                    save(fullfile(thisBlockDirectory,'resultsIsoFull'),'dataSeqIso','auxSeq','meanBlankTransient','ancillary','-v7.3');
+                end
+
+            end
+
             %Save full (per-event) sequence data, if requested
             if ~isempty(saveFull) && saveFull
                 dataSeq = R(fly).BLOCK(b).dataSeq; %Inefficient memory, but necessary for save?
