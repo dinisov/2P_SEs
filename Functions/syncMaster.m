@@ -3875,6 +3875,7 @@ for fly = 1:length(FLIES) %Need to check this actually does multiple flies
                       end
                   elseif pciAnalysis
                       BLOCKS( thisFlyRowInd ).greenChannel = dataStimTrim;
+                      BLOCKS( thisFlyRowInd ).redLEDData = redLEDData;
                       BLOCKS( thisFlyRowInd ).volTimes = volTimes;   
                       BLOCKS( thisFlyRowInd ).stimulus = 'PCI';   
                       disp(['Data saved for PCI analysis'])
